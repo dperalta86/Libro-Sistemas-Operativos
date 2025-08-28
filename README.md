@@ -34,7 +34,7 @@ Este libro surge de la necesidad de contar con material didáctico específico p
 ### Versión PDF compilada
 
 Descarga la última versión del libro completo:
-- **[📄 Descargar PDF](https://github.com/[tu-usuario]/libro-sistemas-operativos/releases/latest/download/libro-sistemas-operativos.pdf)**
+- **[📄 Descargar PDF](https://github.com/dperalta86/Libro-Sistemas-Operativos/releases/latest/download/libro-sistemas-operativos.pdf)**
 
 ### Leer online
 
