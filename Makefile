@@ -86,7 +86,7 @@ $(OUTPUT_DIR)/$(BOOK_NAME).pdf: $(COMBINED_MD) $(PNG)
 	pandoc $(COMBINED_MD) \
 		-o $(OUTPUT_DIR)/$(BOOK_NAME).pdf \
 		--from markdown \
-		--template eisvogel \
+		--template templates/eisvogel.latex \
 		--pdf-engine xelatex \
 		--top-level-division="chapter" \
 		--number-sections \
