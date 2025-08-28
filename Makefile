@@ -62,7 +62,7 @@ $(OUTPUT_DIR)/$(BOOK_NAME).pdf: $(COMBINED_MD) $(PNG) $(TEMPLATE)
 		--listings \
 		--shift-heading-level-by=0 \
 		--verbose
-	@echo "✅ PDF generado exitosamente: $(OUTPUT_DIR)/$(BOOK_NAME).pdf"
+	@echo " PDF generado exitosamente: $(OUTPUT_DIR)/$(BOOK_NAME).pdf"
 
 # Para debugging - no borra el archivo temporal
 debug: $(COMBINED_MD)
