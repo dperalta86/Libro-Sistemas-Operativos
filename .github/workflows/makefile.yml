@@ -1,0 +1,29 @@
+name: Makefile CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pandoc texlive-xetex texlive-fonts-recommended texlive-latex-extra
+            
+    - name: Compile PDF with Makefile
+      run: make
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+          name: book
+          path: build/Introduccion_a_los_Sistemas_Operativos.pdf
