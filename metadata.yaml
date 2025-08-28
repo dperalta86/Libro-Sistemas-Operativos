@@ -1,0 +1,96 @@
+# Configuración de la portada Eisvogel
+title: ""
+author: ""
+date: ""
+subject: "Sistemas Operativos"
+keywords: [Sistemas Operativos, Operative systems, Example]
+subtitle: ""
+lang: "es"
+titlepage: true,
+titlepage-text-color: "FFFFFF"
+titlepage-rule-color: "360049"
+titlepage-rule-height: 0
+titlepage-background: "src/images/portada.jpeg"
+
+# Configuración del índice
+toc: true
+toc-own-page: true
+toc-title: "Índice de Contenidos"
+toc-depth: 3
+
+# Configuración de página
+page-background: ""
+page-background-opacity: 1
+geometry: "left=2.5cm,right=2.5cm,top=3cm,bottom=3cm"
+fontfamily: ""
+fontsize: "11pt"
+
+# Headers y footers Eisvogel
+header-left: "Daniel Peralta"
+header-center: ""
+header-right: "Introducción a los Sistemas Operativos"
+footer-left: ""
+footer-center: ""
+footer-right: ""
+
+# Configuración de código Eisvogel
+listings-disable-line-numbers: false
+# code-block-font-size: "\\footnotesize"
+listings-no-page-break: false
+
+# Configuración específica de Eisvogel
+book: true
+classoption: "oneside"
+papersize: "a4"
+
+# Configuración imagenes
+figureTitle: "Figura"
+figureAlign: center
+
+# Configuración de LaTeX mínima para evitar conflictos
+header-includes: |
+  \usepackage{float}
+  \usepackage{tcolorbox}
+  \newtcolorbox{definitionbox}{colback=blue!5!white,colframe=blue!50!white,boxrule=0.5pt,arc=2pt,left=6pt,right=6pt,top=6pt,bottom=6pt}
+  \floatplacement{figure}{H}
+  \usepackage{xcolor}
+  \setcounter{chapter}{0}
+  \setcounter{section}{0}
+  \renewcommand{\thechapter}{\arabic{chapter}}
+  \renewcommand{\thesection}{\thechapter.\arabic{section}}
+  
+# Páginas adicionales (sin frontmatter/mainmatter)
+include-before: |
+  \newpage
+  \thispagestyle{empty}
+  \null\vfill
+  \begin{center}
+    {\Large\textit{Mensaje a los Estudiantes}}
+  \end{center}
+  \vspace{2cm}
+  \begin{center}
+    Este material recopila y organiza los conceptos fundamentales de \\
+    Sistemas Operativos con un enfoque tanto teórico como práctico. \\[1em]
+    
+    Espero que les sirva como guía de estudio y consulta \\
+    para acompañar las clases y preparar los exámenes. \\[2em]
+    
+    \textbf{¡Muchos éxitos en su recorrido por la materia!}
+  \end{center}
+  \vfill
+  
+  \newpage
+  \thispagestyle{empty}
+  \null\vfill
+  \begin{center}
+    {\Large\textbf{Agradecimientos}}
+  \end{center}
+  \vspace{1cm}
+  \begin{center}
+    A los profesores de la materia por su dedicación y materiales. \\[1em]
+    A mis compañeros de estudio por las valiosas discusiones y aportes. \\[1em]
+    A la comunidad de código abierto por las herramientas \\
+    que hicieron posible este proyecto.
+  \end{center}
+  \vfill
+  \newpage

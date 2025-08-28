@@ -1,0 +1,15 @@
+flowchart TD
+
+    %% Nodos principales
+    A([Fetch Instruction]) --> B([Decode Instruction])
+    B --> C([Operand Fetch])
+    C --> D([Execute Instruction])
+    D --> E([Write Back])
+    E --> F{Interrupt<BR>Request?}
+
+    %% Decisión de interrupción
+    F -->|Yes| G([Interrupt Service Routine])
+    F -->|No| A
+
+    %% Fin de rutina vuelve al ciclo
+    G --> A

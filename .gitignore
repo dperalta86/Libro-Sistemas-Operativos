@@ -1,0 +1,15 @@
+# VS Code settings #
+.vscode/
+
+# Compiled source #
+*.o
+*.so
+*.exe
+*.out
+*.pdf
+/build/
+libro-completo.md
+
+# Plantilla Eisvogel
+/Eisvogel-3.2.0
+

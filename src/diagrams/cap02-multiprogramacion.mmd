@@ -1,0 +1,31 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor': '#5a6c7d', 'primaryTextColor': '#2c3e50', 'primaryBorderColor': '#34495e', 'lineColor': '#7f8c8d'}}}%%
+flowchart LR
+    subgraph "Timeline →"
+        direction TB
+        T1[Q1: A ejecuta]
+        T2[Q2: B ejecuta] 
+        T3[Q3: C ejecuta]
+        T4[Q4: A continúa]
+    end
+    
+    subgraph "Context Switches"
+        direction TB
+        CS1[SO: A→B<br/>💾📂]
+        CS2[SO: B→C<br/>💾📂]
+        CS3[SO: C→A<br/>💾📂]
+    end
+    
+    T1 --> CS1
+    CS1 --> T2
+    T2 --> CS2
+    CS2 --> T3
+    T3 --> CS3
+    CS3 --> T4
+    
+    style T1 fill:#5a6c7d,stroke:#3a4c5d,color:#fff
+    style T2 fill:#6b8e5a,stroke:#4a6741,color:#fff
+    style T3 fill:#8e6b5a,stroke:#6e4b3a,color:#fff
+    style T4 fill:#5a6c7d,stroke:#3a4c5d,color:#fff
+    style CS1 fill:#7a8a9a,stroke:#5a6a7a,color:#fff
+    style CS2 fill:#7a8a9a,stroke:#5a6a7a,color:#fff
+    style CS3 fill:#7a8a9a,stroke:#5a6a7a,color:#fff

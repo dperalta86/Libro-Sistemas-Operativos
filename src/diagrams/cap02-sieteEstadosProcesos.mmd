@@ -1,0 +1,26 @@
+flowchart LR
+    %% Definición de nodos con ancho mínimo y saltos de línea donde sea necesario
+    New(("&nbsp;&nbsp;NEW&nbsp;&nbsp;")):::state
+    Ready(("READY")):::state
+    Running(("RUNNING")):::running
+    Waiting(("WAITING")):::state
+    Terminated(("TERMINATED")):::terminated
+    SuspReady(("SUSPENDED<br>READY")):::state
+    SuspWaiting(("SUSPENDED<br>WAITING")):::state
+
+    %% Transiciones
+    New --> Ready
+    Ready --> Running
+    Running --> Ready
+    Running --> Waiting
+    Running --> Terminated
+    Waiting --> Ready
+    Ready --> SuspReady
+    SuspReady --> Ready
+    Waiting --> SuspWaiting
+    SuspWaiting --> Waiting
+
+    %% Estilos comunes
+    classDef state fill:#5A6A9F,stroke:#7A7A7A,stroke-width:2px,color:#FFFFFF,minWidth:120px,minHeight:60px
+    classDef running fill:#7FD8B3,stroke:#7A7A7A,stroke-width:2px,color:#FFFFFF,minWidth:120px,minHeight:60px
+    classDef terminated fill:#9E9E9E,stroke:#7A7A7A,stroke-width:2px,color:#FFFFFF,minWidth:120px,minHeight:60px
