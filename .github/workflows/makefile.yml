@@ -1,4 +1,4 @@
-name: Build and Release PDF book
+name: Build
 
 on:
   push:
