@@ -1,39 +1,38 @@
-name: Build PDF
+name: Build and Release PDF
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    tags:
+      - "v*"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install system dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             pandoc \
             texlive-xetex \
-            texlive-latex-recommended \
+            texlive-latex-base \
             texlive-latex-extra \
             texlive-fonts-recommended \
             texlive-fonts-extra \
-            texlive-lang-spanish
+            lmodern \
+            fonts-dejavu \
+            fonts-freefont-otf \
+            fonts-freefont-ttf
+          sudo npm install -g @mermaid-js/mermaid-cli
 
-      - name: Install Mermaid CLI
-        run: npm install -g @mermaid-js/mermaid-cli@latest
-
-      - name: Compile PDF with Makefile
+      - name: Build PDF
         run: make
 
-      - name: Upload artifact (PDF)
-        uses: actions/upload-artifact@v4
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: book
-          path: build/Introduccion_a_los_Sistemas_Operativos.pdf
+          files: build/Introduccion_a_los_Sistemas_Operativos.pdf
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
