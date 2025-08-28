@@ -18,6 +18,10 @@ METADATA = metadata.yaml
 COMBINED_MD = libro-completo.md
 TEMPLATE = templates/eisvogel.latex
 
+# Lista todos los diagramas Mermaid
+DIAGRAMS := $(wildcard $(SRC_DIR)/diagrams/*.mmd)
+PNG := $(DIAGRAMS:.mmd=.png)
+
 all: $(OUTPUT_DIR)/$(BOOK_NAME).pdf
 
 # Generar archivo markdown combinado
@@ -38,11 +42,9 @@ $(COMBINED_MD): $(METADATA) $(CAPITULOS)
 		fi \
 	done
 
-# Lista todos los diagramas Mermaid
-DIAGRAMS := $(wildcard src/diagrams/*.mmd)
-PNG := $(DIAGRAMS:.mmd=.png)
-
+# Renderizar diagramas Mermaid
 $(PNG): %.png : %.mmd
+	@echo "Exportando diagrama Mermaid: $< → $@"
 	mmdc -i $< -o $@
 
 # Generar PDF
@@ -53,14 +55,14 @@ $(OUTPUT_DIR)/$(BOOK_NAME).pdf: $(COMBINED_MD) $(PNG) $(TEMPLATE)
 		-o $(OUTPUT_DIR)/$(BOOK_NAME).pdf \
 		--from markdown \
 		--template $(TEMPLATE) \
-		--pdf-engine xelatex \
+		--pdf-engine=xelatex \
 		--top-level-division="chapter" \
 		--number-sections \
 		--highlight-style tango \
 		--listings \
 		--shift-heading-level-by=0 \
 		--verbose
-	@echo "PDF generado exitosamente: $(OUTPUT_DIR)/$(BOOK_NAME).pdf"
+	@echo "✅ PDF generado exitosamente: $(OUTPUT_DIR)/$(BOOK_NAME).pdf"
 
 # Para debugging - no borra el archivo temporal
 debug: $(COMBINED_MD)
@@ -72,9 +74,9 @@ debug: $(COMBINED_MD)
 clean:
 	rm -f $(COMBINED_MD)
 	rm -rf $(OUTPUT_DIR)
-	@echo "Archivos temporales eliminados"
+	@echo "🧹 Archivos temporales eliminados"
 
 # Mostrar estructura del proyecto
 structure:
-	@echo "Estructura actual del proyecto:"
+	@echo "📂 Estructura actual del proyecto:"
 	@find . -name "*.md" -o -name "*.yaml" -o -name "*.jpeg" -o -name "*.jpg" -o -name "*.png" | sort
