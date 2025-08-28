@@ -11,24 +11,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             pandoc \
-            texlive-xetex \
             texlive-latex-base \
             texlive-latex-extra \
+            texlive-xetex \
             texlive-fonts-recommended \
             texlive-fonts-extra \
+            texlive-lang-spanish \
             lmodern \
             fonts-dejavu \
-            fonts-freefont-otf \
-            fonts-freefont-ttf
+            fonts-liberation \
+            fonts-noto \
+            librsvg2-bin
+
+      - name: Install Mermaid CLI
+        run: |
           sudo npm install -g @mermaid-js/mermaid-cli
+          # Verificar instalación
+          mmdc --version
+
+      - name: Verify pandoc and xelatex
+        run: |
+          pandoc --version
+          xelatex --version
+          
+      - name: List available fonts (debug)
+        run: |
+          fc-list | grep -i "dejavu\|liberation\|noto" | head -10
 
       - name: Build PDF
-        run: make
+        run: |
+          # Ejecutar make con más verbosidad para debugging
+          make debug
+          make all
+
+      - name: List generated files (debug)
+        run: |
+          ls -la build/
+          file build/*.pdf || echo "No PDF found"
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
