@@ -25,7 +25,12 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y pandoc texlive-xetex texlive-latex-extra texlive-fonts-recommended texlive-fonts-extra texlive-lang-spanish
+        sudo apt-get install -y pandoc
+      texlive-latex-recommended \
+      texlive-latex-extra \
+      texlive-fonts-recommended \
+      texlive-fonts-extra \
+      texlive-xetex
 
     - name: Install Mermaid CLI
       run: npm install -g @mermaid-js/mermaid-cli@latest
