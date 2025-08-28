@@ -8,7 +8,6 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -23,7 +22,7 @@ jobs:
       run: make
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4   # 👈 actualizado a v4
       with:
-          name: book
-          path: build/Introduccion_a_los_Sistemas_Operativos.pdf
+        name: book
+        path: build/Introduccion_a_los_Sistemas_Operativos.pdf
