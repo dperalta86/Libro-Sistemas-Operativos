@@ -13,3 +13,6 @@ libro-completo.md
 # Plantilla Eisvogel
 /Eisvogel-3.2.0
 
+# Logs Files
+*.log
+pandoc.log

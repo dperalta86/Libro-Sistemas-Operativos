@@ -66,18 +66,19 @@ $(OUTPUT_DIR)/$(BOOK_NAME).pdf: $(COMBINED_MD) $(PNG) $(TEMPLATE)
 		exit 1; \
 	fi
 	@echo "🔧 Ejecutando pandoc..."
+	@mkdir -p $(OUTPUT_DIR)
 	pandoc $(COMBINED_MD) \
 		-o $(OUTPUT_DIR)/$(BOOK_NAME).pdf \
 		--from markdown \
-		--template $(TEMPLATE) \
-		--pdf-engine=xelatex \
+		--template eisvogel \
+		--pdf-engine xelatex \
 		--top-level-division="chapter" \
 		--number-sections \
 		--highlight-style tango \
 		--listings \
 		--shift-heading-level-by=0 \
-		--verbose \
-		--fail-if-warnings=false \
+		--verbose
+	@echo "PDF generado exitosamente: $(OUTPUT_DIR)/$(BOOK_NAME).pdf"
 		2>&1 | tee pandoc.log || (echo "❌ Error en pandoc, revisar pandoc.log"; cat pandoc.log; exit 1)
 	@echo "✅ PDF generado exitosamente: $(OUTPUT_DIR)/$(BOOK_NAME).pdf"
 	@ls -lh $(OUTPUT_DIR)/$(BOOK_NAME).pdf
