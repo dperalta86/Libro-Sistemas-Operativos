@@ -31,10 +31,9 @@ Este libro surge de la necesidad de contar con material didáctico específico p
 
 ## 🚀 Descarga y uso
 
-### Versión PDF compilada
+### 📥 Versión PDF compilada
 
-Descarga la última versión del libro completo:
-- **[📄 Descargar PDF](https://github.com/dperalta86/Libro-Sistemas-Operativos/releases/latest/download/libro-sistemas-operativos.pdf)**
+[![📄 Descargar PDF](https://img.shields.io/github/v/release/dperalta86/Libro-Sistemas-Operativos?label=Descargar%20PDF&style=for-the-badge&color=blue)](https://github.com/dperalta86/Libro-Sistemas-Operativos/releases/latest/download/Introduccion_a_los_Sistemas_Operativos.pdf)
 
 ### Leer online
 
