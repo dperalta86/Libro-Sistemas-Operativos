@@ -70,7 +70,7 @@ $(OUTPUT_DIR)/$(BOOK_NAME).pdf: $(COMBINED_MD) $(PNG) $(TEMPLATE)
 	pandoc $(COMBINED_MD) \
 		-o $(OUTPUT_DIR)/$(BOOK_NAME).pdf \
 		--from markdown \
-		--template eisvogel \
+		--template templates/eisvogel.latex \
 		--pdf-engine xelatex \
 		--top-level-division="chapter" \
 		--number-sections \
@@ -78,8 +78,6 @@ $(OUTPUT_DIR)/$(BOOK_NAME).pdf: $(COMBINED_MD) $(PNG) $(TEMPLATE)
 		--listings \
 		--shift-heading-level-by=0 \
 		--verbose
-	@echo "PDF generado exitosamente: $(OUTPUT_DIR)/$(BOOK_NAME).pdf"
-		2>&1 | tee pandoc.log || (echo "❌ Error en pandoc, revisar pandoc.log"; cat pandoc.log; exit 1)
 	@echo "✅ PDF generado exitosamente: $(OUTPUT_DIR)/$(BOOK_NAME).pdf"
 	@ls -lh $(OUTPUT_DIR)/$(BOOK_NAME).pdf
 
