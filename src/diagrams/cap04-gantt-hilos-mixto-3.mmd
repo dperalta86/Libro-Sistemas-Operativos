@@ -1,0 +1,30 @@
+%%{init: {'theme':'base', 'themeVariables': { 
+  'primaryColor': '#5a6c7d', 
+  'primaryTextColor': '#2c3e50', 
+  'primaryBorderColor': '#34495e', 
+  'lineColor': '#7f8c8d'
+}}}%%
+gantt
+    title Planificación RR (Q=4ms) - Hilos Mixtos - Parte 3 (38-51ms)
+    dateFormat X
+    axisFormat %sms
+    
+    section P1 (KLT) 
+    P1-T1_final   :active, p1t1final, 42, 44
+    P1_Terminado  :done, p1done, 44, 44
+    
+    section P2 (2 KLT)
+    P2-T2_final   :active, p2t2final, 44, 47
+    P2_Terminado  :done, p2done, 47, 47
+    
+    section P3 (KLT+ULT)
+    P3-T1_exec    :active, p3t1final, 38, 42
+    P3-T3_ULT     :done, p3t3ult, 38, 42
+    P3-T1_cleanup :active, p3cleanup, 47, 51
+    P3_Terminado  :done, p3done, 51, 51
+    
+    section Terminaciones
+    P2-T1_end     :milestone, end1, 38, 38
+    P1-T1_end     :milestone, end2, 44, 44  
+    P2-T2_end     :milestone, end3, 47, 47
+    P3_end        :milestone, end4, 51, 51

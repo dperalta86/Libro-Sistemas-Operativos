@@ -1,0 +1,31 @@
+%%{init: {'theme':'base', 'themeVariables': { 
+  'primaryColor': '#5a6c7d', 
+  'primaryTextColor': '#2c3e50', 
+  'primaryBorderColor': '#34495e', 
+  'lineColor': '#7f8c8d'
+}}}%%
+gantt
+    title Planificación RR (Q=4ms) - Hilos Mixtos - Parte 1 (0-17ms)
+    dateFormat X
+    axisFormat %sms
+    
+    section P1 (KLT)
+    P1-T1_exec    :active, p1t1a, 0, 4
+    P1-T1_IO      :crit, p1t1io, 6, 9
+    
+    section P2 (2 KLT)  
+    P2-T1_exec    :active, p2t1a, 4, 8
+    P2-T2_exec    :active, p2t2a, 12, 14
+    P2-T2_IO      :crit, p2t2io, 14, 16
+    
+    section P3 (KLT+ULT)
+    P3-T1_exec    :active, p3t1a, 8, 12
+    P3-T2_ULT     :done, p3t2ult, 8, 12
+    
+    section Llegadas
+    P1_arrive     :milestone, arr1, 0, 0
+    P2-T1_arrive  :milestone, arr2, 1, 1  
+    P3-T1_arrive  :milestone, arr3, 2, 2
+    P2-T2_arrive  :milestone, arr4, 3, 3
+    P3-T2_arrive  :milestone, arr5, 4, 4
+    P3-T3_arrive  :milestone, arr6, 5, 5
