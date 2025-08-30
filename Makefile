@@ -22,14 +22,7 @@ TEMPLATE = templates/eisvogel.latex
 DIAGRAMS := $(wildcard $(SRC_DIR)/diagrams/*.mmd)
 PNG := $(DIAGRAMS:.mmd=.png)
 
-all: $(OUTPUT_DIR)/$(BOOK_NAME).pdf
-
-# Test básico de LaTeX
-test-latex:
-	@echo "Testing LaTeX installation..."
-	@echo '\documentclass{article}\begin{document}Hello World\end{document}' > test.tex
-	@xelatex test.tex
-	@rm -f test.tex test.pdf test.log test.aux
+all: setup $(OUTPUT_DIR)/$(BOOK_NAME).pdf
 
 # Generar archivo markdown combinado
 $(COMBINED_MD): $(METADATA) $(CAPITULOS)
@@ -71,7 +64,8 @@ $(OUTPUT_DIR)/$(BOOK_NAME).pdf: $(COMBINED_MD) $(PNG) $(TEMPLATE)
 		-o $(OUTPUT_DIR)/$(BOOK_NAME).pdf \
 		--from markdown \
 		--template templates/eisvogel.latex \
-		--pdf-engine xelatex \
+		--pdf-engine=xelatex \
+		--pdf-engine-opt=-shell-escape \
 		--top-level-division="chapter" \
 		--number-sections \
 		--highlight-style tango \
@@ -103,3 +97,8 @@ clean:
 structure:
 	@echo "📂 Estructura actual del proyecto:"
 	@find . -name "*.md" -o -name "*.yaml" -o -name "*.latex" -o -name "*.jpeg" -o -name "*.jpg" -o -name "*.png" -o -name "*.mmd" | sort
+
+# Llamamos al setup antes de compilar
+setup:
+	@chmod +x ./scripts/setup.sh
+	./scripts/setup.sh

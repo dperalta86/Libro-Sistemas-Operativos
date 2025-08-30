@@ -1,0 +1,18 @@
+gantt
+    title Planificación Round Robin (Q=3) - Parte 1 (0-15s)
+    dateFormat X
+    axisFormat %s
+
+    section CPU
+    P1(0-3)      :active, cpu1, 0, 3
+    P2(3-6)      :active, cpu2, 3, 6
+    P3(6-9)      :active, cpu3, 6, 9
+    P4(9-11)     :active, cpu4, 9, 11
+    P1(11-13)    :active, cpu5, 11, 13
+    P3(13-14)    :active, cpu6, 13, 14
+    P2(14-15)    :active, cpu7, 14, 15
+
+    section I/O
+    P1_IO(13-15) :crit, io1, 13, 15
+    P2_IO(15-16) :crit, io2, 15, 16
+    P4_IO(11-14) :crit, io3, 11, 14

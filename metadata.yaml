@@ -23,7 +23,7 @@ page-background: ""
 page-background-opacity: 1
 geometry: "left=2.5cm,right=2.5cm,top=3cm,bottom=3cm"
 fontfamily: ""
-fontsize: "11pt"
+fontsize: "12pt"
 
 # Headers y footers Eisvogel
 header-left: "Daniel Peralta"
@@ -51,9 +51,17 @@ figureAlign: center
 header-includes: |
   \usepackage{float}
   \usepackage{tcolorbox}
+  \usepackage{fontspec}
+  \usepackage{xcolor}
   \newtcolorbox{definitionbox}{colback=blue!5!white,colframe=blue!50!white,boxrule=0.5pt,arc=2pt,left=6pt,right=6pt,top=6pt,bottom=6pt}
   \floatplacement{figure}{H}
-  \usepackage{xcolor}
+ 
+
+  \setsansfont{Roboto}
+  \setmonofont{Fira Code}
+
+  \linespread{1.2}
+
   \setcounter{chapter}{0}
   \setcounter{section}{0}
   \renewcommand{\thechapter}{\arabic{chapter}}

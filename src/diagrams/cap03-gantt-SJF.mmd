@@ -1,0 +1,16 @@
+gantt
+    title Planificación SJF Non-Preemptive - Parte 1 (0-15s)
+    dateFormat X
+    axisFormat %s
+
+    section CPU
+    P1(0-5)      :active, cpu1, 0, 5
+    P4(5-7)      :active, cpu2, 5, 7
+    P2(7-10)     :active, cpu3, 7, 10
+    P3(10-14)    :active, cpu4, 10, 14
+    P4(14-15)    :active, cpu5, 14, 15
+
+    section I/O
+    P1_IO(5-7)   :crit, io1, 5, 7
+    P4_IO(7-10)  :crit, io2, 7, 10
+    P2_IO(10-11) :crit, io3, 10, 11

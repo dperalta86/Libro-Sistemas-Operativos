@@ -153,10 +153,9 @@ La planificación puede ser invocada por diferentes eventos, con **prioridades e
 **Principio**: El primer proceso en llegar es el primero en ejecutarse.
 
 **Características:**
-- **Tipo**: No preemptivo
-- **Overhead**: Mínimo
-- **Starvation**: No (todos eventualmente ejecutan)
-- **Aging**: No necesario
+- **Tipo**: No preemptivo  
+- **Overhead**: Mínimo  
+- **Starvation**: No (todos eventualmente ejecutan)  
 
 **Algoritmo:**
 ```
@@ -165,25 +164,27 @@ La planificación puede ser invocada por diferentes eventos, con **prioridades e
 3. Mover siguiente proceso de la cola al CPU
 ```
 
-**Ventajas:**
-- ✅ Simple de implementar
-- ✅ No hay starvation 
-- ✅ Predecible
+\textcolor{teal!60!black}{\textbf{Ventajas:\\}
+- Simple de implementar\\
+- No hay starvation\\
+- Predecible\\
+}
 
-**Desventajas:**
-- ❌ Convoy effect: procesos cortos esperan tras uno largo
-- ❌ Pobre tiempo de respuesta promedio
-- ❌ No aprovecha paralelismo I/O-CPU
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- Convoy effect: procesos cortos esperan tras uno largo\\
+- Pobre tiempo de respuesta promedio\\
+- No aprovecha paralelismo I/O-CPU\\
+}
 
 ### Shortest Job First (SJF)
 
 **Principio**: Ejecutar el proceso con menor tiempo de CPU estimado.
 
 **Características:**
-- **Tipo**: No preemptivo (versión básica)
-- **Overhead**: Bajo
-- **Starvation**: Sí (procesos largos pueden nunca ejecutar)
-- **Aging**: Necesario para evitar starvation
+- **Tipo**: No preemptivo (versión básica)  
+- **Overhead**: Bajo  
+- **Starvation**: Sí (procesos largos pueden nunca ejecutar)  
+- **Aging**: Necesario para evitar starvation  
 
 **Algoritmo:**
 ```
@@ -192,33 +193,35 @@ La planificación puede ser invocada por diferentes eventos, con **prioridades e
 3. Repetir con procesos restantes
 ```
 
-**Ventajas:**
-- ✅ **Óptimo** para tiempo de retorno promedio (demostrable matemáticamente)
-- ✅ Minimiza tiempo de espera promedio
+\textcolor{teal!60!black}{\textbf{Ventajas:\\}
+- Óptimo para tiempo de retorno promedio (demostrable matemáticamente)\\
+- Minimiza tiempo de espera promedio\\
+}
 
-**Desventajas:**
-- ❌ Requiere conocer tiempo de ejecución (imposible en la práctica)
-- ❌ Starvation de procesos largos
-- ❌ No apropiado para sistemas interactivos
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- Requiere conocer tiempo de ejecución (imposible en la práctica)\\
+- Starvation de procesos largos\\
+- No apropiado para sistemas interactivos\\
+}
 
 **Estimación de tiempo**: Se usa predicción basada en historia:
 ```
 τ(n+1) = α × t(n) + (1-α) × τ(n)
 ```
 Donde:
-- τ(n+1) = tiempo estimado para próxima ráfaga
+- τ(n+1) = tiempo estimado para próxima ráfaga  
 - t(n) = tiempo real de ráfaga anterior  
-- α = factor de peso (0 ≤ α ≤ 1)
+- α = factor de peso (0 ≤ α ≤ 1)  
 
 ### Shortest Remaining Time (SRT)
 
 **Principio**: Versión preemptiva de SJF. Si llega un proceso con tiempo menor al restante del actual, se hace context switch.
 
 **Características:**
-- **Tipo**: Preemptivo
-- **Overhead**: Alto (muchos context switches)
-- **Starvation**: Severa (peor que SJF)
-- **Aging**: Crítico para funcionar
+- **Tipo**: Preemptivo  
+- **Overhead**: Alto (muchos context switches)  
+- **Starvation**: Severa (peor que SJF)  
+- **Aging**: Crítico para funcionar  
 
 **Algoritmo:**
 ```
@@ -228,24 +231,26 @@ Donde:
 4. Continuar hasta que todos terminen
 ```
 
-**Ventajas:**
-- ✅ Mejor tiempo de retorno promedio que SJF
-- ✅ Respuesta rápida para procesos cortos que llegan tarde
+\textcolor{teal!60!black}{\textbf{Ventajas:\\}
+- Mejor tiempo de retorno promedio que SJF\\
+- Respuesta rápida para procesos cortos que llegan tarde\\
+}
 
-**Desventajas:**
-- ❌ Mayor overhead por context switches frecuentes
-- ❌ Starvation severa de procesos largos
-- ❌ Impredecible para procesos largos
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- Mayor overhead por context switches frecuentes\\
+- Starvation severa de procesos largos\\
+- Impredecible para procesos largos\\
+}
 
 ### Round Robin (RR)
 
 **Principio**: Cada proceso recibe un quantum fijo de tiempo. Al agotarse, va al final de la cola.
 
 **Características:**
-- **Tipo**: Preemptivo (por quantum)
-- **Overhead**: Medio (depende del quantum)
-- **Starvation**: No
-- **Aging**: No necesario
+- **Tipo**: Preemptivo (por quantum)  
+- **Overhead**: Medio (depende del quantum)  
+- **Starvation**: No  
+- **Aging**: No necesario  
 
 **Algoritmo:**
 ```
@@ -257,30 +262,32 @@ Donde:
 ```
 
 **Selección del quantum:**
-- **Q muy pequeño**: Muchos context switches (overhead alto)
-- **Q muy grande**: Se comporta como FCFS
-- **Regla práctica**: Q = 10-100ms, debe ser mayor que tiempo de context switch
+- **Q muy pequeño**: Muchos context switches (overhead alto)  
+- **Q muy grande**: Se comporta como FCFS  
+- **Regla práctica**: Q = 10-100ms, debe ser mayor que tiempo de context switch  
 
-**Ventajas:**
-- ✅ Justo: todos los procesos progresan
-- ✅ Buen tiempo de respuesta
-- ✅ No hay starvation
-- ✅ Predecible
+\textcolor{teal!60!black}{\textbf{Ventajas:\\}
+- Justo: todos los procesos progresan\\
+- Buen tiempo de respuesta\\
+- No hay starvation\\
+- Predecible\\
+}
 
-**Desventajas:**
-- ❌ Tiempo de retorno puede ser pobre para procesos largos
-- ❌ Overhead de context switch
-- ❌ No favorece procesos interactivos
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- Tiempo de retorno puede ser pobre para procesos largos\\
+- Overhead de context switch\\
+- No favorece procesos interactivos\\
+}
 
 ### Virtual Round Robin (VRR)
 
 **Principio**: Round Robin mejorado que da prioridad a procesos que se bloquearon antes de agotar su quantum.
 
 **Características:**
-- **Tipo**: Preemptivo con dos colas
-- **Overhead**: Medio-alto
-- **Starvation**: No
-- **Aging**: Implícito (por las dos colas)
+- **Tipo**: Preemptivo con dos colas  
+- **Overhead**: Medio-alto  
+- **Starvation**: No  
+- **Aging**: Implícito
 
 **Algoritmo:**
 ```
@@ -290,25 +297,26 @@ Donde:
 4. AUXILIARY tiene prioridad sobre READY
 5. Procesos de AUXILIARY ejecutan con quantum restante
 ```
+\textcolor{teal!60!black}{\textbf{Ventajas:\\}
+ - Favorece procesos I/O-bound (más interactivos)\\
+ - Mejor respuesta que RR puro\\
+ - Mantiene fairness de RR\\
+}
 
-**Ventajas:**
-- ✅ Favorece procesos I/O-bound (más interactivos)
-- ✅ Mejor respuesta que RR puro
-- ✅ Mantiene fairness de RR
-
-**Desventajas:**
-- ❌ Mayor complejidad de implementación
-- ❌ Overhead adicional por doble cola
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- Mayor complejidad de implementación\\
+- Overhead adicional por doble cola\\
+}
 
 ### Highest Response Ratio Next (HRRN)
 
 **Principio**: Selecciona el proceso con mayor ratio de respuesta, balanceando tiempo de espera y tiempo de servicio.
 
 **Características:**
-- **Tipo**: No preemptivo
-- **Overhead**: Medio (cálculo de ratios)
-- **Starvation**: No (aging automático)
-- **Aging**: Incorporado en la fórmula
+- **Tipo**: No preemptivo  
+- **Overhead**: Medio (cálculo de ratios)  
+- **Starvation**: No (aging automático)  
+- **Aging**: Incorporado en la fórmula  
 
 **Algoritmo:**
 ```
@@ -318,29 +326,31 @@ Donde:
 3. Ejecutar hasta terminación o bloqueo
 ```
 
-**Ventajas:**
-- ✅ Combina ventajas de SJF y FCFS
-- ✅ Aging automático previene starvation
-- ✅ Favorece trabajos cortos pero no ignora largos
+\textcolor{teal!60!black}{\textbf{Ventajas:\\}
+- Combina ventajas de SJF y FCFS\\
+- Aging automático previene starvation\\  
+- Favorece trabajos cortos pero no ignora largos\\
+}  
 
-**Desventajas:**
-- ❌ Requiere estimar tiempo de servicio
-- ❌ Cálculo adicional en cada decisión
-- ❌ No preemptivo
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- Requiere estimar tiempo de servicio\\
+- Cálculo adicional en cada decisión\\
+- No preemptivo\\
+}
 
 ### Planificación por Prioridades
 
 **Principio**: Cada proceso tiene una prioridad. Se ejecuta el de mayor prioridad disponible.
 
 **Características:**
-- **Tipo**: Puede ser preemptivo o no preemptivo
-- **Overhead**: Bajo-medio
-- **Starvation**: Sí (sin aging)
-- **Aging**: Esencial para funcionamiento práctico
+- **Tipo**: Puede ser preemptivo o no preemptivo  
+- **Overhead**: Bajo-medio  
+- **Starvation**: Sí (sin aging)  
+- **Aging**: Esencial para funcionamiento práctico  
 
 **Tipos de prioridades:**
-- **Estáticas**: Asignadas al crear el proceso
-- **Dinámicas**: Cambian durante la ejecución
+- **Estáticas**: Asignadas al crear el proceso  
+- **Dinámicas**: Cambian durante la ejecución  
 
 **Algoritmos:**
 ```
@@ -361,25 +371,27 @@ Donde:
 nueva_prioridad = prioridad_base + (tiempo_espera / factor_aging)
 ```
 
-**Ventajas:**
-- ✅ Flexible y configurable
-- ✅ Apropiado para tiempo real
-- ✅ Control fino del sistema
+\textcolor{teal!60!black}{\textbf{Ventajas:\\}
+- Flexible y configurable\\
+- Apropiado para tiempo real\\
+- Control fino del sistema\\
+}
 
-**Desventajas:**
-- ❌ Starvation sin aging
-- ❌ Dificultad para asignar prioridades apropiadas
-- ❌ Puede ser unfair
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- Starvation sin aging\\
+- Dificultad para asignar prioridades apropiadas\\
+- Puede ser unfair\\
+}
 
 ### Multilevel Feedback Queue
 
 **Principio**: Múltiples colas con diferentes algoritmos y prioridades. Los procesos pueden moverse entre colas según su comportamiento.
 
 **Características:**
-- **Tipo**: Preemptivo con múltiples niveles
-- **Overhead**: Alto
-- **Starvation**: Posible sin aging
-- **Aging**: Necesario (promoción entre colas)
+- **Tipo**: Preemptivo con múltiples niveles  
+- **Overhead**: Alto  
+- **Starvation**: Posible sin aging  
+- **Aging**: Necesario (promoción entre colas)  
 
 **Ejemplo de configuración:**
 ```
@@ -394,15 +406,17 @@ Reglas:
 - Promoción periódica para evitar starvation
 ```
 
-**Ventajas:**
-- ✅ Se adapta al comportamiento del proceso
-- ✅ Favorece procesos interactivos (I/O bound)
-- ✅ Procesos largos eventualmente reciben servicio
+\textcolor{teal!60!black}{\textbf{Ventajas:\\}
+- Se adapta al comportamiento del proceso\\
+- Favorece procesos interactivos (I/O bound)\\
+- Procesos largos eventualmente reciben servicio\\
+}
 
-**Desventajas:**
-- ❌ Complejidad alta de implementación
-- ❌ Difícil de tunear parámetros
-- ❌ Overhead considerable
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- Complejidad alta de implementación\\
+- Difícil de tunear parámetros\\
+- Overhead considerable\\
+}
 
 ## Casos de Estudio
 
@@ -421,29 +435,13 @@ P4      |    3    |     2     |     3     |     1
 
 **Solución con Round Robin (Q=3):**
 
-```mermaid
-gantt
-    title Planificación Round Robin (Q=3)
-    dateFormat X
-    axisFormat %s
+\begin{center}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap03-gantt-RR.png}
+\end{center}
 
-    section CPU
-    P1(0-3)    :0, 3
-    P2(3-6)    :3, 6
-    P3(6-9)    :6, 9
-    P4(9-11)   :9, 11
-    P1(11-13)  :11, 13
-    P2(13-14)  :13, 14
-    P3(14-15)  :14, 15
-    P1(15-17)  :15, 17
-    P2(17-19)  :17, 19
-    P4(19-20)  :19, 20
-
-    section I/O
-    P1_IO(13-15)  :13, 15
-    P2_IO(14-15)  :14, 15
-    P4_IO(11-14)  :11, 14
-```
+\begin{center}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap03-gantt-RR-2.png}
+\end{center}
 
 **Desarrollo paso a paso:**
 
@@ -501,26 +499,13 @@ Promedio: (0+2+4+6)/4 = 3
 
 **Solución con SJF:**
 
-```mermaid
-gantt
-    title Planificación SJF (No Preemptivo)
-    dateFormat X
-    axisFormat %s
+\begin{center}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap03-gantt-SJF.png}
+\end{center}
 
-    section CPU
-    P1(0-5)    :0, 5
-    P2(7-10)   :7, 10
-    P4(10-12)  :10, 12
-    P3(12-16)  :12, 16
-    P1(17-20)  :17, 20
-    P2(11-13)  :11, 13
-    P4(15-16)  :15, 16
-
-    section I/O
-    P1_IO(5-7)    :5, 7
-    P2_IO(10-11)  :10, 11
-    P4_IO(12-15)  :12, 15
-```
+\begin{center}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap03-gantt-SJF-2.png}
+\end{center}
 
 **Desarrollo paso a paso:**
 
@@ -631,34 +616,8 @@ Aging: Nueva_prioridad = Prioridad_base + (Tiempo_espera / Factor_aging)
 4. **Manejar I/O** correctamente (tiempos de bloqueo)
 5. **Calcular métricas** para cada proceso
 
-### Errores Comunes y Tips
+### Ejemplo simulación Round Robin
 
-**❌ Errores frecuentes:**
-
-1. **No considerar eventos simultáneos**
-   ```
-   MAL: Procesar eventos en orden arbitrario
-   BIEN: Reloj > I/O > System call
-   ```
-
-2. **Confundir tiempo de CPU con tiempo total**
-   ```
-   MAL: Tiempo_espera = Total - Llegada
-   BIEN: Tiempo_espera = Retorno - CPU_time
-   ```
-
-3. **Error en quantum de RR**
-   ```
-   MAL: Resetear quantum al volver de I/O
-   BIEN: Quantum solo se resetea en nueva ejecución
-   ```
-
-4. **No aplicar aging en algoritmos con starvation**
-   ```
-   SJF, SRT, Prioridades necesitan aging para ser prácticos
-   ```
-
-Simulador de Round Robin
 
 ```c
 #include <stdio.h>
@@ -792,7 +751,7 @@ int main() {
 
 
 
-**✅ Tips para parcial:**
+**Tips para parcial:**
 
 1. **Diagramas de Gantt son esenciales** - Mostrar CPU e I/O separadamente
 2. **Marcar eventos importantes** - Interrupciones, llegadas, cambios de estado
