@@ -1,18 +1,19 @@
-# Capítulo 3: Planificación de Procesos
+# Planificación de Procesos
 
-## 1. Objetivos de Aprendizaje
+## Objetivos de Aprendizaje
 
 Al finalizar este capítulo, el estudiante debe ser capaz de:
 
 - Explicar por qué es necesaria la planificación de procesos en sistemas multiprogramados
 - Distinguir entre planificación a corto, mediano y largo plazo
-- Analizar algoritmos de planificación: FCFS, SJF, SRTF, Round Robin, prioridades
-- Calcular métricas de rendimiento: tiempo de retorno, espera, respuesta
-- Implementar simuladores básicos de algoritmos de planificación
+- Analizar algoritmos de planificación: FCFS, SJF, SRT, Round Robin, VRR, HRRN, prioridades y feedback
+- Determinar las características de cada algoritmo: preemptivo/no preemptivo, overhead, starvation, aging
+- Calcular métricas de rendimiento: tiempo de espera y tiempo de respuesta
+- Resolver ejercicios con diagramas de Gantt considerando interrupciones y prioridades
 - Evaluar qué algoritmo es más apropiado según el tipo de sistema
-- Resolver ejercicios típicos de parcial sobre planificación
+- Aplicar criterios de desempate cuando múltiples procesos compiten simultáneamente
 
-## 2. Introducción y Contexto
+## Introducción y Contexto
 
 ### ¿Por qué necesitamos planificación?
 
@@ -48,9 +49,9 @@ Los algoritmos de planificación buscan optimizar métricas que a menudo **entra
 
 No existe el algoritmo "perfecto", solo **compromisos** apropiados para cada contexto.
 
-## 3. Conceptos Fundamentales
+## Conceptos Fundamentales
 
-### 3.1 Niveles de Planificación
+### Niveles de Planificación
 
 El SO tiene **tres niveles** de planificación que operan en diferentes escalas de tiempo:
 
@@ -72,23 +73,24 @@ El SO tiene **tres niveles** de planificación que operan en diferentes escalas 
 - **Objetivo**: Optimizar uso del CPU
 - **Enfoque de este capítulo**
 
-### 3.2 Tipos de Planificación
+### Tipos de Planificación
 
-#### Planificación No Expropiativa (Non-Preemptive)
+#### Planificación No Preemptiva (No Expropiativa)
 - El proceso **mantiene el CPU** hasta que:
   - Termina voluntariamente
   - Se bloquea (I/O, wait)
 - **Ventaja**: Simple, menor overhead
 - **Desventaja**: Un proceso puede monopolizar el CPU
 
-#### Planificación Expropiativa (Preemptive)
+#### Planificación Preemptiva (Expropiativa)
 - El SO puede **quitar el CPU** a un proceso:
   - Quantum de tiempo agotado
   - Llegó proceso de mayor prioridad
+  - Interrupción de reloj
 - **Ventaja**: Mejor respuesta interactiva
 - **Desventaja**: Mayor overhead por context switch
 
-### 3.3 Métricas de Rendimiento
+### Métricas de Rendimiento
 
 Para evaluar algoritmos de planificación usamos estas métricas:
 
@@ -112,7 +114,7 @@ Para evaluar algoritmos de planificación usamos estas métricas:
   T_respuesta = T_primera_ejecución - T_llegada
   ```
 
-### 3.4 Ráfagas de CPU y I/O
+### Ráfagas de CPU y I/O
 
 Los procesos alternan entre dos fases:
 - **CPU Burst**: Período de ejecución continua en CPU
@@ -124,11 +126,37 @@ Los procesos alternan entre dos fases:
 
 Esta distinción es crucial para elegir el algoritmo apropiado.
 
-## 4. Análisis Técnico
+### Eventos que Provocan Planificación
 
-### 4.1 First-Come First-Served (FCFS)
+La planificación puede ser invocada por diferentes eventos, con **prioridades específicas**:
+
+1. **Interrupción de reloj** (Mayor prioridad)
+   - Quantum agotado en algoritmos preemptivos
+   - Permite que el SO retome control
+
+2. **Interrupción de finalización de I/O** (Media prioridad)
+   - Un proceso bloqueado se vuelve READY
+   - Puede tener mayor prioridad que el proceso actual
+
+3. **System call** (Menor prioridad)
+   - Proceso actual se bloquea voluntariamente
+   - El SO debe elegir el próximo proceso
+
+**Criterio de desempate**: Si múltiples procesos llegan simultáneamente a READY, se aplica:
+- Primero los de mayor prioridad
+- En caso de empate: FCFS (orden de llegada)
+
+## Análisis Técnico
+
+### First-Come First-Served (FCFS)
 
 **Principio**: El primer proceso en llegar es el primero en ejecutarse.
+
+**Características:**
+- **Tipo**: No preemptivo
+- **Overhead**: Mínimo
+- **Starvation**: No (todos eventualmente ejecutan)
+- **Aging**: No necesario
 
 **Algoritmo:**
 ```
@@ -137,48 +165,38 @@ Esta distinción es crucial para elegir el algoritmo apropiado.
 3. Mover siguiente proceso de la cola al CPU
 ```
 
-**Características:**
+**Ventajas:**
 - ✅ Simple de implementar
 - ✅ No hay starvation 
+- ✅ Predecible
+
+**Desventajas:**
 - ❌ Convoy effect: procesos cortos esperan tras uno largo
 - ❌ Pobre tiempo de respuesta promedio
+- ❌ No aprovecha paralelismo I/O-CPU
 
-**Ejemplo de cálculo:**
-```
-Procesos: P1(24ms), P2(3ms), P3(3ms)
-Llegada:  0ms      0ms      0ms
-
-Orden de ejecución: P1 → P2 → P3
-
-Tiempo de terminación:
-P1: 24ms, P2: 27ms, P3: 30ms
-
-Tiempo de retorno:
-P1: 24-0 = 24ms
-P2: 27-0 = 27ms  
-P3: 30-0 = 30ms
-Promedio: (24+27+30)/3 = 27ms
-
-Tiempo de espera:
-P1: 0ms (ejecuta inmediatamente)
-P2: 24ms (espera que termine P1)
-P3: 27ms (espera que terminen P1 y P2)
-Promedio: (0+24+27)/3 = 17ms
-```
-
-### 4.2 Shortest Job First (SJF)
+### Shortest Job First (SJF)
 
 **Principio**: Ejecutar el proceso con menor tiempo de CPU estimado.
+
+**Características:**
+- **Tipo**: No preemptivo (versión básica)
+- **Overhead**: Bajo
+- **Starvation**: Sí (procesos largos pueden nunca ejecutar)
+- **Aging**: Necesario para evitar starvation
 
 **Algoritmo:**
 ```
 1. De todos los procesos READY, seleccionar el de menor tiempo estimado
-2. Ejecutar hasta terminación (versión no expropiativa)
+2. Ejecutar hasta terminación (versión no preemptiva)
 3. Repetir con procesos restantes
 ```
 
-**Características:**
+**Ventajas:**
 - ✅ **Óptimo** para tiempo de retorno promedio (demostrable matemáticamente)
+- ✅ Minimiza tiempo de espera promedio
+
+**Desventajas:**
 - ❌ Requiere conocer tiempo de ejecución (imposible en la práctica)
 - ❌ Starvation de procesos largos
 - ❌ No apropiado para sistemas interactivos
@@ -192,49 +210,133 @@ Donde:
 - t(n) = tiempo real de ráfaga anterior  
 - α = factor de peso (0 ≤ α ≤ 1)
 
-### 4.3 Shortest Remaining Time First (SRTF)
+### Shortest Remaining Time (SRT)
 
-**Principio**: Versión expropiativa de SJF. Si llega un proceso con tiempo menor al restante del actual, se hace context switch.
+**Principio**: Versión preemptiva de SJF. Si llega un proceso con tiempo menor al restante del actual, se hace context switch.
+
+**Características:**
+- **Tipo**: Preemptivo
+- **Overhead**: Alto (muchos context switches)
+- **Starvation**: Severa (peor que SJF)
+- **Aging**: Crítico para funcionar
 
 **Algoritmo:**
 ```
 1. Seleccionar proceso con menor tiempo restante
 2. Si llega nuevo proceso con menor tiempo restante, expropiar
-3. Continuar hasta que todos terminen
+3. Actualizar tiempo restante del proceso expropiado
+4. Continuar hasta que todos terminen
 ```
 
-**Características:**
+**Ventajas:**
 - ✅ Mejor tiempo de retorno promedio que SJF
-- ✅ Respuesta rápida para procesos cortos
+- ✅ Respuesta rápida para procesos cortos que llegan tarde
+
+**Desventajas:**
 - ❌ Mayor overhead por context switches frecuentes
 - ❌ Starvation severa de procesos largos
+- ❌ Impredecible para procesos largos
 
-### 4.4 Round Robin (RR)
+### Round Robin (RR)
 
 **Principio**: Cada proceso recibe un quantum fijo de tiempo. Al agotarse, va al final de la cola.
+
+**Características:**
+- **Tipo**: Preemptivo (por quantum)
+- **Overhead**: Medio (depende del quantum)
+- **Starvation**: No
+- **Aging**: No necesario
 
 **Algoritmo:**
 ```
 1. Asignar quantum Q a cada proceso
 2. Ejecutar proceso por máximo Q unidades de tiempo
 3. Si no termina, mover al final de cola READY
-4. Seleccionar siguiente proceso de la cola
+4. Si se bloquea antes de Q, no pierde el quantum restante
+5. Seleccionar siguiente proceso de la cola
 ```
 
 **Selección del quantum:**
-- **Q muy pequeño**: Muchos context switches (overhead)
+- **Q muy pequeño**: Muchos context switches (overhead alto)
 - **Q muy grande**: Se comporta como FCFS
 - **Regla práctica**: Q = 10-100ms, debe ser mayor que tiempo de context switch
 
-**Características:**
+**Ventajas:**
 - ✅ Justo: todos los procesos progresan
 - ✅ Buen tiempo de respuesta
 - ✅ No hay starvation
+- ✅ Predecible
+
+**Desventajas:**
 - ❌ Tiempo de retorno puede ser pobre para procesos largos
+- ❌ Overhead de context switch
+- ❌ No favorece procesos interactivos
 
-### 4.5 Planificación por Prioridades
+### Virtual Round Robin (VRR)
 
-**Principio**: Cada proceso tiene una prioridad. Se ejecuta el de mayor prioridad.
+**Principio**: Round Robin mejorado que da prioridad a procesos que se bloquearon antes de agotar su quantum.
+
+**Características:**
+- **Tipo**: Preemptivo con dos colas
+- **Overhead**: Medio-alto
+- **Starvation**: No
+- **Aging**: Implícito (por las dos colas)
+
+**Algoritmo:**
+```
+1. Mantener dos colas: READY y AUXILIARY
+2. Procesos nuevos y que agotaron quantum van a READY
+3. Procesos que se bloquearon antes del quantum van a AUXILIARY
+4. AUXILIARY tiene prioridad sobre READY
+5. Procesos de AUXILIARY ejecutan con quantum restante
+```
+
+**Ventajas:**
+- ✅ Favorece procesos I/O-bound (más interactivos)
+- ✅ Mejor respuesta que RR puro
+- ✅ Mantiene fairness de RR
+
+**Desventajas:**
+- ❌ Mayor complejidad de implementación
+- ❌ Overhead adicional por doble cola
+
+### Highest Response Ratio Next (HRRN)
+
+**Principio**: Selecciona el proceso con mayor ratio de respuesta, balanceando tiempo de espera y tiempo de servicio.
+
+**Características:**
+- **Tipo**: No preemptivo
+- **Overhead**: Medio (cálculo de ratios)
+- **Starvation**: No (aging automático)
+- **Aging**: Incorporado en la fórmula
+
+**Algoritmo:**
+```
+1. Para cada proceso READY, calcular:
+   Response Ratio = (Tiempo_espera + Tiempo_servicio) / Tiempo_servicio
+2. Seleccionar proceso con mayor ratio
+3. Ejecutar hasta terminación o bloqueo
+```
+
+**Ventajas:**
+- ✅ Combina ventajas de SJF y FCFS
+- ✅ Aging automático previene starvation
+- ✅ Favorece trabajos cortos pero no ignora largos
+
+**Desventajas:**
+- ❌ Requiere estimar tiempo de servicio
+- ❌ Cálculo adicional en cada decisión
+- ❌ No preemptivo
+
+### Planificación por Prioridades
+
+**Principio**: Cada proceso tiene una prioridad. Se ejecuta el de mayor prioridad disponible.
+
+**Características:**
+- **Tipo**: Puede ser preemptivo o no preemptivo
+- **Overhead**: Bajo-medio
+- **Starvation**: Sí (sin aging)
+- **Aging**: Esencial para funcionamiento práctico
 
 **Tipos de prioridades:**
 - **Estáticas**: Asignadas al crear el proceso
@@ -242,54 +344,53 @@ Donde:
 
 **Algoritmos:**
 ```
-// Versión no expropiativa
+// Versión no preemptiva
 1. Seleccionar proceso READY con mayor prioridad
 2. Ejecutar hasta terminación o bloqueo
 3. Repetir
 
-// Versión expropiativa  
+// Versión preemptiva  
 1. Si llega proceso con prioridad mayor, expropiar
 2. Continuar con mayor prioridad disponible
 ```
 
-**Problema del Starvation:**
-Procesos de baja prioridad pueden nunca ejecutarse.
+**Problema del Starvation**: Procesos de baja prioridad pueden nunca ejecutarse.
 
-**Solución - Aging:**
-```c
-// Incrementar prioridad con el tiempo de espera
+**Solución - Aging**: Incrementar prioridad gradualmente
+```
 nueva_prioridad = prioridad_base + (tiempo_espera / factor_aging)
 ```
 
-### 4.6 Multilevel Queue
+**Ventajas:**
+- ✅ Flexible y configurable
+- ✅ Apropiado para tiempo real
+- ✅ Control fino del sistema
 
-**Principio**: Múltiples colas con diferentes algoritmos y prioridades.
+**Desventajas:**
+- ❌ Starvation sin aging
+- ❌ Dificultad para asignar prioridades apropiadas
+- ❌ Puede ser unfair
 
-**Estructura típica:**
-```
-Cola 1: Procesos del sistema (prioridad alta, FCFS)
-Cola 2: Procesos interactivos (prioridad media, RR con Q=8ms) 
-Cola 3: Procesos batch (prioridad baja, FCFS)
-```
+### Multilevel Feedback Queue
 
-**Planificación entre colas:**
-- **Prioridad fija**: Colas superiores tienen precedencia absoluta
-- **Time slicing**: Cada cola recibe % de tiempo de CPU
+**Principio**: Múltiples colas con diferentes algoritmos y prioridades. Los procesos pueden moverse entre colas según su comportamiento.
 
-### 4.7 Multilevel Feedback Queue
-
-**Principio**: Procesos pueden moverse entre colas según su comportamiento.
+**Características:**
+- **Tipo**: Preemptivo con múltiples niveles
+- **Overhead**: Alto
+- **Starvation**: Posible sin aging
+- **Aging**: Necesario (promoción entre colas)
 
 **Ejemplo de configuración:**
 ```
-Cola 0: RR con Q=8ms (mayor prioridad)
-Cola 1: RR con Q=16ms  
-Cola 2: FCFS (menor prioridad)
+Cola 0: RR con Q=8ms (mayor prioridad) - Procesos nuevos
+Cola 1: RR con Q=16ms                  - Procesos que agotaron Q en Cola 0  
+Cola 2: FCFS (menor prioridad)         - Procesos que agotaron Q en Cola 1
 
 Reglas:
 - Procesos nuevos ingresan a Cola 0
 - Si agotan quantum, bajan a siguiente cola
-- Si terminan antes del quantum, mantienen cola actual
+- Si se bloquean antes del quantum, mantienen cola actual
 - Promoción periódica para evitar starvation
 ```
 
@@ -298,92 +399,266 @@ Reglas:
 - ✅ Favorece procesos interactivos (I/O bound)
 - ✅ Procesos largos eventualmente reciben servicio
 
-## 5. Código en C
+**Desventajas:**
+- ❌ Complejidad alta de implementación
+- ❌ Difícil de tunear parámetros
+- ❌ Overhead considerable
 
-### 5.1 Simulador de FCFS
+## Casos de Estudio
 
-```c
-#include <stdio.h>
-#include <stdlib.h>
+### Caso de Estudio: Planificación con Round Robin
 
-typedef struct {
-    int pid;              // Process ID
-    int arrival_time;     // Tiempo de llegada
-    int burst_time;       // Tiempo de CPU requerido
-    int completion_time;  // Tiempo de terminación
-    int turnaround_time;  // Tiempo de retorno
-    int waiting_time;     // Tiempo de espera
-} Process;
+**Problema**: Dados 4 procesos con las siguientes características, realizar planificación con Round Robin (Q=3) y calcular tiempo promedio de espera y respuesta.
 
-void fcfs_schedule(Process processes[], int n) {
-    int current_time = 0;
-    
-    printf("FCFS Scheduling:\n");
-    printf("PID\tArrival\tBurst\tCompletion\tTurnaround\tWaiting\n");
-    
-    for (int i = 0; i < n; i++) {
-        // Si el proceso no ha llegado, esperamos
-        if (current_time < processes[i].arrival_time) {
-            current_time = processes[i].arrival_time;
-        }
-        
-        // El proceso se ejecuta por su burst_time completo
-        processes[i].completion_time = current_time + processes[i].burst_time;
-        
-        // Calcular métricas
-        processes[i].turnaround_time = processes[i].completion_time - 
-                                      processes[i].arrival_time;
-        processes[i].waiting_time = processes[i].turnaround_time - 
-                                   processes[i].burst_time;
-        
-        // Actualizar tiempo actual
-        current_time = processes[i].completion_time;
-        
-        // Imprimir resultados
-        printf("%d\t%d\t%d\t%d\t\t%d\t\t%d\n", 
-               processes[i].pid,
-               processes[i].arrival_time,
-               processes[i].burst_time,
-               processes[i].completion_time,
-               processes[i].turnaround_time,
-               processes[i].waiting_time);
-    }
-}
-
-void print_averages(Process processes[], int n) {
-    float avg_turnaround = 0, avg_waiting = 0;
-    
-    for (int i = 0; i < n; i++) {
-        avg_turnaround += processes[i].turnaround_time;
-        avg_waiting += processes[i].waiting_time;
-    }
-    
-    avg_turnaround /= n;
-    avg_waiting /= n;
-    
-    printf("\nPromedios:\n");
-    printf("Tiempo de retorno promedio: %.2f\n", avg_turnaround);
-    printf("Tiempo de espera promedio: %.2f\n", avg_waiting);
-}
-
-int main() {
-    // Ejemplo de procesos
-    Process processes[] = {
-        {1, 0, 24, 0, 0, 0},   // P1: llega en 0, necesita 24ms
-        {2, 0, 3, 0, 0, 0},    // P2: llega en 0, necesita 3ms  
-        {3, 0, 3, 0, 0, 0}     // P3: llega en 0, necesita 3ms
-    };
-    
-    int n = sizeof(processes) / sizeof(processes[0]);
-    
-    fcfs_schedule(processes, n);
-    print_averages(processes, n);
-    
-    return 0;
-}
+```
+Proceso | Llegada | CPU Burst | I/O Burst | CPU Burst 2
+--------|---------|-----------|-----------|------------
+P1      |    0    |     5     |     2     |     3
+P2      |    1    |     3     |     1     |     2  
+P3      |    2    |     4     |     -     |     -
+P4      |    3    |     2     |     3     |     1
 ```
 
-### 5.2 Simulador de Round Robin
+**Solución con Round Robin (Q=3):**
+
+```mermaid
+gantt
+    title Planificación Round Robin (Q=3)
+    dateFormat X
+    axisFormat %s
+
+    section CPU
+    P1(0-3)    :0, 3
+    P2(3-6)    :3, 6
+    P3(6-9)    :6, 9
+    P4(9-11)   :9, 11
+    P1(11-13)  :11, 13
+    P2(13-14)  :13, 14
+    P3(14-15)  :14, 15
+    P1(15-17)  :15, 17
+    P2(17-19)  :17, 19
+    P4(19-20)  :19, 20
+
+    section I/O
+    P1_IO(13-15)  :13, 15
+    P2_IO(14-15)  :14, 15
+    P4_IO(11-14)  :11, 14
+```
+
+**Desarrollo paso a paso:**
+
+```
+t=0: P1 llega, inicia ejecución (Q=3)
+t=1: P2 llega, se agrega a cola READY [P2]
+t=2: P3 llega, cola READY [P2,P3]
+t=3: P1 agota quantum (ejecutó 3/5), cola READY [P2,P3,P1], P2 inicia
+t=3: P4 llega, cola READY [P3,P1,P4]
+t=6: P2 termina ráfaga CPU (3/3), va a I/O, P3 inicia
+t=7: P2 termina I/O, cola READY [P1,P4,P2]
+t=9: P3 agota quantum (ejecutó 3/4), P4 inicia, cola READY [P1,P2,P3]
+t=11: P4 termina ráfaga CPU (2/2), va a I/O, P1 inicia
+t=13: P1 termina ráfaga restante (2/2), va a I/O, P2 inicia
+t=14: P1 y P4 terminan I/O, P2 ejecuta último burst (1ms)
+t=14: P2 termina completamente
+t=15: P3 termina ráfaga restante (1ms), termina completamente
+t=15: P1 inicia ráfaga final (3ms)  
+t=17: P1 agota quantum (ejecutó 2/3), P4 inicia
+t=18: P1 termina completamente
+t=19: P4 termina ráfaga final (1ms), termina completamente
+```
+
+**Cálculos de métricas:**
+
+```
+Tiempos de terminación:
+P1: 18, P2: 14, P3: 15, P4: 19
+
+Tiempos de retorno:
+P1: 18-0 = 18
+P2: 14-1 = 13
+P3: 15-2 = 13  
+P4: 19-3 = 16
+Promedio: (18+13+13+16)/4 = 15
+
+Tiempos de espera:
+P1: 18-(5+3) = 10
+P2: 13-(3+2) = 8
+P3: 13-4 = 9
+P4: 16-(2+1) = 13
+Promedio: (10+8+9+13)/4 = 10
+
+Tiempo de respuesta (primera ejecución):
+P1: 0-0 = 0
+P2: 3-1 = 2
+P3: 6-2 = 4
+P4: 9-3 = 6
+Promedio: (0+2+4+6)/4 = 3
+```
+
+### Caso de Estudio: Planificación con SJF
+
+**Mismo conjunto de procesos con SJF no preemptivo:**
+
+**Solución con SJF:**
+
+```mermaid
+gantt
+    title Planificación SJF (No Preemptivo)
+    dateFormat X
+    axisFormat %s
+
+    section CPU
+    P1(0-5)    :0, 5
+    P2(7-10)   :7, 10
+    P4(10-12)  :10, 12
+    P3(12-16)  :12, 16
+    P1(17-20)  :17, 20
+    P2(11-13)  :11, 13
+    P4(15-16)  :15, 16
+
+    section I/O
+    P1_IO(5-7)    :5, 7
+    P2_IO(10-11)  :10, 11
+    P4_IO(12-15)  :12, 15
+```
+
+**Desarrollo paso a paso:**
+
+```
+t=0: P1 llega, ejecuta (burst=5, menor disponible)
+t=1: P2 llega, espera
+t=2: P3 llega, espera  
+t=3: P4 llega, espera
+t=5: P1 termina ráfaga, va a I/O
+
+Procesos disponibles en t=5:
+- P2: burst=3
+- P3: burst=4  
+- P4: burst=2 ← MENOR, ejecuta primero
+
+t=5: P4 ejecuta (no puede, P1 aún usa I/O)
+t=7: P1 termina I/O, P2 ejecuta (burst=3, menor entre P2,P3,P4)
+t=10: P2 termina ráfaga, va a I/O, P4 ejecuta (burst=2)
+t=11: P2 termina I/O, disponible para segunda ráfaga
+t=12: P4 termina ráfaga, va a I/O, P3 ejecuta (burst=4, único disponible)
+t=15: P4 termina I/O, disponible
+t=16: P3 termina completamente
+
+Procesos disponibles:
+- P1: burst=3
+- P2: burst=2 ← MENOR
+- P4: burst=1 ← MENOR
+
+P4 ejecuta primero, luego P2, finalmente P1.
+```
+
+**Cálculos para SJF:**
+
+```
+Tiempos de terminación:
+P1: 20, P2: 13, P3: 16, P4: 16
+
+Tiempos de retorno:
+P1: 20-0 = 20
+P2: 13-1 = 12
+P3: 16-2 = 14
+P4: 16-3 = 13
+Promedio: (20+12+14+13)/4 = 14.75
+
+Tiempos de espera:
+P1: 20-(5+3) = 12
+P2: 12-(3+2) = 7  
+P3: 14-4 = 10
+P4: 13-(2+1) = 10
+Promedio: (12+7+10+10)/4 = 9.75
+
+Tiempo de respuesta:
+P1: 0-0 = 0
+P2: 7-1 = 6
+P3: 12-2 = 10
+P4: 5-3 = 2 (ejecuta cuando P1 va a I/O)
+Promedio: (0+6+10+2)/4 = 4.5
+```
+
+### Manejo de Prioridades en Eventos Simultáneos
+
+**Escenario**: Múltiples eventos ocurren simultáneamente en t=10:
+- Interrupción de reloj (P1 agota quantum)
+- Finalización de I/O (P2 se vuelve READY)  
+- System call (P3 se bloquea)
+
+**Orden de procesamiento**:
+1. **Interrupción de reloj**: P1 → READY (final de cola)
+2. **Finalización de I/O**: P2 → READY (puede tener prioridad alta)
+3. **System call**: P3 → BLOCKED
+
+**Decisión de planificación**:
+- Si P2 tiene mayor prioridad → P2 ejecuta
+- Si P2 tiene igual prioridad → P4 ejecuta (ya estaba en READY)
+- Aplicar algoritmo de planificación con nueva configuración
+
+## Síntesis
+
+### Puntos Clave para Parcial
+
+**Resumen de algoritmos:**
+
+| Algoritmo | Preemptivo | Overhead | Starvation | Aging | Mejor para |
+|-----------|------------|----------|------------|-------|------------|
+| **FCFS** | No | Mínimo | No | No necesario | Batch simple |
+| **SJF** | No | Bajo | Sí | Necesario | Batch conocido |
+| **SRT** | Sí | Alto | Sí (severo) | Crítico | Trabajos cortos |
+| **RR** | Sí | Medio | No | No necesario | Interactivo |
+| **VRR** | Sí | Medio-Alto | No | Implícito | I/O intensivo |
+| **HRRN** | No | Medio | No | Incorporado | Balanceado |
+| **Prioridades** | Ambos | Bajo-Medio | Sí | Esencial | Tiempo real |
+| **Multilevel** | Sí | Alto | Posible | Necesario | Propósito general |
+
+**Fórmulas esenciales:**
+```
+Tiempo_retorno = Tiempo_terminación - Tiempo_llegada
+Tiempo_espera = Tiempo_retorno - Tiempo_CPU_total
+Tiempo_respuesta = Primera_ejecución - Tiempo_llegada
+
+HRRN: Response_Ratio = (Tiempo_espera + Tiempo_servicio) / Tiempo_servicio
+Aging: Nueva_prioridad = Prioridad_base + (Tiempo_espera / Factor_aging)
+```
+
+**Criterios para resolver ejercicios:**
+1. **Dibujar timeline** con llegadas y eventos
+2. **Identificar interrupciones** y sus prioridades
+3. **Aplicar algoritmo** respetando preemptividad
+4. **Manejar I/O** correctamente (tiempos de bloqueo)
+5. **Calcular métricas** para cada proceso
+
+### Errores Comunes y Tips
+
+**❌ Errores frecuentes:**
+
+1. **No considerar eventos simultáneos**
+   ```
+   MAL: Procesar eventos en orden arbitrario
+   BIEN: Reloj > I/O > System call
+   ```
+
+2. **Confundir tiempo de CPU con tiempo total**
+   ```
+   MAL: Tiempo_espera = Total - Llegada
+   BIEN: Tiempo_espera = Retorno - CPU_time
+   ```
+
+3. **Error en quantum de RR**
+   ```
+   MAL: Resetear quantum al volver de I/O
+   BIEN: Quantum solo se resetea en nueva ejecución
+   ```
+
+4. **No aplicar aging en algoritmos con starvation**
+   ```
+   SJF, SRT, Prioridades necesitan aging para ser prácticos
+   ```
+
+Simulador de Round Robin
 
 ```c
 #include <stdio.h>
@@ -515,424 +790,34 @@ int main() {
 }
 ```
 
-### 5.3 Comparador de Algoritmos
 
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-// Estructura para resultados de algoritmos
-typedef struct {
-    char algorithm_name[20];
-    float avg_turnaround;
-    float avg_waiting;
-    float avg_response;
-} SchedulingResult;
-
-// Función para comparar diferentes algoritmos
-void compare_algorithms() {
-    // Procesos de prueba
-    int arrivals[] = {0, 1, 2};
-    int bursts[] = {10, 5, 8};
-    int n = 3;
-    
-    printf("Comparación de Algoritmos de Planificación\n");
-    printf("Procesos: P1(10), P2(5), P3(8)\n");
-    printf("Llegadas: 0, 1, 2\n\n");
-    
-    // Aquí implementarías cada algoritmo y calcularías métricas
-    SchedulingResult results[] = {
-        {"FCFS", 12.33, 7.00, 7.00},
-        {"SJF", 9.33, 4.00, 4.00}, 
-        {"RR (Q=4)", 13.00, 7.67, 2.33},
-        {"RR (Q=2)", 14.33, 9.00, 1.33}
-    };
-    
-    printf("Algoritmo\t\tT.Retorno\tT.Espera\tT.Respuesta\n");
-    printf("---------------------------------------------------\n");
-    
-    for (int i = 0; i < 4; i++) {
-        printf("%-15s\t%.2f\t\t%.2f\t\t%.2f\n",
-               results[i].algorithm_name,
-               results[i].avg_turnaround,
-               results[i].avg_waiting,
-               results[i].avg_response);
-    }
-    
-    // Análisis automático
-    printf("\nAnálisis:\n");
-    printf("- Mejor tiempo de retorno: SJF\n");
-    printf("- Mejor tiempo de respuesta: RR (Q=2)\n");
-    printf("- Más justo: Round Robin\n");
-    printf("- Más simple: FCFS\n");
-}
-
-int main() {
-    compare_algorithms();
-    return 0;
-}
-```
-
-## 6. Casos de Estudio
-
-### Caso de Estudio 1: Comparación de algoritmos
-
-**Ejercicio típico de parcial:**
-Dados los siguientes procesos, calcular tiempo promedio de retorno y espera para FCFS, SJF y RR (Q=4):
-
-```
-Proceso | Llegada | Ráfaga CPU
---------|---------|----------
-P1      |    0    |    8
-P2      |    1    |    4  
-P3      |    2    |    9
-P4      |    3    |    5
-```
-
-**Resolución FCFS:**
-```
-Orden de ejecución: P1 → P2 → P3 → P4
-
-Diagrama de Gantt:
-0    8   12   21   26
-|P1  |P2 |P3     |P4|
-
-Tiempo de terminación:
-P1: 8,  P2: 12,  P3: 21,  P4: 26
-
-Tiempo de retorno:
-P1: 8-0 = 8
-P2: 12-1 = 11  
-P3: 21-2 = 19
-P4: 26-3 = 23
-Promedio: (8+11+19+23)/4 = 15.25
-
-Tiempo de espera:
-P1: 8-8 = 0
-P2: 11-4 = 7
-P3: 19-9 = 10  
-P4: 23-5 = 18
-Promedio: (0+7+10+18)/4 = 8.75
-```
-
-**Resolución SJF (no expropiativo):**
-```
-Orden por tiempo de ráfaga: P2(4) → P4(5) → P1(8) → P3(9)
-
-Pero debemos respetar llegadas:
-- t=0: Solo P1 disponible → ejecuta P1
-- t=8: P2,P3,P4 disponibles → ejecuta P2 (menor)  
-- t=12: P3,P4 disponibles → ejecuta P4 (menor)
-- t=17: Solo P3 disponible → ejecuta P3
-
-Diagrama de Gantt:
-0    8   12   17   26
-|P1  |P2 |P4 |P3    |
-
-Tiempo de retorno:
-P1: 8-0 = 8
-P2: 12-1 = 11
-P3: 26-2 = 24  
-P4: 17-3 = 14
-Promedio: (8+11+24+14)/4 = 14.25
-
-Tiempo de espera:
-P1: 0,  P2: 7,  P3: 15,  P4: 9
-Promedio: 7.75
-```
-
-**Resolución Round Robin (Q=4):**
-```
-Ejecución detallada:
-t=0-4: P1 (quantum completo, remaining=4)
-t=4-8: P1 (termina, remaining=0) 
-t=8-12: P2 (termina, remaining=0)
-t=12-16: P3 (quantum completo, remaining=5)
-t=16-20: P4 (quantum completo, remaining=1) 
-t=20-24: P3 (quantum completo, remaining=1)
-t=24-25: P4 (termina, remaining=0)
-t=25-26: P3 (termina, remaining=0)
-
-Diagrama de Gantt:
-0  4  8  12 16 20 24 25 26
-|P1|P1|P2|P3|P4|P3|P4|P3|
-
-Tiempo de retorno:
-P1: 8-0 = 8
-P2: 12-1 = 11
-P3: 26-2 = 24
-P4: 25-3 = 22  
-Promedio: 16.25
-
-Tiempo de respuesta (primera ejecución):
-P1: 0-0 = 0
-P2: 8-1 = 7  
-P3: 12-2 = 10
-P4: 16-3 = 13
-Promedio: 7.5
-```
-
-**Conclusiones del caso:**
-- **SJF** tiene mejor tiempo de retorno promedio (14.25)
-- **RR** tiene mejor tiempo de respuesta promedio (7.5)  
-- **FCFS** es más simple pero menos eficiente
-- **RR** es más justo pero puede tener mayor overhead
-
-### Caso de Estudio 2: Selección de quantum en Round Robin
-
-**Problema:** Un sistema interactivo tiene procesos con ráfagas típicas de 6ms. El context switch toma 1ms. ¿Qué quantum elegir?
-
-**Análisis:**
-
-```c
-// Efficiency = Useful_work / Total_time
-// Efficiency = Quantum / (Quantum + Context_switch_time)
-
-float efficiency(int quantum, int context_switch_time) {
-    return (float)quantum / (quantum + context_switch_time);
-}
-
-int main() {
-    printf("Quantum\tContext Switch\tEfficiency\tOverhead%%\n");
-    
-    int quantums[] = {1, 2, 4, 6, 8, 12, 20};
-    int cs_time = 1;
-    
-    for (int i = 0; i < 7; i++) {
-        float eff = efficiency(quantums[i], cs_time);
-        float overhead = (1.0 - eff) * 100;
-        
-        printf("%d\t%d\t\t%.3f\t\t%.1f%%\n", 
-               quantums[i], cs_time, eff, overhead);
-    }
-    
-    return 0;
-}
-```
-
-**Salida esperada:**
-```
-Quantum Context Switch  Efficiency  Overhead%
-1       1               0.500       50.0%
-2       1               0.667       33.3%  
-4       1               0.800       20.0%
-6       1               0.857       14.3%  ← Óptimo para ráfagas de 6ms
-8       1               0.889       11.1%
-12      1               0.923       7.7%
-20      1               0.952       4.8%
-```
-
-**Recomendación:** Quantum = 6ms (igual a ráfaga típica) ofrece buen balance entre eficiencia (85.7%) y respuesta interactiva.
-
-### Caso de Estudio 3: Algoritmo de planificación de Linux (CFS)
-
-**Contexto:** El Completely Fair Scheduler de Linux usa un enfoque diferente basado en "tiempo virtual".
-
-**Conceptos clave:**
-```c
-// Tiempo virtual de un proceso
-vruntime = runtime * (NICE_0_LOAD / process_load)
-
-// Donde:
-// - runtime: tiempo real ejecutado
-// - NICE_0_LOAD: peso del proceso con nice=0  
-// - process_load: peso según prioridad nice del proceso
-```
-
-**Comportamiento:**
-- Procesos se organizan en **Red-Black Tree** ordenado por vruntime
-- Se ejecuta proceso con **menor vruntime** (más "atrasado")
-- Quantum dinámico basado en número de procesos
-- Nice values afectan peso, no prioridad absoluta
-
-**Ventajas del CFS:**
-- ✅ Fairness matemáticamente garantizado
-- ✅ Escalable para muchos procesos (O(log n))
-- ✅ Buen balance entre throughput y latencia
-- ✅ Se adapta automáticamente a la carga
-
-**Ejemplo simplificado:**
-```c
-// Simulación conceptual del CFS
-typedef struct {
-    int pid;
-    int nice_value;      // -20 a +19
-    long long vruntime;  // tiempo virtual
-    int weight;          // calculado desde nice
-} cfs_process_t;
-
-// Calcular peso desde nice value
-int nice_to_weight[] = {88761, 71755, 56483, 46273, 36291, /*...*/ 15, 12, 10, 8};
-
-void cfs_tick(cfs_process_t *current, int runtime_ms) {
-    // Actualizar vruntime
-    current->vruntime += runtime_ms * (1024 / current->weight);
-    
-    // El proceso con menor vruntime será el próximo
-}
-```
-
-## 7. Síntesis
-
-### 7.1 Puntos Clave para Parcial
-
-**Algoritmos fundamentales y sus características:**
-
-| Algoritmo | Tipo | Ventajas | Desventajas | Mejor para |
-|-----------|------|----------|-------------|------------|
-| **FCFS** | No expropiativo | Simple, sin starvation | Convoy effect | Batch |
-| **SJF** | No expropiativo | Óptimo tiempo retorno | Starvation, requiere predicción | Batch conocido |
-| **SRTF** | Expropiativo | Mejor tiempo retorno | Starvation, overhead | Batch con llegadas |
-| **RR** | Expropiativo | Justo, buen tiempo respuesta | Pobre para largos | Interactivo |
-| **Prioridades** | Ambos | Flexible, control fino | Starvation sin aging | Tiempo real |
-
-**Fórmulas esenciales:**
-```c
-// Métricas de rendimiento
-Tiempo_retorno = Tiempo_terminación - Tiempo_llegada
-Tiempo_espera = Tiempo_retorno - Tiempo_CPU  
-Tiempo_respuesta = Primera_ejecución - Tiempo_llegada
-
-// Eficiencia de quantum
-Eficiencia = Quantum / (Quantum + Context_switch)
-
-// Predicción de tiempo (SJF)
-Estimación_n+1 = α × Tiempo_real_n + (1-α) × Estimación_n
-```
-
-**Pasos para resolver ejercicios:**
-
-1. **Dibujar timeline** con llegadas y ejecuciones
-2. **Aplicar algoritmo** paso a paso
-3. **Calcular métricas** para cada proceso
-4. **Obtener promedios** y comparar
-5. **Justificar elección** según contexto del sistema
-
-### 7.2 Errores Comunes y Tips
-
-**❌ Errores frecuentes:**
-
-1. **No considerar tiempos de llegada**
-   ```
-   MAL: Ejecutar procesos en orden de aparición
-   BIEN: Verificar qué procesos han llegado en cada momento
-   ```
-
-2. **Confundir métricas**
-   ```
-   MAL: Tiempo_espera = Tiempo_terminación - Tiempo_llegada  
-   BIEN: Tiempo_espera = Tiempo_retorno - Tiempo_CPU
-   ```
-
-3. **Error en Round Robin**
-   ```
-   MAL: Proceso vuelve inmediatamente al CPU tras quantum
-   BIEN: Proceso va al final de la cola
-   ```
-
-4. **No manejar empates en SJF**
-   ```
-   Regla: Si dos procesos tienen mismo tiempo, usar FCFS como criterio de desempate
-   ```
 
 **✅ Tips para parcial:**
 
-1. **Diagramas de Gantt son esenciales** - Dibujar siempre la línea temporal
-2. **Verificar cálculos** - Las métricas deben ser coherentes entre sí
-3. **Considerar el contexto** - ¿Sistema batch, interactivo o tiempo real?
-4. **Quantum en RR** - Ni muy pequeño (overhead) ni muy grande (FCFS)
-5. **Starvation** - Recordar qué algoritmos lo causan y cómo evitarlo
+1. **Diagramas de Gantt son esenciales** - Mostrar CPU e I/O separadamente
+2. **Marcar eventos importantes** - Interrupciones, llegadas, cambios de estado
+3. **Verificar cálculos** - Tiempo total debe ser consistente
+4. **Considerar overhead** - Context switches tienen costo
+5. **Justificar decisiones** - Explicar por qué se eligió cada proceso
 
-### 7.3 Decisiones de Diseño en Sistemas Reales
+### Decisiones de Diseño
 
-**Sistemas Batch (servidores, cálculo científico):**
-- **Objetivo**: Maximizar throughput
-- **Algoritmo**: SJF o FCFS con prioridades
-- **Quantum**: No aplicable (no expropiativo)
-- **Ejemplo**: Cluster de supercomputación
+**Sistemas Batch**: SJF, HRRN, FCFS
+- Optimizar throughput sobre respuesta
+- Starvation menos crítico
 
-**Sistemas Interactivos (desktop, móviles):**
-- **Objetivo**: Minimizar tiempo de respuesta
-- **Algoritmo**: Round Robin o Multilevel Feedback
-- **Quantum**: 10-100ms
-- **Ejemplo**: Linux desktop, Windows
+**Sistemas Interactivos**: RR, VRR, Multilevel
+- Tiempo de respuesta crítico
+- Fairness importante
 
-**Sistemas de Tiempo Real:**
-- **Objetivo**: Cumplir deadlines
-- **Algoritmo**: Prioridades fijas (Rate Monotonic, EDF)
-- **Quantum**: Muy pequeño o basado en eventos
-- **Ejemplo**: Sistemas embebidos, control industrial
+**Sistemas de Tiempo Real**: Prioridades fijas
+- Deadlines deben cumplirse
+- Predecibilidad esencial
 
-**Sistemas de Propósito General:**
-- **Objetivo**: Balance entre todos los criterios
-- **Algoritmo**: Multilevel feedback (como CFS de Linux)
-- **Adaptabilidad**: Se ajusta según comportamiento
-- **Ejemplo**: Linux, Windows, macOS
-
-### 7.4 Conexión con Próximos Temas
-
-La planificación es fundamental para entender:
-
-**Hilos (Capítulo 4):**
-- Planificación a nivel de hilo vs proceso
-- Modelos de threads (1:1, N:1, M:N)
-- Diferencias entre User-Level Threads y Kernel Threads
-
-**Sincronización (Capítulo 5):**
-- **Inversión de prioridades**: Proceso de baja prioridad bloquea uno de alta
-- **Priority inheritance**: Solución temporal al problema anterior
-- **Planificación consciente de locks**: Evitar context switches innecesarios
-
-**Gestión de Memoria (Capítulos 7-8):**
-- **Thrashing**: Demasiados procesos causan exceso de paging
-- **Working set**: Conjunto de páginas que proceso necesita
-- **Planificación y localidad**: Procesos con mejor localidad son preferibles
-
-**Ejemplo integrador:**
-```c
-// Un proceso CPU-bound en sistema con poca memoria
-if (memory_pressure && process_type == CPU_BOUND) {
-    // Reducir prioridad para dar más tiempo a I/O-bound
-    // que usan menos memoria y liberan CPU frecuentemente
-    reduce_priority(process);
-}
-```
-
-### 7.5 Laboratorio Sugerido
-
-**Práctica 1**: Implementar y comparar FCFS, SJF y RR
-- Simular procesos con diferentes patrones (CPU-bound vs I/O-bound)
-- Medir métricas para diferentes cargas de trabajo
-- Analizar impacto del quantum en RR
-
-**Práctica 2**: Análisis del planificador de Linux
-```bash
-# Ver procesos y sus prioridades
-ps -eo pid,ppid,ni,pri,pcpu,comm --sort=-pcpu
-
-# Cambiar nice value
-nice -n 10 ./cpu_intensive_program
-
-# Monitor en tiempo real
-top -p PID  # Ver cambios de prioridad y CPU%
-```
-
-**Práctica 3**: Implementar aging para prioridades
-```c
-void aging_priority_scheduler() {
-    // Incrementar prioridad de procesos que esperan mucho
-    for (each process in ready_queue) {
-        if (current_time - process.last_run > AGING_THRESHOLD) {
-            process.priority = min(MAX_PRIORITY, process.priority + 1);
-        }
-    }
-}
-```
-
-**Pregunta de reflexión para próximo capítulo:**
-Si tenemos múltiples hilos dentro de un proceso, ¿cómo los planifica el SO? ¿Qué ventajas y desventajas tiene esto comparado con crear múltiples procesos?
+**Sistemas de Propósito General**: Multilevel feedback
+- Balance entre todos los objetivos
+- Adaptabilidad a diferentes cargas
 
 ---
 
-**Próximo capítulo recomendado**: Capítulo 4: Hilos (Threads) - Explorando la concurrencia dentro de los procesos y los desafíos de la planificación a nivel de hilo.
+**Próximo capítulo**: Hilos - Explorando la concurrencia dentro de los procesos y desafíos de planificación multinivel.
