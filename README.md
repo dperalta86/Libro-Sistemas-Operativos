@@ -1,6 +1,9 @@
-# 📚 Libro de Sistemas Operativos
+# 📚 Introducción a los Sistemas Operativos
 
 Un libro colaborativo de Sistemas Operativos diseñado específicamente para estudiantes de Ingeniería, con enfoque en evaluaciones teórico-prácticas y ejercicios tipo parcial.
+
+
+[![📄 Descargar PDF](https://img.shields.io/github/v/release/dperalta86/Libro-Sistemas-Operativos?label=Descargar%20PDF&style=for-the-badge&color=blue)](https://github.com/dperalta86/Libro-Sistemas-Operativos/releases/latest/download/Introduccion_a_los_Sistemas_Operativos.pdf)
 
 ## 🎯 Sobre este proyecto
 
@@ -29,20 +32,16 @@ Este libro surge de la necesidad de contar con material didáctico específico p
 - [ ] **Capítulo 8**: Memoria Virtual
 - [ ] **Capítulo 9**: Sistema de Archivos
 
-## 🚀 Descarga y uso
-
-### 📥 Versión PDF compilada
-
-[![📄 Descargar PDF](https://img.shields.io/github/v/release/dperalta86/Libro-Sistemas-Operativos?label=Descargar%20PDF&style=for-the-badge&color=blue)](https://github.com/dperalta86/Libro-Sistemas-Operativos/releases/latest/download/Introduccion_a_los_Sistemas_Operativos.pdf)
 
 ### Leer online
 
 Puedes leer los capítulos individuales directamente en GitHub:
-- [Capítulo 1: Introducción](docs/cap01-introduccion.md)
-- [Capítulo 2: Procesos](docs/cap02-procesos.md)
-- [Capítulo 3: Planificación](docs/cap03-planificacion.md)
-- [Capítulo 4: Hilos](docs/cap04-hilos.md)
-- [Capítulo 5: Sincronización](docs/cap05-sincronizacion.md)
+- [Capítulo 0: Introducción](src/capitulo-00.md)
+- [Capítulo 1: Repaso Arquitectura de Computadores](src/capitulo-01.md)
+- [Capítulo 2: Procesos](src/capitulo-02.md)
+- [Capítulo 3: Planificación](src/capitulo-03.md)
+- [Capítulo 4: Hilos](src/capitulo-04.md)
+- [Capítulo 5: Sincronización](src/capitulo-05.md)
 
 ## 🔧 Compilación local
 
