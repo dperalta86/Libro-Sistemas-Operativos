@@ -125,28 +125,27 @@ Los registros son la memoria más rápida y cara del sistema. Están físicament
 
 El **PSW** (también llamado FLAGS register) contiene información sobre el estado actual del procesador:
 
-**Flags de Condición:**
-- **Zero Flag (ZF)**: Se activa si el resultado de una operación es cero
-- **Carry Flag (CF)**: Indica acarreo en operaciones aritméticas
-- **Sign Flag (SF)**: Indica si el resultado es negativo
-- **Overflow Flag (OF)**: Desbordamiento en aritmética con signo
+**Flags de Condición:**  
+- **Zero Flag (ZF)**: Se activa si el resultado de una operación es cero  
+- **Carry Flag (CF)**: Indica acarreo en operaciones aritméticas  
+- **Sign Flag (SF)**: Indica si el resultado es negativo  
+- **Overflow Flag (OF)**: Desbordamiento en aritmética con signo  
 
-**Flags de Control:**
-- **Interrupt Enable Flag (IF)**: Habilita/deshabilita interrupciones enmascarables
-- **Direction Flag (DF)**: Dirección para operaciones de string
-- **Trap Flag (TF)**: Modo single-step para debugging
+**Flags de Control:**  
+- **Interrupt Enable Flag (IF)**: Habilita/deshabilita interrupciones enmascarables  
+- **Direction Flag (DF)**: Dirección para operaciones de string  
+- **Trap Flag (TF)**: Modo single-step para debugging  
 
-**Flags de Sistema:**
-- **I/O Privilege Level (IOPL)**: Nivel de privilegio para operaciones de E/S
-- **Nested Task Flag (NT)**: Indica tarea anidada
-- **Resume Flag (RF)**: Control de debugging
+**Flags de Sistema:**  
+- **I/O Privilege Level (IOPL)**: Nivel de privilegio para operaciones de E/S  
+- **Nested Task Flag (NT)**: Indica tarea anidada  
+- **Resume Flag (RF)**: Control de debugging  
 
 ### Ciclo de Instrucción
 
-
 \begin{center}
 \begin{minipage}{0.55\linewidth}
-    \includegraphics[width=\linewidth,keepaspectratio]{src/diagrams/cap01-cicloInstruccion.png}
+    \includegraphics[width=0.8\linewidth,keepaspectratio]{src/diagrams/cap01-cicloInstruccion.png}
 \end{minipage}%
 \hspace{0.05\linewidth}%
 \begin{minipage}{0.35\linewidth}
@@ -169,8 +168,6 @@ Resultados transferidos a registro destino → PSW actualizado → CPU lista par
 Se verifica interrupción → si hay ISR: guarda contexto, salta a rutina de servicio → al terminar, retorno al ciclo normal.
 \end{minipage}
 \end{center}
-
-
 
 ## Sistema de Interrupciones
 
@@ -199,6 +196,9 @@ Mecanismo hardware que permite detener temporalmente la ejecución normal del pr
    - Errores durante la ejecución
    - Ejemplos: división por cero, acceso a memoria inválida
 
+\begin{center}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-01/bloque-interrupciones.png}
+\end{center}
 
 ### Interrupciones Enmascarables (Maskable Interrupts)  
 
@@ -207,15 +207,15 @@ Pueden ser temporalmente deshabilitadas por software mediante el control del bit
 
 
 **Control**: 
-- **CLI** (Clear Interrupt Flag): Deshabilita interrupciones
-- **STI** (Set Interrupt Flag): Habilita interrupciones
+- **CLI** (Clear Interrupt Flag): Deshabilita interrupciones  
+- **STI** (Set Interrupt Flag): Habilita interrupciones  
 
-**Ejemplos**:
-- Timer del sistema (IRQ0 - genera multitasking preemptivo)
-- Teclado (IRQ1) y mouse (IRQ12)
-- Tarjeta de red (IRQ variable)
-- Controladores de disco (IRQ14, IRQ15)
-- Puertos serie (IRQ3, IRQ4)
+**Ejemplos**:  
+- Timer del sistema (IRQ0 - genera multitasking preemptivo)  
+- Teclado (IRQ1) y mouse (IRQ12)  
+- Tarjeta de red (IRQ variable)  
+- Controladores de disco (IRQ14, IRQ15)  
+- Puertos serie (IRQ3, IRQ4)  
 
 ```c
 // Pseudocódigo de sección crítica
@@ -403,12 +403,12 @@ void disable_irq(int irq) {
 }
 ```
 
-Este sistema de interrupciones es fundamental para:
-- **Multitasking preemptivo**: Timer interrupts permiten cambios de contexto
-- **Manejo de E/S**: Respuesta eficiente a dispositivos
-- **Gestión de memoria**: Page faults y gestión de memoria virtual
-- **Comunicación inter-procesos**: Señales y sincronización
-- **Detección de errores**: Excepciones y fallos de hardware
+Este sistema de interrupciones es fundamental para:  
+- **Multitasking preemptivo**: Timer interrupts permiten cambios de contexto  
+- **Manejo de E/S**: Respuesta eficiente a dispositivos  
+- **Gestión de memoria**: Page faults y gestión de memoria virtual  
+- **Comunicación inter-procesos**: Señales y sincronización  
+- **Detección de errores**: Excepciones y fallos de hardware  
 ### Modos de Operación del Procesador
 
 **Modo Kernel (Supervisor/Privilegiado):**
@@ -423,8 +423,90 @@ Este sistema de interrupciones es fundamental para:
 - No puede modificar configuraciones críticas
 - Aplicaciones ejecutan en este modo
 
-**¿Por qué es importante?**
-Esta separación es la base de la **seguridad** y **estabilidad** del sistema. Sin ella, cualquier programa podría crashear la máquina o acceder a datos privados. Más adelante se verá como se las arreglan las aplicaciones de usuario para realizar tareas "privilegiadas".
+
+\textcolor{blue!50!black}{\textbf{¿Por qué es importante?}\\
+Esta separación es la base de la seguridad y estabilidad del sistema. Sin ella, cualquier programa podría crashear la máquina o acceder a datos privados. Más adelante se verá como se las arreglan las aplicaciones de usuario para realizar tareas "privilegiadas".
+}
+
+### Cambio de Procesos
+Cuándo por algún motivo existe un cambio de proceso en ejecución (los motivos se verán en detalle mas adelante), se realizan varias tareas que son "transparentes" para el usuario final.  
+
+\begin{center}
+\begin{minipage}{0.45\linewidth}
+\textbf{Cambio de procesos en sistemas Unix} \\
+Cuando el sistema operativo interrumpe la ejecución de un proceso y decide continuar con otro, se produce un cambio de contexto. Este mecanismo implica la intervención tanto del hardware como del software (kernel). \\[2mm]
+
+\textbf{Rol del Hardware:} \\
+El hardware se encarga de detectar la interrupción (timer, E/S o syscall), cambiar automáticamente a modo kernel y guardar información mínima como el contador de programa y los flags. Luego transfiere el control al vector de interrupción correspondiente. \\[2mm]
+
+\textbf{Rol del Software (Kernel):} \\
+A partir de allí, el software del kernel toma el control: guarda el estado completo del proceso en su PCB, actualiza las estructuras del planificador y contabiliza uso de CPU y señales pendientes. El scheduler selecciona el nuevo proceso a ejecutar y el kernel restaura su estado desde el PCB.
+\end{minipage}%
+\hspace{0.05\linewidth}%
+\begin{minipage}{0.45\linewidth}
+    \includegraphics[width=\linewidth,keepaspectratio]{src/diagrams/cap01-cambioDeProcesos.png}
+\end{minipage}
+\end{center}
+
+\vspace{3mm}
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\textbf{Finalización del Proceso:} \\
+Antes de retornar al usuario, se actualiza el espacio de direcciones (MMU/TLB) y se realiza el cambio de modo kernel → usuario. \\[2mm]
+
+\textbf{Consideraciones de Performance:} \\
+Este procedimiento asegura la correcta continuidad de los procesos, pero introduce un overhead inevitable: acceso a memoria para guardar/restaurar registros, invalidación de TLB y caches, y lógica extra del planificador. Por este motivo, sistemas I/O-bound suelen generar más cambios de contexto que los CPU-bound, y su rendimiento depende en gran medida de la eficiencia del scheduler y de las optimizaciones del hardware.
+\end{minipage}
+\end{center}  
+
+
+\begin{center}
+\begin{minipage}{0.52\linewidth}
+\textbf{Fases del Context Switch en Sistemas Unix} \\[2mm]
+
+\textcolor{blue!50!black}{\textbf{Fase Inicial - Ejecución Normal:}\\
+\textbf{0.} P₀ ejecuta en modo usuario → Estado normal usando su espacio de direcciones y time slice vigente.\\[2mm]
+}
+
+\textcolor{orange!70!black}{\textbf{Detección del Evento [Hardware]:}\\
+\textbf{1.} Se dispara evento → Timer interrupt, IRQ de E/S o trap por syscall/exception\\
+\textbf{2.} Cambio automático a modo kernel → CPU guarda PC y PSW/EFLAGS, cambia a stack de kernel\\
+\textbf{3.} Búsqueda en vector/IDT → Hardware obtiene dirección del handler apropiado\\[2mm]
+}
+
+\textcolor{violet!60!black}{\textbf{Guardar Estado [Software]:}\\
+\textbf{4.} Prólogo del handler → Kernel salva registros volátiles, arma frame de interrupción\\
+\textbf{5.} Decisión de reschedule → Marca need\_resched según tipo de evento\\
+\textbf{6.} Guardar contexto de P₀ → Registros GPR, SP, FP, TLS; FPU/SIMD en forma lazy\\
+\textbf{7.} Contabilidad y señales → Actualiza uso de CPU, entrega señales pendientes\\[2mm]
+}
+\end{minipage}%
+\hspace{0.04\linewidth}%
+\begin{minipage}{0.42\linewidth}
+    \includegraphics[width=\linewidth,keepaspectratio]{src/diagrams/cap01-cambioDeProcesosCompleto.jpeg}
+\end{minipage}
+\end{center}
+
+\vspace{2mm}
+
+\noindent
+\textcolor{teal!60!black}{\textbf{Selección y Carga [Software]:}\\
+\textbf{8.} Actualizar colas y estado → Mueve P₀ de running → ready/blocked; ajusta prioridad\\
+\textbf{9.} Scheduler elige P₁ → Aplica política de planificación (CFS, prioridades, afinidad CPU)\\
+\textbf{10.} Preparar espacio de P₁ → Carga CR3/tablas de páginas; puede requerir TLB flush\\
+\textbf{11.} Recargar contexto de P₁ → Restaura registros, SP, FP, TLS, stack de usuario\\[2mm]
+}
+
+\textcolor{green!40!black}{\textbf{Retorno a Ejecución [Hardware]:}\\
+\textbf{12.} Epílogo y retorno → Prepara iret/sysret, re-habilita interrupciones\\
+\textbf{13.} Kernel → modo usuario → CPU restaura PSW/EFLAGS y PC, salta a P₁\\
+\textbf{14.} P₁ ejecuta en modo usuario → Continúa hasta el próximo evento\\[2mm]
+}
+
+\textcolor{red!60!gray}{\textbf{Overhead inevitable:}\\
+Acceso a memoria para guardar/restaurar registros → Invalidación de TLB y caches → Lógica extra del planificador → Sistemas I/O-bound generan más context switches que CPU-bound.\\
+}
 
 
 ### Introducción a los Sistemas Operativos
@@ -561,44 +643,48 @@ La organización interna del kernel afecta directamente el rendimiento, segurida
 
 **Kernel Monolítico:**
 
-*Características:*
-- **Todo el SO ejecuta en modo kernel**
-- Drivers, filesystem, network stack en un solo espacio de direcciones
-- Comunicación interna mediante llamadas a función directas
-- Un solo binario grande del kernel
+*Características:*  
+- **Todo el SO ejecuta en modo kernel**  
+- Drivers, filesystem, network stack en un solo espacio de direcciones  
+- Comunicación interna mediante llamadas a función directas  
+- Un solo binario grande del kernel  
 
-*Ventajas:*
-- **Rendimiento superior**: Sin overhead de comunicación entre componentes
-- **Acceso directo**: Todos los subsistemas pueden llamarse entre sí
-- **Eficiencia**: Menos cambios de contexto
-- **Simplicidad de debugging**: Todo está en un lugar
+\textcolor{teal!60!black}{\textbf{Ventajas:}\\
+- **Rendimiento superior**: Sin overhead de comunicación entre componentes\\
+- **Acceso directo**: Todos los subsistemas pueden llamarse entre sí\\
+- **Eficiencia**: Menos cambios de contexto\\
+- **Simplicidad de debugging**: Todo está en un lugar\\
+}
 
-*Desventajas:*
-- **Menor estabilidad**: Un bug en cualquier driver puede crashear todo el sistema
-- **Seguridad**: Todo código tiene privilegios máximos
-- **Tamaño**: Kernel grande consume más memoria
-- **Mantenimiento**: Más difícil modificar sin afectar otros componentes
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- **Menor estabilidad**: Un bug en cualquier driver puede crashear todo el sistema\\
+- **Seguridad**: Todo código tiene privilegios máximos\\
+- **Tamaño**: Kernel grande consume más memoria\\
+- **Mantenimiento**: Más difícil modificar sin afectar otros componentes\\
+}
 
 *Ejemplos:* Linux, Unix tradicional, Windows (parcialmente)
 
 **Microkernel:**
 
-*Características:*
-- **Kernel mínimo** solo con funciones esenciales
-- Drivers y servicios ejecutan como procesos separados en modo usuario
-- Comunicación mediante paso de mensajes (IPC)
-- Kernel solo maneja: scheduling, IPC, memoria básica
+*Características:*  
+- **Kernel mínimo** solo con funciones esenciales  
+- Drivers y servicios ejecutan como procesos separados en modo usuario  
+- Comunicación mediante paso de mensajes (IPC)  
+- Kernel solo maneja: scheduling, IPC, memoria básica  
 
-*Ventajas:*
-- **Mayor estabilidad**: Falla de driver no afecta al kernel
-- **Seguridad mejorada**: Servicios con privilegios mínimos necesarios
-- **Modularidad**: Fácil agregar/quitar componentes
-- **Debugging**: Aislamiento facilita encontrar problemas
+\textcolor{teal!60!black}{\textbf{Ventajas:}\\
+- **Mayor estabilidad**: Falla de driver no afecta al kernel\\
+- **Seguridad mejorada**: Servicios con privilegios mínimos necesarios\\
+- **Modularidad**: Fácil agregar/quitar componentes\\
+- **Debugging**: Aislamiento facilita encontrar problemas\\
+}
 
-*Desventajas:*
-- **Rendimiento menor**: Overhead de IPC entre componentes
-- **Complejidad**: Más difícil de diseñar y implementar
-- **Latencia**: Múltiples cambios de contexto para operaciones simples
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- **Rendimiento menor**: Overhead de IPC entre componentes\\
+- **Complejidad**: Más difícil de diseñar y implementar\\
+- **Latencia**: Múltiples cambios de contexto para operaciones simples\\
+}
 
 *Ejemplos:* Minix, QNX, seL4, Hurd (GNU)
 
@@ -615,10 +701,10 @@ La organización interna del kernel afecta directamente el rendimiento, segurida
 | Tiempo de desarrollo | Menor | Mayor |
 
 **Enfoques Híbridos:**
-Muchos SO modernos combinan ambos enfoques:
-- **Windows NT**: Microkernel modificado con algunos servicios en kernel
-- **macOS**: Mach microkernel + BSD kernel monolítico
-- **Linux**: Principalmente monolítico pero con módulos cargables
+Muchos SO modernos combinan ambos enfoques:  
+- **Windows NT**: Microkernel modificado con algunos servicios en kernel  
+- **macOS**: Mach microkernel + BSD kernel monolítico  
+- **Linux**: Principalmente monolítico pero con módulos cargables  
 
 
 ## Análisis Técnico (Leelo sólo por curiosidad...)
@@ -649,13 +735,13 @@ Muchos SO modernos combinan ambos enfoques:
 **Vector de Interrupciones:**
 Tabla que mapea cada tipo de interrupción a su rutina de manejo correspondiente.
 
-**Proceso de Manejo:**
-1. **Ocurre Interrupción** → Hardware detiene ejecución actual
-2. **Guardar Contexto** → Estado actual se guarda en stack
-3. **Identificar Tipo** → Consultar vector de interrupciones
-4. **Ejecutar Handler** → Rutina específica en modo kernel
-5. **Restaurar Contexto** → Volver al estado anterior
-6. **Continuar Ejecución** → Resumir programa interrumpido
+**Proceso de Manejo:**  
+1. **Ocurre Interrupción** → Hardware detiene ejecución actual  
+2. **Guardar Contexto** → Estado actual se guarda en stack  
+3. **Identificar Tipo** → Consultar vector de interrupciones  
+4. **Ejecutar Handler** → Rutina específica en modo kernel  
+5. **Restaurar Contexto** → Volver al estado anterior  
+6. **Continuar Ejecución** → Resumir programa interrumpido  
 
 ### Jerarquía de Memoria
 
@@ -672,12 +758,11 @@ Memoria Principal RAM (100-300 ciclos, GB)
 Almacenamiento Secundario (millones de ciclos, TB)
 ```
 
-**Implicaciones para el SO:**
-- Gestión de cache es crítica para rendimiento
-- Necesidad de memoria virtual cuando RAM es insuficiente
-- Algoritmos de reemplazo para optimizar accesos
+**Implicaciones para el SO:**  
+- Gestión de cache es crítica para rendimiento  
+- Necesidad de memoria virtual cuando RAM es insuficiente  
+- Algoritmos de reemplazo para optimizar accesos  
 
----
 
 ## Código en C
 
@@ -748,11 +833,11 @@ int main() {
 }
 ```
 
-**Conceptos demostrados:**
-- **Señales**: Mecanismo de comunicación asincrónica
-- **signal()**: Syscall para registrar manejadores
-- **Interrupción de software**: Ctrl+C genera SIGINT
-- **Context switching**: El SO interrumpe el programa para ejecutar el handler
+**Conceptos demostrados:**  
+- **Señales**: Mecanismo de comunicación asincrónica  
+- **signal()**: Syscall para registrar manejadores  
+- **Interrupción de software**: Ctrl+C genera SIGINT  
+- **Context switching**: El SO interrumpe el programa para ejecutar el handler  
 
 
 ## Casos de Estudio

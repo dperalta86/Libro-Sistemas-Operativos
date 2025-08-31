@@ -1,0 +1,34 @@
+flowchart TD
+    %% Estilo general
+    classDef process fill:#7A7A7A,stroke:#000,stroke-width:1px,color:#fff
+    classDef os fill:#EAEAEA,stroke:#000,stroke-width:1px,color:#000
+    classDef exec fill:#4A74B7,stroke:#000,stroke-width:1px,color:#fff
+    classDef context fill:#F2A648,stroke:#000,stroke-width:1px,color:#000
+    classDef mode fill:#8A5FBF,stroke:#000,stroke-width:1px,color:#fff
+
+    %% Procesos
+    P0start(["P₀ ejecutando"]):::exec
+    P0idle(["P₀ idle"]):::process
+    P1start(["P₁ ejecutando"]):::exec
+    P1idle(["P₁ idle"]):::process
+
+    %% Sistema operativo
+    SOsave0(["Guardar estado en PCB₀"]):::os
+    SOreload1(["Cargar estado desde PCB₁"]):::os
+    SOsave1(["Guardar estado en PCB₁"]):::os
+    SOreload0(["Cargar estado desde PCB₀"]):::os
+
+    %% Cambios de modo
+    enterKernel(["User → Kernel Mode"]):::mode
+    exitKernel(["Kernel → User Mode"]):::mode
+
+    enterKernel2(["User → Kernel Mode"]):::mode
+    exitKernel2(["Kernel → User Mode"]):::mode
+
+    %% Flujo de ejecución
+    P0start --> enterKernel --> SOsave0 --> SOreload1 --> exitKernel --> P1start
+    P1start --> enterKernel2 --> SOsave1 --> SOreload0 --> exitKernel2 --> P0start
+
+    %% Relaciones con estados idle
+    P0start --> P0idle
+    P1start --> P1idle
