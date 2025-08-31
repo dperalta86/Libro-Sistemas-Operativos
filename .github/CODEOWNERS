@@ -1,0 +1,17 @@
+# Archivo CODEOWNERS
+# Requiere revisión del owner para cambios importantes
+
+# Todo el repositorio requiere revisión del owner
+* @dperalta86
+
+# Archivos críticos requieren revisión específica
+/.github/ @dperalta86
+/Makefile @dperalta86
+/metadata.yaml @dperalta86
+/templates/ @dperalta86
+
+# Contenido del libro
+/src/ @dperalta86
+
+# Solo el owner puede modificar el workflow
+/.github/workflows/ @dperalta86
