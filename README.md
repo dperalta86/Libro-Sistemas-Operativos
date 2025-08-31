@@ -172,8 +172,8 @@ Este libro es completamente **gratuito y libre**. Si te ha sido útil y querés 
 
 Si el libro te ayudó a entender la materia o conseguir mejores notas, y querés hacer una contribución monetaria voluntaria para apoyar el desarrollo:
 
-- ☕ **[Invitame un café](https://ko-fi.com/[tu-usuario])** - Ko-fi (Próximamente...)
-- 💳 **[Donación única](https://paypal.me/[tu-paypal])** - PayPal (Próximamente...)
+- ☕ **[Invitame un café](https://ko-fi.com/dperalta86)** - Ko-fi
+- 💳 **[Donación única](https://paypal.me/dperalta86)** - PayPal
 - 🇦🇷 **Transferencia/MP**: `dperalta86` (Argentina)
 
 > 💡 **Importante**: Las donaciones son completamente voluntarias. El libro seguirá siendo libre y gratuito independientemente del apoyo económico recibido.
@@ -194,7 +194,6 @@ Las contribuciones ayudan a:
 ![GitHub contributors](https://img.shields.io/github/contributors/dperalta86/Libro-Sistemas-Operativos)
 ![GitHub last commit](https://img.shields.io/github/last-commit/dperalta86/Libro-Sistemas-Operativos)
 ![Downloads](https://img.shields.io/github/downloads/dperalta86/Libro-Sistemas-Operativos/total?style=flat-square&label=Descargas%20totales)
-![PDF Build](https://img.shields.io/github/actions/workflow/status/dperalta86/Libro-Sistemas-Operativos/build.yml?label=PDF%20Build)
 
 ## 📞 Contacto
 
