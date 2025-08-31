@@ -193,6 +193,7 @@ Las contribuciones ayudan a:
 ![GitHub forks](https://img.shields.io/github/forks/dperalta86/Libro-Sistemas-Operativos?style=social)
 ![GitHub contributors](https://img.shields.io/github/contributors/dperalta86/Libro-Sistemas-Operativos)
 ![GitHub last commit](https://img.shields.io/github/last-commit/dperalta86/Libro-Sistemas-Operativos)
+![Downloads](https://img.shields.io/github/downloads/dperalta86/Libro-Sistemas-Operativos/total?style=flat-square&label=Descargas%20totales)
 ![PDF Build](https://img.shields.io/github/actions/workflow/status/dperalta86/Libro-Sistemas-Operativos/build.yml?label=PDF%20Build)
 
 ## 📞 Contacto
