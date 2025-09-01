@@ -481,6 +481,13 @@ Este procedimiento asegura la correcta continuidad de los procesos, pero introdu
 \textbf{6.} Guardar contexto de P₀ → Registros GPR, SP, FP, TLS; FPU/SIMD en forma lazy\\
 \textbf{7.} Contabilidad y señales → Actualiza uso de CPU, entrega señales pendientes\\[2mm]
 }
+
+\textcolor{teal!60!black}{\textbf{Selección y Carga [Software]:}\\
+\textbf{8.} Actualizar colas y estado → Mueve P₀ de running → ready/blocked; ajusta prioridad\\
+\textbf{9.} Scheduler elige P₁ → Aplica política de planificación (CFS, prioridades, afinidad CPU)\\
+\textbf{10.} Preparar espacio de P₁ → Carga CR3/tablas de páginas; puede requerir TLB flush\\
+\textbf{11.} Recargar contexto de P₁ → Restaura registros, SP, FP, TLS, stack de usuario\\[2mm]
+}
 \end{minipage}%
 \hspace{0.04\linewidth}%
 \begin{minipage}{0.42\linewidth}
@@ -490,15 +497,7 @@ Este procedimiento asegura la correcta continuidad de los procesos, pero introdu
 
 \vspace{2mm}
 
-\noindent
-\textcolor{teal!60!black}{\textbf{Selección y Carga [Software]:}\\
-\textbf{8.} Actualizar colas y estado → Mueve P₀ de running → ready/blocked; ajusta prioridad\\
-\textbf{9.} Scheduler elige P₁ → Aplica política de planificación (CFS, prioridades, afinidad CPU)\\
-\textbf{10.} Preparar espacio de P₁ → Carga CR3/tablas de páginas; puede requerir TLB flush\\
-\textbf{11.} Recargar contexto de P₁ → Restaura registros, SP, FP, TLS, stack de usuario\\[2mm]
-}
-
-\textcolor{green!40!black}{\textbf{Retorno a Ejecución [Hardware]:}\\
+\textcolor{green!40!black}{\textbf{\\Retorno a Ejecución [Hardware]:}\\
 \textbf{12.} Epílogo y retorno → Prepara iret/sysret, re-habilita interrupciones\\
 \textbf{13.} Kernel → modo usuario → CPU restaura PSW/EFLAGS y PC, salta a P₁\\
 \textbf{14.} P₁ ejecuta en modo usuario → Continúa hasta el próximo evento\\[2mm]
@@ -522,11 +521,11 @@ Un Sistema Operativo es un conjunto de rutinas y procedimientos manuales y autom
 
 
 Sus principales tareas son:  
-1. **IPL** Se encarga de lanzar el Init Program Loader
-2. **Gestiona los recursos** del hardware de manera eficiente
-3. **Proporciona servicios** a los programas de aplicación
-4. **Actúa como intermediario** entre usuarios y hardware (gestión de usuarios)
-5. **Mantiene la seguridad e integridad** del sistema
+1. **IPL** Se encarga de lanzar el Init Program Loader  
+2. **Gestiona los recursos** del hardware de manera eficiente  
+3. **Proporciona servicios** a los programas de aplicación  
+4. **Actúa como intermediario** entre usuarios y hardware (gestión de usuarios)  
+5. **Mantiene la seguridad e integridad** del sistema  
 
 ### Principales Tareas del Sistema Operativo
 
@@ -650,17 +649,17 @@ La organización interna del kernel afecta directamente el rendimiento, segurida
 - Un solo binario grande del kernel  
 
 \textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- **Rendimiento superior**: Sin overhead de comunicación entre componentes\\
-- **Acceso directo**: Todos los subsistemas pueden llamarse entre sí\\
-- **Eficiencia**: Menos cambios de contexto\\
-- **Simplicidad de debugging**: Todo está en un lugar\\
+- Rendimiento superior: Sin overhead de comunicación entre componentes\\
+- Acceso directo: Todos los subsistemas pueden llamarse entre sí\\
+- Eficiencia: Menos cambios de contexto\\
+- Simplicidad de debugging: Todo está en un lugar\\
 }
 
 \textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- **Menor estabilidad**: Un bug en cualquier driver puede crashear todo el sistema\\
-- **Seguridad**: Todo código tiene privilegios máximos\\
-- **Tamaño**: Kernel grande consume más memoria\\
-- **Mantenimiento**: Más difícil modificar sin afectar otros componentes\\
+- Menor estabilidad: Un bug en cualquier driver puede crashear todo el sistema\\
+- Seguridad: Todo código tiene privilegios máximos\\
+- Tamaño: Kernel grande consume más memoria\\
+- Mantenimiento: Más difícil modificar sin afectar otros componentes\\
 }
 
 *Ejemplos:* Linux, Unix tradicional, Windows (parcialmente)
@@ -797,10 +796,10 @@ int main() {
 }
 ```
 
-**Análisis línea por línea:**
-- `#include <sys/utsname.h>`: Header para la estructura utsname
-- `uname(&system_info)`: **Syscall** que obtiene info del sistema
-- `getpid()`, `getppid()`, `getuid()`: **Syscalls** para IDs de proceso y usuario
+**Análisis línea por línea:**  
+- `#include <sys/utsname.h>`: Header para la estructura utsname  
+- `uname(&system_info)`: **Syscall** que obtiene info del sistema  
+- `getpid()`, `getppid()`, `getuid()`: **Syscalls** para IDs de proceso y usuario  
 - Cada función provoca una **transición modo usuario → modo kernel**
 
 ### Ejemplo: Manejo Básico de Señales

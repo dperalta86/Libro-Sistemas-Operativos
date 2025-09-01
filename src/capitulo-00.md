@@ -1,4 +1,4 @@
-## Capitulo 0: Introducción
+# Introducción
 
 Bienvenido a **Introducción a los Sistemas Operativos**, un libro colaborativo diseñado específicamente para estudiantes de Ingeniería que enfrentan una de las materias más desafiantes y fascinantes de su carrera.
 
@@ -97,7 +97,7 @@ En este libro recorreremos el sistema operativo desde sus cimientos hasta sus as
 
 **Fundamentos (Caps. 1-2)**: Arquitectura de computadores, concepto de proceso
 **Concurrencia (Caps. 3-6)**: Planificación, hilos, sincronización, interbloqueos  
-**Memoria (Caps. 7-8)**: Gestión de memoria real y virtual
-**Almacenamiento (Cap. 9)**: Sistemas de archivos
+**Memoria (Caps. 7-8)**: Gestión de memoria real y virtual  
+**Almacenamiento (Cap. 9)**: Sistemas de archivos  
 
 Cada tema se construye sobre los anteriores, formando una comprensión integral de cómo funciona realmente el software más importante de tu computadora.

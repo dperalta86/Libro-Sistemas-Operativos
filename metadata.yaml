@@ -72,18 +72,28 @@ include-before: |
   \newpage
   \thispagestyle{empty}
   \null\vfill
+  \newpage
+  \thispagestyle{empty}
+  \null\vfill
   \begin{center}
     {\Large\textit{Mensaje a los Estudiantes}}
   \end{center}
-  \vspace{2cm}
+  \vspace{1.5cm}
   \begin{center}
-    Este material recopila y organiza los conceptos fundamentales de \\
-    Sistemas Operativos con un enfoque tanto teórico como práctico. \\[1em]
-    
-    Espero que les sirva como guía de estudio y consulta \\
-    para acompañar las clases y preparar los exámenes. \\[2em]
-    
-    \textbf{¡Muchos éxitos en su recorrido por la materia!}
+    Este material recopila y organiza los conceptos fundamentales de Sistemas Operativos,\\
+    con un enfoque tanto teórico como práctico. Mi intención no es reemplazar las clases\\
+    ni los apuntes, sino ofrecer una guía clara que pueda servir de apoyo al momento\\
+    de estudiar, repasar o preparar exámenes.\\[1em]
+
+    Quiero compartirles también que, al momento de escribir estas páginas, \\
+    todavía sigo siendo estudiante, sigo aprendiendo, cometiendo errores y descubriendo\\
+    nuevas formas de entender estos temas. Por eso, más que un "manual cerrado”,\\
+    este libro es una invitación a investigar, conocer y aprender.\\[1em]
+
+    Si te resulta útil para aclarar dudas, ordenar ideas o ganar confianza en la materia,\\
+    entonces habrá cumplido su propósito.\\[2em]
+
+    \textbf{¡Muchos éxitos en la cursada!}
   \end{center}
   \vfill
   
@@ -95,10 +105,13 @@ include-before: |
   \end{center}
   \vspace{1cm}
   \begin{center}
-    A los profesores de la materia por su dedicación y materiales. \\[1em]
+    A los profesores de la materia por su dedicación y materiales, ya que \\
+    no solo transmiten conocimiento, sino que también el entusiasmo por aprender.\\[1em]
     A mis compañeros de estudio por las valiosas discusiones y aportes. \\[1em]
     A la comunidad de código abierto por las herramientas \\
-    que hicieron posible este proyecto.
+    que hicieron posible este proyecto.\\[1em]
+    Finalmente a todos los que se tomaron el tiempo de leer y dar feedback\\
+    sobre este material.
   \end{center}
   \vfill
   \newpage

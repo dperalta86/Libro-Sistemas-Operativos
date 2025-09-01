@@ -24,10 +24,10 @@ Los **procesos** nacieron como la solución a un problema fundamental: **¿Cómo
 
 Un proceso es mucho más que un programa ejecutándose. Es una **abstracción** que el SO crea para:
 
-1. **Aislar programas**: Un proceso no puede corromper la memoria de otro  
-2. **Compartir recursos**: CPU, memoria, archivos de manera controlada  
-3. **Facilitar la concurrencia**: Múltiples tareas "simultáneas"  
-4. **Permitir comunicación**: Entre programas de manera segura  
+1. **Aislar programas**: Un proceso no puede corromper la memoria de otro
+2. **Compartir recursos**: CPU, memoria, archivos de manera controlada
+3. **Facilitar la concurrencia**: Múltiples tareas "simultáneas"
+4. **Permitir comunicación**: Entre programas de manera segura
 
 ## Conceptos Fundamentales
 
