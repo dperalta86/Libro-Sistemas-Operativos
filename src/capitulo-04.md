@@ -1,4 +1,4 @@
-# Capítulo 4: Hilos (Threads)
+# Hilos (Threads)
 
 ## Objetivos de Aprendizaje
 

@@ -1,4 +1,4 @@
-# Capítulo 1: Introducción y Arquitectura de Computadores
+# Introducción y Arquitectura de Computadores
 
 ## Objetivos de Aprendizaje
 

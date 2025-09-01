@@ -1,11 +1,13 @@
-# Capítulo 5: Sincronización
+# Sincronización
 
-## 1. Objetivos de Aprendizaje
+## Objetivos de Aprendizaje
 
 Al finalizar este capítulo, el estudiante debe ser capaz de:
 
 - Identificar problemas de concurrencia: race conditions, deadlock, starvation
 - Explicar qué son las operaciones atómicas y por qué son necesarias
+- Comprender las condiciones de Bernstein para la ejecución concurrente
+- Analizar soluciones de sincronización a nivel software y hardware
 - Implementar soluciones usando mutex, semáforos y variables de condición
 - Resolver problemas clásicos: Productor-Consumidor, Lectores-Escritores
 - Aplicar sincronización en escenarios reales usando analogías cotidianas
@@ -13,7 +15,7 @@ Al finalizar este capítulo, el estudiante debe ser capaz de:
 - Programar soluciones thread-safe en C usando pthreads
 - Evaluar el overhead de diferentes primitivas de sincronización
 
-## 2. Introducción y Contexto
+## Introducción y Contexto
 
 ### ¿Por qué necesitamos sincronización?
 
@@ -49,7 +51,7 @@ PROCESOS/HILOS:
 - Empleado (thread especial)   ← Administrador de recursos
 ```
 
-### El problema fundamental: Race Conditions
+## El Problema Fundamental: Race Conditions
 
 Una **race condition** ocurre cuando el resultado depende del orden de ejecución de operaciones concurrentes sobre datos compartidos.
 
@@ -75,9 +77,9 @@ STORE [ventas_totales], R1    STORE [ventas_totales], R2
 - **Incorrecto**: ventas_totales = 100 (se perdió la venta del cajero 2)
 - **Incorrecto**: ventas_totales = 200 (se perdió la venta del cajero 1)
 
-## 3. Conceptos Fundamentales
+## Sección Crítica y Condiciones de Bernstein
 
-### 3.1 Sección Crítica
+### Sección Crítica
 
 **Definición**: Porción de código que accede a recursos compartidos y debe ejecutarse atómicamente (sin interrupciones).
 
@@ -106,7 +108,138 @@ do {
 3. **Espera Acotada**: Un proceso no puede esperar indefinidamente
 4. **Sin Asumir Velocidades**: No depender de velocidades relativas de procesos
 
-### 3.2 Primitivos Atómicos
+### Condiciones de Bernstein
+
+Para que dos procesos puedan ejecutarse concurrentemente de manera segura, deben cumplirse las **Condiciones de Bernstein**:
+
+Sean P₁ y P₂ dos procesos con:
+- **R₁, R₂**: Conjuntos de variables que leen
+- **W₁, W₂**: Conjuntos de variables que escriben
+
+**Condiciones necesarias:**
+1. **R₁ ∩ W₂ = ∅** (P₁ no lee lo que P₂ escribe)
+2. **W₁ ∩ R₂ = ∅** (P₁ no escribe lo que P₂ lee)  
+3. **W₁ ∩ W₂ = ∅** (P₁ y P₂ no escriben las mismas variables)
+
+**Ejemplo de violación:**
+```c
+// Proceso 1: R₁ = {x}, W₁ = {y}
+y = x + 10;
+
+// Proceso 2: R₂ = {y}, W₂ = {x}
+x = y * 2;
+```
+
+**Violaciones:**
+- W₁ ∩ R₂ = {y} ≠ ∅ (P₁ escribe y, P₂ lee y)
+- R₁ ∩ W₂ = {x} ≠ ∅ (P₁ lee x, P₂ escribe x)
+
+Por tanto, **NO pueden ejecutarse concurrentemente** sin sincronización.
+
+## Soluciones a Nivel Software
+
+### Evolución Histórica de las Soluciones
+
+#### Primeras Aproximaciones: Variables de Control
+
+**Intento 1: Turno Simple**
+```c
+int turno = 1;
+
+// Proceso 1
+while (turno != 1);
+// Sección crítica
+turno = 2;
+
+// Proceso 2  
+while (turno != 2);
+// Sección crítica
+turno = 1;
+```
+
+**Problema**: Viola la condición de **progreso**. Si un proceso no quiere entrar, el otro queda bloqueado permanentemente.
+
+**Intento 2: Flags Independientes**
+```c
+bool flag[2] = {false, false};
+
+// Proceso i
+flag[i] = true;
+while (flag[j]);  // j = 1-i
+// Sección crítica
+flag[i] = false;
+```
+
+**Problema**: **Race condition** en el chequeo de flags. Ambos pueden ver flag[j] = false al mismo tiempo y entrar juntos.
+
+**Intento 3: Flags con Cortesía**
+```c
+bool flag[2] = {false, false};
+
+// Proceso i
+flag[i] = true;
+while (flag[j]) {
+    flag[i] = false;
+    // Esperar tiempo aleatorio
+    flag[i] = true;
+}
+// Sección crítica
+flag[i] = false;
+```
+
+**Problema**: Posible **livelock** - ambos procesos pueden quedar cediendo indefinidamente.
+
+### Solución de Peterson (1981)
+
+**La primera solución correcta para 2 procesos:**
+
+```c
+bool flag[2] = {false, false};
+int turn = 0;
+
+// Proceso i (donde j = 1-i)
+void peterson_enter(int i) {
+    flag[i] = true;      // Mostrar interés
+    turn = j;            // Ceder el turno al otro
+    while (flag[j] && turn == j);  // Esperar si el otro está interesado y tiene turno
+}
+
+void peterson_exit(int i) {
+    flag[i] = false;     // No tengo más interés
+}
+
+// Uso completo
+void proceso_i() {
+    while (true) {
+        peterson_enter(i);
+        
+        // SECCIÓN CRÍTICA
+        seccion_critica();
+        
+        peterson_exit(i);
+        
+        // Sección no crítica
+        seccion_no_critica();
+    }
+}
+```
+
+**¿Por qué funciona Peterson?**
+
+1. **Exclusión Mutua**: Si ambos procesos están en while, uno tiene turn = i y el otro turn = j. Como turn es única, solo uno puede tener turn ≠ j.
+
+2. **Progreso**: Si nadie quiere entrar (flag[j] = false), el proceso entra inmediatamente.
+
+3. **Espera Acotada**: El proceso que llegó segundo pone turn = j, garantizando que el primero entre primero.
+
+**Limitaciones de Peterson:**
+- Solo funciona para **2 procesos**
+- Requiere **busy waiting** (uso intensivo de CPU)
+- Asume **orden secuencial de memoria** (problemas en CPUs modernas)
+
+## Soluciones a Nivel Hardware
+
+### Primitivos Atómicos
 
 **Operación Atómica**: Ejecución indivisible, sin interrupciones posibles.
 
@@ -134,7 +267,18 @@ void release_lock() {
 }
 ```
 
+**Ventajas:**
+- Simple de implementar
+- Funciona para N procesos
+- Garantiza exclusión mutua
+
+**Desventajas:**
+- Busy waiting (desperdicia CPU)
+- No garantiza espera acotada
+- Puede causar starvation
+
 #### Compare-and-Swap (CAS)
+
 ```c
 // Más flexible que test-and-set
 bool compare_and_swap(int* ptr, int expected, int new_value) {
@@ -155,603 +299,878 @@ void atomic_increment(int* counter) {
 }
 ```
 
-### 3.3 Mutex (Mutual Exclusion)
-
-**Definición**: Objeto de sincronización que permite exclusión mutua sobre un recurso.
-
-**Estados del mutex:**
-- **Unlocked**: Disponible para ser tomado
-- **Locked**: Ocupado por un hilo, otros deben esperar
-
-**Operaciones básicas:**
+#### Fetch-and-Add
 ```c
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-// Bloquear (tomar el mutex)
-pthread_mutex_lock(&mutex);    // Bloquea si ya está ocupado
-
-// Intentar bloquear sin esperar  
-if (pthread_mutex_trylock(&mutex) == 0) {
-    // Obtuve el mutex
-} else {
-    // Mutex ocupado, continuar sin bloquear
+// Retorna valor anterior y suma atomicamente
+int fetch_and_add(int* ptr, int value) {
+    int old_value = *ptr;
+    *ptr += value;
+    return old_value;
 }
 
-// Liberar mutex
-pthread_mutex_unlock(&mutex);  // Despertar hilos esperando
+// Implementar ticket lock (espera acotada)
+typedef struct {
+    int ticket;
+    int turn;
+} ticket_lock_t;
+
+void ticket_acquire(ticket_lock_t* lock) {
+    int my_ticket = fetch_and_add(&lock->ticket, 1);
+    while (lock->turn != my_ticket);  // Esperar mi turno
+}
+
+void ticket_release(ticket_lock_t* lock) {
+    lock->turn++;  // Dar turno al siguiente
+}
 ```
 
-### 3.4 Semáforos
+## Soluciones del Sistema Operativo: Semáforos
 
-**Definición**: Contador entero que permite controlar acceso a recursos limitados.
+### Definición y Operaciones
 
-**Inventado por Dijkstra (1965)** para resolver problemas de sincronización general.
+**Semáforo**: Inventado por **Dijkstra (1965)**, es un contador entero no negativo con dos operaciones atómicas.
 
-**Operaciones atómicas:**
 ```c
+typedef struct {
+    int value;
+    queue_t waiting_queue;
+} semaphore_t;
+
 // P() o wait() - Decrementar y posiblemente bloquear
-void sem_wait(sem_t* sem) {
-    // Atomicamente:
-    if (sem->value > 0) {
-        sem->value--;
-        return;  // Continuar ejecución
-    } else {
-        // Bloquear hilo hasta que sem->value > 0
-        block_thread_on_semaphore(sem);
+void sem_wait(semaphore_t* sem) {
+    sem->value--;
+    if (sem->value < 0) {
+        // Bloquear proceso y agregarlo a la cola
+        add_to_queue(&sem->waiting_queue, current_process);
+        block_current_process();
     }
 }
 
 // V() o signal() - Incrementar y despertar
-void sem_post(sem_t* sem) {
-    // Atomicamente:  
+void sem_post(semaphore_t* sem) {
     sem->value++;
-    if (threads_waiting_on(sem) > 0) {
-        wake_up_one_thread(sem);
+    if (sem->value <= 0) {
+        // Hay procesos esperando, despertar uno
+        process_t* p = remove_from_queue(&sem->waiting_queue);
+        wakeup_process(p);
     }
 }
 ```
 
-**Tipos de semáforos:**
+### Tipos de Semáforos
 
-#### Semáforo Binario (0 o 1)
-- Equivalente a mutex
-- Usado para exclusión mutua
+#### Semáforo Binario (Mutex)
 
-#### Semáforo Contador (0 a N)
-- Controla acceso a N recursos idénticos
-- Ejemplo: Pool de conexiones de BD
+**Valores posibles**: 0 o 1
+- **1**: Recurso disponible
+- **0**: Recurso ocupado
 
-### 3.5 Variables de Condición
-
-**Definición**: Permite que hilos esperen hasta que se cumpla una condición específica.
-
-**Problema que resuelven**: 
-- Evitar **busy waiting** (polling constante)
-- Sincronización basada en **estado** no solo en **recursos**
-
-**Patrón típico:**
 ```c
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t condition = PTHREAD_COND_INITIALIZER;
-bool condition_met = false;
+semaphore_t mutex;
+sem_init(&mutex, 1);  // Inicializar en 1 (disponible)
 
-// Hilo que espera condición
-void wait_for_condition() {
-    pthread_mutex_lock(&mutex);
+void critical_section() {
+    sem_wait(&mutex);   // P(mutex) - Obtener exclusión mutua
     
-    while (!condition_met) {
-        // Liberar mutex y esperar señal atomicamente
-        pthread_cond_wait(&condition, &mutex);
-        // Al despertar, mutex está tomado automáticamente
-    }
+    // SECCIÓN CRÍTICA
+    // Solo un proceso puede estar aquí
     
-    // Usar recurso protegido por la condición
-    
-    pthread_mutex_unlock(&mutex);
-}
-
-// Hilo que señala condición
-void signal_condition() {
-    pthread_mutex_lock(&mutex);
-    
-    condition_met = true;
-    
-    // Despertar UN hilo esperando
-    pthread_cond_signal(&condition);
-    // O despertar TODOS: pthread_cond_broadcast(&condition);
-    
-    pthread_mutex_unlock(&mutex);
+    sem_post(&mutex);   // V(mutex) - Liberar exclusión mutua
 }
 ```
 
-## 4. Análisis Técnico
+#### Semáforo Contador
 
-### 4.1 El Supermercado: Modelado Completo
-
-Vamos a modelar nuestro supermercado con todos los elementos de sincronización:
-
-```c
-<stdlib.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <unistd.h>
-#include <time.h>
-
-// CONFIGURACIÓN DEL SUPERMERCADO
-#define NUM_CAJAS 20
-#define NUM_CAJEROS 20  
-#define NUM_CLIENTES 100
-#define CAPACIDAD_COLA_POR_CAJA 10
-
-// RECURSOS COMPARTIDOS DEL SUPERMERCADO
-typedef struct {
-    // Sistema de promociones (recurso exclusivo)
-    pthread_mutex_t sistema_promociones;
-    bool promociones_activas;
-    
-    // Cajas registradoras (array de semáforos)
-    sem_t cajas_disponibles;           // Contador: cuántas cajas libres
-    pthread_mutex_t estado_cajas[NUM_CAJAS];  // Mutex por cada caja
-    bool caja_ocupada[NUM_CAJAS];
-    int clientes_en_caja[NUM_CAJAS];
-    
-    // Empleado que ordena filas (recurso único móvil)
-    sem_t empleado_disponible;         // 0 o 1
-    pthread_mutex_t empleado_trabajando;
-    int caja_siendo_ordenada;
-    
-    // Contador global de ventas (variable compartida crítica)
-    pthread_mutex_t mutex_ventas;
-    long long ventas_totales;
-    int transacciones_totales;
-    
-    // Colas por caja (productor-consumidor)
-    sem_t cola_caja_llena[NUM_CAJAS];    // Cuántos clientes esperando
-    sem_t cola_caja_vacia[NUM_CAJAS];    // Cuántos espacios libres
-    pthread_mutex_t mutex_cola[NUM_CAJAS];
-    int cola_clientes[NUM_CAJAS][CAPACIDAD_COLA_POR_CAJA];
-    int frente_cola[NUM_CAJAS];
-    int final_cola[NUM_CAJAS];
-    
-} supermercado_t;
-
-supermercado_t super;
-```
-
-### 4.2 Inicialización del Sistema
+**Valores posibles**: 0 a N
+- **N**: Máximo número de recursos disponibles
+- **0**: Todos los recursos ocupados
 
 ```c
-void inicializar_supermercado() {
-    // Sistema de promociones (mutex simple)
-    pthread_mutex_init(&super.sistema_promociones, NULL);
-    super.promociones_activas = false;
+#define POOL_SIZE 5
+semaphore_t connection_pool;
+sem_init(&connection_pool, POOL_SIZE);
+
+void use_connection() {
+    sem_wait(&connection_pool);  // Obtener conexión
     
-    // Cajas registradoras
-    sem_init(&super.cajas_disponibles, 0, NUM_CAJAS);  // 20 cajas inicialmente
+    // Usar conexión de base de datos
+    execute_query();
     
-    for (int i = 0; i < NUM_CAJAS; i++) {
-        pthread_mutex_init(&super.estado_cajas[i], NULL);
-        super.caja_ocupada[i] = false;
-        super.clientes_en_caja[i] = 0;
-        
-        // Colas por caja
-        sem_init(&super.cola_caja_llena[i], 0, 0);  // Sin clientes inicialmente
-        sem_init(&super.cola_caja_vacia[i], 0, CAPACIDAD_COLA_POR_CAJA);
-        pthread_mutex_init(&super.mutex_cola[i], NULL);
-        super.frente_cola[i] = 0;
-        super.final_cola[i] = 0;
-    }
-    
-    // Empleado ordenador
-    sem_init(&super.empleado_disponible, 0, 1);  // 1 empleado disponible
-    pthread_mutex_init(&super.empleado_trabajando, NULL);
-    super.caja_siendo_ordenada = -1;
-    
-    // Contador de ventas
-    pthread_mutex_init(&super.mutex_ventas, NULL);
-    super.ventas_totales = 0;
-    super.transacciones_totales = 0;
-    
-    printf("🏪 Supermercado inicializado: %d cajas, 1 empleado, sistema listo\n", NUM_CAJAS);
+    sem_post(&connection_pool);  // Liberar conexión
 }
 ```
 
-### 4.3 Implementación de los Actores
+### Usos Principales de Semáforos
 
-#### El Cliente (Productor)
+#### Exclusión Mutua
 ```c
-typedef struct {
-    int id;
-    int monto_compra;
-    bool necesita_promocion;
-    int items_carrito;
-} cliente_t;
+semaphore_t mutex = 1;
 
-void* cliente_thread(void* arg) {
-    cliente_t* cliente = (cliente_t*)arg;
-    
-    printf("🛒 Cliente %d llegó (compra: $%d, %d items)\n", 
-           cliente->id, cliente->monto_compra, cliente->items_carrito);
-    
-    // 1. Elegir caja (estrategia: menor cola)
-    int caja_elegida = elegir_mejor_caja();
-    
-    // 2. Hacer cola en la caja elegida
-    hacer_cola_en_caja(cliente, caja_elegida);
-    
-    return NULL;
-}
-
-int elegir_mejor_caja() {
-    int mejor_caja = 0;
-    int menor_cola = CAPACIDAD_COLA_POR_CAJA + 1;
-    
-    for (int i = 0; i < NUM_CAJAS; i++) {
-        pthread_mutex_lock(&super.mutex_cola[i]);
-        
-        int tamaño_cola = (super.final_cola[i] - super.frente_cola[i] + CAPACIDAD_COLA_POR_CAJA) 
-                         % CAPACIDAD_COLA_POR_CAJA;
-        
-        if (tamaño_cola < menor_cola) {
-            menor_cola = tamaño_cola;
-            mejor_caja = i;
-        }
-        
-        pthread_mutex_unlock(&super.mutex_cola[i]);
-    }
-    
-    return mejor_caja;
-}
-
-void hacer_cola_en_caja(cliente_t* cliente, int caja) {
-    printf("🚶 Cliente %d haciendo cola en caja %d\n", cliente->id, caja);
-    
-    // Esperar espacio en la cola (semáforo vació)
-    sem_wait(&super.cola_caja_vacia[caja]);
-    
-    // Acceso exclusivo a la estructura de la cola
-    pthread_mutex_lock(&super.mutex_cola[caja]);
-    
-    // Agregar cliente al final de la cola
-    super.cola_clientes[caja][super.final_cola[caja]] = cliente->id;
-    super.final_cola[caja] = (super.final_cola[caja] + 1) % CAPACIDAD_COLA_POR_CAJA;
-    
-    pthread_mutex_unlock(&super.mutex_cola[caja]);
-    
-    // Señalar que hay un cliente más esperando
-    sem_post(&super.cola_caja_llena[caja]);
-    
-    printf("✅ Cliente %d en cola de caja %d\n", cliente->id, caja);
+void proceso() {
+    sem_wait(&mutex);    // Entrar a sección crítica
+    // Sección crítica
+    sem_post(&mutex);    // Salir de sección crítica
 }
 ```
 
-#### El Cajero (Consumidor)
+#### Limitar Acceso a N Instancias
 ```c
-typedef struct {
-    int id;
-    int caja_asignada;
-    int clientes_atendidos;
-    long long ventas_realizadas;
-} cajero_t;
+semaphore_t recursos = N;
 
-void* cajero_thread(void* arg) {
-    cajero_t* cajero = (cajero_t*)arg;
-    
-    printf("👨‍💼 Cajero %d iniciando en caja %d\n", cajero->id, cajero->caja_asignada);
-    
+void usar_recurso() {
+    sem_wait(&recursos);  // Obtener uno de N recursos
+    // Usar recurso
+    sem_post(&recursos);  // Liberar recurso
+}
+```
+
+#### Ordenar Ejecución (Sincronización)
+```c
+semaphore_t sincronizacion = 0;
+
+void proceso_A() {
+    // Hacer trabajo A
+    trabajo_A();
+    sem_post(&sincronizacion);  // Señalar que A terminó
+}
+
+void proceso_B() {
+    sem_wait(&sincronizacion);  // Esperar que A termine
+    // Hacer trabajo B (que depende de A)
+    trabajo_B();
+}
+```
+
+#### Problema Productor-Consumidor
+```c
+#define BUFFER_SIZE 10
+
+semaphore_t empty = BUFFER_SIZE;    // Espacios vacíos
+semaphore_t full = 0;               // Elementos llenos  
+semaphore_t mutex = 1;              // Exclusión mutua
+
+void productor() {
     while (true) {
-        // 1. Esperar cliente en su cola
-        int cliente_id = esperar_cliente_en_cola(cajero->caja_asignada);
+        // Producir elemento
+        item = produce_item();
         
-        if (cliente_id == -1) break;  // Supermercado cerrando
+        sem_wait(&empty);    // Esperar espacio vacío
+        sem_wait(&mutex);    // Obtener acceso al buffer
         
-        // 2. Atender cliente
-        atender_cliente(cajero, cliente_id);
+        add_to_buffer(item); // Agregar al buffer
         
-        // 3. Cada cierto tiempo, solicitar orden de la fila
-        if (cajero->clientes_atendidos % 10 == 0) {
-            solicitar_empleado_ordenador(cajero->caja_asignada);
-        }
+        sem_post(&mutex);    // Liberar acceso al buffer
+        sem_post(&full);     // Señalar elemento disponible
     }
-    
-    return NULL;
 }
 
-int esperar_cliente_en_cola(int caja) {
-    // Esperar que haya al menos un cliente (semáforo lleno)
-    sem_wait(&super.cola_caja_llena[caja]);
-    
-    // Acceso exclusivo a la cola
-    pthread_mutex_lock(&super.mutex_cola[caja]);
-    
-    // Obtener cliente del frente de la cola
-    int cliente_id = super.cola_clientes[caja][super.frente_cola[caja]];
-    super.frente_cola[caja] = (super.frente_cola[caja] + 1) % CAPACIDAD_COLA_POR_CAJA;
-    
-    pthread_mutex_unlock(&super.mutex_cola[caja]);
-    
-    // Señalar que hay un espacio libre más
-    sem_post(&super.cola_caja_vacia[caja]);
-    
-    return cliente_id;
-}
-
-void atender_cliente(cajero_t* cajero, int cliente_id) {
-    printf("💰 Cajero %d atendiendo cliente %d en caja %d\n", 
-           cajero->id, cliente_id, cajero->caja_asignada);
-    
-    // Simular tiempo de atención (aleatorio)
-    int tiempo_atencion = 1 + (rand() % 3);  // 1-3 segundos
-    sleep(tiempo_atencion);
-    
-    // Generar venta aleatoria
-    int monto_venta = 50 + (rand() % 200);  // $50-$250
-    bool necesita_promocion = (rand() % 4) == 0;  // 25% de probabilidad
-    
-    // Aplicar promoción si es necesario (recurso exclusivo)
-    if (necesita_promocion) {
-        if (aplicar_promocion(cajero->id, cliente_id, &monto_venta)) {
-            printf("🎉 Promoción aplicada a cliente %d: descuento en caja %d\n", 
-                   cliente_id, cajero->caja_asignada);
-        }
-    }
-    
-    // Actualizar ventas totales (variable compartida crítica)
-    actualizar_ventas_totales(monto_venta);
-    
-    cajero->clientes_atendidos++;
-    cajero->ventas_realizadas += monto_venta;
-    
-    printf("✅ Cliente %d atendido: $%d (Total cajero %d: $%lld)\n", 
-           cliente_id, monto_venta, cajero->id, cajero->ventas_realizadas);
-}
-
-bool aplicar_promocion(int cajero_id, int cliente_id, int* monto) {
-    printf("🔄 Cajero %d intentando acceder sistema promociones...\n", cajero_id);
-    
-    // Intentar obtener acceso exclusivo al sistema de promociones
-    if (pthread_mutex_trylock(&super.sistema_promociones) != 0) {
-        printf("⏳ Sistema promociones ocupado, cliente %d sin descuento\n", cliente_id);
-        return false;  // Sistema ocupado, no aplicar promoción
-    }
-    
-    // SECCIÓN CRÍTICA: Solo un cajero puede usar promociones
-    printf("🎯 Cajero %d usando sistema promociones para cliente %d\n", cajero_id, cliente_id);
-    
-    super.promociones_activas = true;
-    
-    // Simular tiempo de procesamiento del sistema (crítico)
-    sleep(1);  // El sistema es lento y no puede paralelizarse
-    
-    // Calcular descuento
-    int descuento = (*monto) * 0.15;  // 15% descuento
-    *monto -= descuento;
-    
-    super.promociones_activas = false;
-    
-    // Liberar sistema de promociones
-    pthread_mutex_unlock(&super.sistema_promociones);
-    
-    printf("💸 Descuento de $%d aplicado por cajero %d\n", descuento, cajero_id);
-    return true;
-}
-
-void actualizar_ventas_totales(int monto_venta) {
-    // Sección crítica: actualizar contador global
-    pthread_mutex_lock(&super.mutex_ventas);
-    
-    super.ventas_totales += monto_venta;
-    super.transacciones_totales++;
-    
-    // Cada 100 transacciones, mostrar total
-    if (super.transacciones_totales % 100 == 0) {
-        printf("📊 VENTAS TOTALES: $%lld (%d transacciones)\n", 
-               super.ventas_totales, super.transacciones_totales);
-    }
-    
-    pthread_mutex_unlock(&super.mutex_ventas);
-}
-```
-
-#### El Empleado Ordenador (Recurso Único Móvil)
-```c
-void* empleado_ordenador_thread(void* arg) {
-    printf("👷 Empleado ordenador iniciando trabajo\n");
-    
+void consumidor() {
     while (true) {
-        // Esperar a ser solicitado
-        sem_wait(&super.empleado_disponible);
+        sem_wait(&full);     // Esperar elemento disponible
+        sem_wait(&mutex);    // Obtener acceso al buffer
         
-        // Encontrar caja que más necesita orden
-        int caja_a_ordenar = encontrar_caja_desordenada();
+        item = remove_from_buffer();  // Quitar del buffer
         
-        if (caja_a_ordenar == -1) {
-            // No hay trabajo, volver a disponible
-            sem_post(&super.empleado_disponible);
-            sleep(5);  // Descansar un poco
-            continue;
-        }
+        sem_post(&mutex);    // Liberar acceso al buffer
+        sem_post(&empty);    // Señalar espacio vacío
         
-        // Ordenar la caja elegida
-        ordenar_caja(caja_a_ordenar);
-        
-        // Volver a estar disponible
-        sem_post(&super.empleado_disponible);
+        consume_item(item);  // Consumir elemento
     }
-    
-    return NULL;
-}
-
-int encontrar_caja_desordenada() {
-    int peor_caja = -1;
-    int max_clientes = 0;
-    
-    for (int i = 0; i < NUM_CAJAS; i++) {
-        pthread_mutex_lock(&super.mutex_cola[i]);
-        
-        int tamaño_cola = (super.final_cola[i] - super.frente_cola[i] + CAPACIDAD_COLA_POR_CAJA) 
-                         % CAPACIDAD_COLA_POR_CAJA;
-        
-        if (tamaño_cola > max_clientes) {
-            max_clientes = tamaño_cola;
-            peor_caja = i;
-        }
-        
-        pthread_mutex_unlock(&super.mutex_cola[i]);
-    }
-    
-    // Solo trabajar si hay al menos 5 clientes esperando
-    return (max_clientes >= 5) ? peor_caja : -1;
-}
-
-void ordenar_caja(int caja) {
-    printf("🔧 Empleado ordenando caja %d\n", caja);
-    
-    // Marcar caja como siendo ordenada
-    pthread_mutex_lock(&super.empleado_trabajando);
-    super.caja_siendo_ordenada = caja;
-    pthread_mutex_unlock(&super.empleado_trabajando);
-    
-    // Simular tiempo de ordenar (requiere coordinar con cajero)
-    sleep(3);  // 3 segundos organizando la fila
-    
-    printf("✨ Caja %d ordenada por empleado\n", caja);
-    
-    // Marcar trabajo terminado
-    pthread_mutex_lock(&super.empleado_trabajando);
-    super.caja_siendo_ordenada = -1;
-    pthread_mutex_unlock(&super.empleado_trabajando);
-}
-
-void solicitar_empleado_ordenador(int caja) {
-    printf("📞 Caja %d solicitando empleado ordenador\n", caja);
-    
-    // Esta función NO bloquea - solo hace una solicitud
-    // El empleado decidirá si atiende basado en prioridades
 }
 ```
 
-## 5. Código en C
+## Ejemplo Práctico: Control de Cochera
 
-### 5.1 Demostración de Race Condition
+### Planteamiento del Problema
+
+Una cochera tiene:
+- **20 espacios** para autos
+- **1 entrada** (con barrera)
+- **2 salidas** (con barreras)
+- **Sistema de control** que debe llevar cuenta de espacios ocupados
+
+**Requerimientos:**
+1. No permitir entrada si cochera está llena
+2. Controlar acceso exclusivo a entrada y salidas
+3. Mantener contador preciso de autos
+4. Evitar deadlock entre entrada y salidas
+
+### Solución con Semáforos
 
 ```c
 #include <stdio.h>
+#include <semaphore.h>
 #include <pthread.h>
-#include <stdlib.h>
 
-#define NUM_THREADS 4
-#define INCREMENTOS_POR_THREAD 250000
+#define CAPACIDAD_COCHERA 20
+#define NUM_AUTOS 100
 
-// Variable global compartida (¡PELIGRO!)
-volatile long long contador_inseguro = 0;
-long long contador_seguro = 0;
-
-// Mutex para proteger contador seguro
-pthread_mutex_t mutex_contador = PTHREAD_MUTEX_INITIALIZER;
-
-void* incrementar_inseguro(void* arg) {
-    int thread_id = *(int*)arg;
+typedef struct {
+    // Semáforo contador para espacios disponibles
+    sem_t espacios_disponibles;
     
-    printf("Thread %d: iniciando incrementos inseguros\n", thread_id);
+    // Mutex para acceso exclusivo a entrada
+    sem_t mutex_entrada;
     
-    for (int i = 0; i < INCREMENTOS_POR_THREAD; i++) {
-        // RACE CONDITION: Esta operación NO es atómica
-        contador_inseguro++;
-        
-        // En assembly se traduce aproximadamente a:
-        // 1. LOAD  registro, [contador_inseguro]    ← Lectura
-        // 2. INC   registro                         ← Incremento  
-        // 3. STORE [contador_inseguro], registro    ← Escritura
-        //
-        // Entre cualquiera de estos pasos puede ocurrir context switch!
-    }
+    // Mutex para acceso exclusivo a cada salida
+    sem_t mutex_salida1;
+    sem_t mutex_salida2;
     
-    printf("Thread %d: terminó incrementos inseguros\n", thread_id);
+    // Mutex para el contador global
+    sem_t mutex_contador;
+    
+    // Estado de la cochera
+    int autos_dentro;
+    int total_entradas;
+    int total_salidas;
+    
+} cochera_t;
+
+cochera_t cochera;
+
+void inicializar_cochera() {
+    // Inicializar semáforos
+    sem_init(&cochera.espacios_disponibles, 0, CAPACIDAD_COCHERA);
+    sem_init(&cochera.mutex_entrada, 0, 1);
+    sem_init(&cochera.mutex_salida1, 0, 1);
+    sem_init(&cochera.mutex_salida2, 0, 1);
+    sem_init(&cochera.mutex_contador, 0, 1);
+    
+    // Inicializar estado
+    cochera.autos_dentro = 0;
+    cochera.total_entradas = 0;
+    cochera.total_salidas = 0;
+    
+    printf("🏢 Cochera inicializada: %d espacios disponibles\n", CAPACIDAD_COCHERA);
+}
+
+void* auto_entrando(void* arg) {
+    int auto_id = *(int*)arg;
+    
+    printf("🚗 Auto %d llegó a la cochera\n", auto_id);
+    
+    // 1. Verificar si hay espacio disponible
+    printf("⏳ Auto %d esperando espacio...\n", auto_id);
+    sem_wait(&cochera.espacios_disponibles);  // Bloquea si cochera llena
+    
+    // 2. Hay espacio garantizado, obtener acceso exclusivo a entrada
+    printf("🚪 Auto %d esperando acceso a entrada...\n", auto_id);
+    sem_wait(&cochera.mutex_entrada);
+    
+    // 3. SECCIÓN CRÍTICA: Procesar entrada
+    printf("✅ Auto %d entrando a cochera\n", auto_id);
+    
+    // Simular tiempo de entrada (abrir barrera, validar ticket, etc.)
+    sleep(1);
+    
+    // Actualizar contador global de manera thread-safe
+    sem_wait(&cochera.mutex_contador);
+    cochera.autos_dentro++;
+    cochera.total_entradas++;
+    printf("📊 Auto %d dentro. Total en cochera: %d/%d\n", 
+           auto_id, cochera.autos_dentro, CAPACIDAD_COCHERA);
+    sem_post(&cochera.mutex_contador);
+    
+    // 4. Liberar acceso a entrada
+    sem_post(&cochera.mutex_entrada);
+    
+    printf("🅿️ Auto %d estacionado exitosamente\n", auto_id);
+    
+    // Simular tiempo estacionado
+    sleep(2 + (rand() % 5));  // 2-6 segundos estacionado
+    
+    // Ahora el auto quiere salir
     return NULL;
 }
 
-void* incrementar_seguro(void* arg) {
-    int thread_id = *(int*)arg;
+void* auto_saliendo(void* arg) {
+    int auto_id = *(int*)arg;
     
-    printf("Thread %d: iniciando incrementos seguros\n", thread_id);
+    printf("🚗 Auto %d quiere salir\n", auto_id);
     
-    for (int i = 0; i < INCREMENTOS_POR_THREAD; i++) {
-        // SECCIÓN CRÍTICA protegida por mutex
-        pthread_mutex_lock(&mutex_contador);
-        
-        contador_seguro++;  // Ahora es thread-safe
-        
-        pthread_mutex_unlock(&mutex_contador);
-    }
+    // Elegir salida aleatoriamente (load balancing simple)
+    int salida = (rand() % 2) + 1;
+    sem_t* mutex_salida = (salida == 1) ? &cochera.mutex_salida1 : &cochera.mutex_salida2;
     
-    printf("Thread %d: terminó incrementos seguros\n", thread_id);
+    // 1. Obtener acceso exclusivo a la salida elegida
+    printf("🚪 Auto %d esperando acceso a salida %d...\n", auto_id, salida);
+    sem_wait(mutex_salida);
+    
+    // 2. SECCIÓN CRÍTICA: Procesar salida
+    printf("🚦 Auto %d saliendo por salida %d\n", auto_id, salida);
+    
+    // Simular tiempo de salida (validar pago, abrir barrera, etc.)
+    sleep(1);
+    
+    // Actualizar contador global
+    sem_wait(&cochera.mutex_contador);
+    cochera.autos_dentro--;
+    cochera.total_salidas++;
+    printf("📊 Auto %d salió. Total en cochera: %d/%d\n", 
+           auto_id, cochera.autos_dentro, CAPACIDAD_COCHERA);
+    sem_post(&cochera.mutex_contador);
+    
+    // 3. Liberar acceso a salida
+    sem_post(mutex_salida);
+    
+    // 4. IMPORTANTE: Señalar que hay un espacio más disponible
+    sem_post(&cochera.espacios_disponibles);
+    
+    printf("👋 Auto %d salió exitosamente por salida %d\n", auto_id, salida);
+    
     return NULL;
 }
 
-void demostrar_race_condition() {
-    pthread_t threads[NUM_THREADS];
-    int thread_ids[NUM_THREADS];
+void mostrar_estadisticas() {
+    sem_wait(&cochera.mutex_contador);
     
-    printf("=== DEMOSTRACIÓN DE RACE CONDITION ===\n");
-    printf("Creando %d threads, cada uno incrementa %d veces\n", NUM_THREADS, INCREMENTOS_POR_THREAD);
-    printf("Resultado esperado: %lld\n\n", (long long)NUM_THREADS * INCREMENTOS_POR_THREAD);
+    printf("\n📈 ESTADÍSTICAS DE LA COCHERA:\n");
+    printf("   - Autos dentro: %d/%d\n", cochera.autos_dentro, CAPACIDAD_COCHERA);
+    printf("   - Total entradas: %d\n", cochera.total_entradas);
+    printf("   - Total salidas: %d\n", cochera.total_salidas);
+    printf("   - Espacios libres: %d\n", CAPACIDAD_COCHERA - cochera.autos_dentro);
     
-    // Resetear contadores
-    contador_inseguro = 0;
-    contador_seguro = 0;
-    
-    // TEST 1: Incrementos inseguros (race condition)
-    printf("--- Test 1: Sin protección (race condition) ---\n");
-    
-    for (int i = 0; i < NUM_THREADS; i++) {
-        thread_ids[i] = i;
-        pthread_create(&threads[i], NULL, incrementar_inseguro, &thread_ids[i]);
-    }
-    
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_join(threads[i], NULL);
-    }
-    
-    printf("Resultado inseguro: %lld", contador_inseguro);
-    if (contador_inseguro == (long long)NUM_THREADS * INCREMENTOS_POR_THREAD) {
-        printf(" ✅ (¡Suerte! Pero no es confiable)\n");
-    } else {
-        printf(" ❌ (Race condition detectada)\n");
-    }
-    
-    // TEST 2: Incrementos seguros (con mutex)
-    printf("\n--- Test 2: Con mutex (thread-safe) ---\n");
-    
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_create(&threads[i], NULL, incrementar_seguro, &thread_ids[i]);
-    }
-    
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_join(threads[i], NULL);
-    }
-    
-    printf("Resultado seguro: %lld", contador_seguro);
-    if (contador_seguro == (long long)NUM_THREADS * INCREMENTOS_POR_THREAD) {
-        printf(" ✅ (Correcto y confiable)\n");
-    } else {
-        printf(" ❌ (Error inesperado)\n");
-    }
-    
-    printf("\n=== ANÁLISIS ===\n");
-    long long perdidos = ((long long)NUM_THREADS * INCREMENTOS_POR_THREAD) - contador_inseguro;
-    printf("Incrementos perdidos por race condition: %lld (%.2f%%)\n", 
-           perdidos, (perdidos * 100.0) / ((long long)NUM_THREADS * INCREMENTOS_POR_THREAD));
+    sem_post(&cochera.mutex_contador);
 }
 
 int main() {
-    demostrar_race_condition();
+    pthread_t hilos_entrada[NUM_AUTOS];
+    pthread_t hilos_salida[NUM_AUTOS];
+    int auto_ids[NUM_AUTOS];
+    
+    // Inicializar sistema
+    inicializar_cochera();
+    srand(time(NULL));
+    
+    printf("🚦 Iniciando simulación: %d autos intentarán usar la cochera\n\n", NUM_AUTOS);
+    
+    // Crear hilos de entrada
+    for (int i = 0; i < NUM_AUTOS; i++) {
+        auto_ids[i] = i + 1;
+        pthread_create(&hilos_entrada[i], NULL, auto_entrando, &auto_ids[i]);
+        
+        // Espaciar llegadas aleatoriamente
+        usleep(50000 + (rand() % 100000));  // 50-150ms entre llegadas
+    }
+    
+    // Crear hilos de salida con delay
+    sleep(3);  // Esperar que algunos autos entren primero
+    
+    for (int i = 0; i < NUM_AUTOS; i++) {
+        pthread_create(&hilos_salida[i], NULL, auto_saliendo, &auto_ids[i]);
+        usleep(100000 + (rand() % 200000));  // 100-300ms entre salidas
+    }
+    
+    // Mostrar estadísticas periódicamente
+    for (int i = 0; i < 10; i++) {
+        sleep(2);
+        mostrar_estadisticas();
+    }
+    
+    // Esperar que todos terminen
+    for (int i = 0; i < NUM_AUTOS; i++) {
+        pthread_join(hilos_entrada[i], NULL);
+        pthread_join(hilos_salida[i], NULL);
+    }
+    
+    printf("\n🏁 Simulación terminada\n");
+    mostrar_estadisticas();
+    
+    // Cleanup
+    sem_destroy(&cochera.espacios_disponibles);
+    sem_destroy(&cochera.mutex_entrada);
+    sem_destroy(&cochera.mutex_salida1);
+    sem_destroy(&cochera.mutex_salida2);
+    sem_destroy(&cochera.mutex_contador);
+    
     return 0;
 }
 ```
 
-### 5.2 Implementación de Semáforos para el Supermercado
+## Uso de Arrays de Semáforos
+
+### Problema: Múltiples Recursos del Mismo Tipo
+
+Consideremos un servidor web con **pool de workers**:
+- 10 threads worker disponibles
+- Cada request necesita exactamente 1 worker
+- Algunos requests requieren workers específicos (por expertise)
+
+```c
+#define NUM_WORKERS 10
+#define NUM_REQUESTS 50
+
+typedef enum {
+    WORKER_GENERAL = 0,
+    WORKER_DATABASE = 1,
+    WORKER_IMAGE = 2,
+    WORKER_API = 3
+} worker_type_t;
+
+typedef struct {
+    sem_t workers[4];          // Array de semáforos por tipo
+    pthread_mutex_t worker_mutex[NUM_WORKERS];  // Mutex individual por worker
+    worker_type_t worker_types[NUM_WORKERS];    // Tipo de cada worker
+    bool worker_busy[NUM_WORKERS];              // Estado de cada worker
+} server_pool_t;
+
+server_pool_t server;
+
+void inicializar_server() {
+    // Distribuir workers por tipo
+    int workers_por_tipo[] = {4, 3, 2, 1};  // General, DB, Image, API
+    
+    for (int tipo = 0; tipo < 4; tipo++) {
+        sem_init(&server.workers[tipo], 0, workers_por_tipo[tipo]);
+    }
+    
+    // Inicializar workers individuales
+    int worker_idx = 0;
+    for (int tipo = 0; tipo < 4; tipo++) {
+        for (int i = 0; i < workers_por_tipo[tipo]; i++) {
+            pthread_mutex_init(&server.worker_mutex[worker_idx], NULL);
+            server.worker_types[worker_idx] = tipo;
+            server.worker_busy[worker_idx] = false;
+            worker_idx++;
+        }
+    }
+}
+
+int obtener_worker(worker_type_t tipo_requerido) {
+    // 1. Esperar worker del tipo requerido
+    sem_wait(&server.workers[tipo_requerido]);
+    
+    // 2. Encontrar worker específico de ese tipo
+    for (int i = 0; i < NUM_WORKERS; i++) {
+        if (server.worker_types[i] == tipo_requerido) {
+            if (pthread_mutex_trylock(&server.worker_mutex[i]) == 0) {
+                if (!server.worker_busy[i]) {
+                    server.worker_busy[i] = true;
+                    return i;  // Worker encontrado y reservado
+                }
+                pthread_mutex_unlock(&server.worker_mutex[i]);
+            }
+        }
+    }
+    
+    // No debería llegar aquí si los semáforos están bien sincronizados
+    return -1;
+}
+
+void liberar_worker(int worker_id) {
+    pthread_mutex_lock(&server.worker_mutex[worker_id]);
+    
+    server.worker_busy[worker_id] = false;
+    worker_type_t tipo = server.worker_types[worker_id];
+    
+    pthread_mutex_unlock(&server.worker_mutex[worker_id]);
+    
+    // Señalar que hay un worker más de este tipo disponible
+    sem_post(&server.workers[tipo]);
+}
+
+void* procesar_request(void* arg) {
+    int request_id = *(int*)arg;
+    worker_type_t tipo_necesario = rand() % 4;  // Request aleatorio
+    
+    printf("📥 Request %d necesita worker tipo %d\n", request_id, tipo_necesario);
+    
+    // Obtener worker
+    int worker_id = obtener_worker(tipo_necesario);
+    if (worker_id == -1) {
+        printf("❌ Request %d: Error obteniendo worker\n", request_id);
+        return NULL;
+    }
+    
+    printf("⚡ Request %d asignado a worker %d (tipo %d)\n", 
+           request_id, worker_id, tipo_necesario);
+    
+    // Simular procesamiento
+    sleep(1 + (rand() % 3));
+    
+    // Liberar worker
+    liberar_worker(worker_id);
+    
+    printf("✅ Request %d completado por worker %d\n", request_id, worker_id);
+    
+    return NULL;
+}
+```
+
+
+### Problema Clásico: Productor-Consumidor
 
 ```c
 #include <stdio.h>
-#include 
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
+
+#define BUFFER_SIZE 5
+#define NUM_ITEMS 20
+
+typedef struct {
+    int buffer[BUFFER_SIZE];     // Buffer circular
+    int in;                      // Índice de inserción
+    int out;                     // Índice de extracción
+    
+    sem_t empty;                 // Espacios vacíos disponibles
+    sem_t full;                  // Elementos disponibles para consumir
+    pthread_mutex_t mutex;       // Exclusión mutua para buffer
+    
+    int items_produced;          // Estadísticas
+    int items_consumed;
+} buffer_t;
+
+buffer_t shared_buffer;
+
+void init_buffer() {
+    shared_buffer.in = 0;
+    shared_buffer.out = 0;
+    shared_buffer.items_produced = 0;
+    shared_buffer.items_consumed = 0;
+    
+    // empty inicia con BUFFER_SIZE (todos los espacios están vacíos)
+    sem_init(&shared_buffer.empty, 0, BUFFER_SIZE);
+    
+    // full inicia con 0 (no hay elementos para consumir)
+    sem_init(&shared_buffer.full, 0, 0);
+    
+    pthread_mutex_init(&shared_buffer.mutex, NULL);
+    
+    printf("📦 Buffer inicializado (tamaño: %d)\n", BUFFER_SIZE);
+}
+
+void* productor(void* arg) {
+    int prod_id = *(int*)arg;
+    
+    for (int i = 0; i < NUM_ITEMS; i++) {
+        // Producir elemento
+        int item = (prod_id * 100) + i;
+        
+        printf("🏭 Productor %d creó item %d\n", prod_id, item);
+        
+        // PASO 1: Esperar espacio vacío
+        printf("⏳ Productor %d esperando espacio...\n", prod_id);
+        sem_wait(&shared_buffer.empty);
+        
+        // PASO 2: Obtener exclusión mutua sobre buffer
+        pthread_mutex_lock(&shared_buffer.mutex);
+        
+        // PASO 3: SECCIÓN CRÍTICA - Insertar en buffer
+        shared_buffer.buffer[shared_buffer.in] = item;
+        printf("📥 Item %d insertado en posición %d\n", 
+               item, shared_buffer.in);
+        
+        shared_buffer.in = (shared_buffer.in + 1) % BUFFER_SIZE;
+        shared_buffer.items_produced++;
+        
+        // PASO 4: Liberar exclusión mutua
+        pthread_mutex_unlock(&shared_buffer.mutex);
+        
+        // PASO 5: Señalar elemento disponible
+        sem_post(&shared_buffer.full);
+        
+        // Simular tiempo de producción
+        usleep(200000 + (rand() % 300000));  // 200-500ms
+    }
+    
+    printf("✅ Productor %d terminó\n", prod_id);
+    return NULL;
+}
+
+void* consumidor(void* arg) {
+    int cons_id = *(int*)arg;
+    
+    for (int i = 0; i < NUM_ITEMS; i++) {
+        // PASO 1: Esperar elemento disponible
+        printf("⏳ Consumidor %d esperando elemento...\n", cons_id);
+        sem_wait(&shared_buffer.full);
+        
+        // PASO 2: Obtener exclusión mutua sobre buffer
+        pthread_mutex_lock(&shared_buffer.mutex);
+        
+        // PASO 3: SECCIÓN CRÍTICA - Extraer del buffer
+        int item = shared_buffer.buffer[shared_buffer.out];
+        printf("📤 Item %d extraído de posición %d por consumidor %d\n", 
+               item, shared_buffer.out, cons_id);
+        
+        shared_buffer.out = (shared_buffer.out + 1) % BUFFER_SIZE;
+        shared_buffer.items_consumed++;
+        
+        // PASO 4: Liberar exclusión mutua
+        pthread_mutex_unlock(&shared_buffer.mutex);
+        
+        // PASO 5: Señalar espacio vacío
+        sem_post(&shared_buffer.empty);
+        
+        // Consumir elemento
+        printf("🔄 Consumidor %d procesando item %d\n", cons_id, item);
+        usleep(300000 + (rand() % 400000));  // 300-700ms
+    }
+    
+    printf("✅ Consumidor %d terminó\n", cons_id);
+    return NULL;
+}
+
+void mostrar_estado_buffer() {
+    pthread_mutex_lock(&shared_buffer.mutex);
+    
+    printf("\n📊 ESTADO DEL BUFFER:\n");
+    printf("   Producidos: %d | Consumidos: %d\n",
+           shared_buffer.items_produced, shared_buffer.items_consumed);
+    
+    // Mostrar contenido actual
+    printf("   Buffer: [");
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        if (i >= shared_buffer.out && i < shared_buffer.in) {
+            printf("%d", shared_buffer.buffer[i]);
+        } else {
+            printf("_");
+        }
+        if (i < BUFFER_SIZE - 1) printf(", ");
+    }
+    printf("]\n");
+    printf("   IN=%d, OUT=%d\n", shared_buffer.in, shared_buffer.out);
+    
+    pthread_mutex_unlock(&shared_buffer.mutex);
+}
+
+int main() {
+    pthread_t prod_thread, cons_thread;
+    int prod_id = 1, cons_id = 1;
+    
+    init_buffer();
+    srand(time(NULL));
+    
+    printf("🚀 Iniciando Productor-Consumidor\n\n");
+    
+    // Crear threads
+    pthread_create(&prod_thread, NULL, productor, &prod_id);
+    pthread_create(&cons_thread, NULL, consumidor, &cons_id);
+    
+    // Monitor periódico
+    for (int i = 0; i < 10; i++) {
+        sleep(2);
+        mostrar_estado_buffer();
+    }
+    
+    // Esperar terminación
+    pthread_join(prod_thread, NULL);
+    pthread_join(cons_thread, NULL);
+    
+    printf("\n🏁 Simulación terminada\n");
+    mostrar_estado_buffer();
+    
+    // Cleanup
+    sem_destroy(&shared_buffer.empty);
+    sem_destroy(&shared_buffer.full);
+    pthread_mutex_destroy(&shared_buffer.mutex);
+    
+    return 0;
+}
+```
+
+### Problema Lectores-Escritores
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
+
+typedef struct {
+    // Datos compartidos
+    int shared_data;
+    
+    // Control de acceso
+    pthread_mutex_t mutex;       // Proteger reader_count
+    sem_t write_lock;           // Escritores exclusivos
+    
+    // Estadísticas
+    int reader_count;           // Lectores activos
+    int total_reads;            // Total operaciones de lectura
+    int total_writes;           // Total operaciones de escritura
+    
+} shared_resource_t;
+
+shared_resource_t resource;
+
+void init_resource() {
+    resource.shared_data = 0;
+    resource.reader_count = 0;
+    resource.total_reads = 0;
+    resource.total_writes = 0;
+    
+    pthread_mutex_init(&resource.mutex, NULL);
+    sem_init(&resource.write_lock, 0, 1);  // Un escritor a la vez
+    
+    printf("📚 Recurso compartido inicializado\n");
+}
+
+void* lector(void* arg) {
+    int reader_id = *(int*)arg;
+    
+    for (int i = 0; i < 5; i++) {
+        printf("👁️ Lector %d quiere leer\n", reader_id);
+        
+        // PROTOCOLO DE ENTRADA - LECTORES
+        pthread_mutex_lock(&resource.mutex);
+        
+        resource.reader_count++;
+        
+        // El primer lector bloquea escritores
+        if (resource.reader_count == 1) {
+            printf("🚫 Primer lector %d bloqueando escritores\n", reader_id);
+            sem_wait(&resource.write_lock);
+        }
+        
+        pthread_mutex_unlock(&resource.mutex);
+        
+        // SECCIÓN CRÍTICA - LECTURA
+        printf("📖 Lector %d leyendo: valor = %d\n", 
+               reader_id, resource.shared_data);
+        resource.total_reads++;
+        
+        // Simular tiempo de lectura
+        usleep(100000 + (rand() % 200000));  // 100-300ms
+        
+        // PROTOCOLO DE SALIDA - LECTORES
+        pthread_mutex_lock(&resource.mutex);
+        
+        resource.reader_count--;
+        
+        // El último lector desbloquea escritores
+        if (resource.reader_count == 0) {
+            printf("✅ Último lector %d desbloqueando escritores\n", reader_id);
+            sem_post(&resource.write_lock);
+        }
+        
+        pthread_mutex_unlock(&resource.mutex);
+        
+        printf("👁️ Lector %d terminó lectura %d\n", reader_id, i + 1);
+        
+        // Tiempo entre lecturas
+        usleep(500000 + (rand() % 1000000));  // 0.5-1.5s
+    }
+    
+    printf("✅ Lector %d terminó todas las lecturas\n", reader_id);
+    return NULL;
+}
+
+void* escritor(void* arg) {
+    int writer_id = *(int*)arg;
+    
+    for (int i = 0; i < 3; i++) {
+        printf("✏️ Escritor %d quiere escribir\n", writer_id);
+        
+        // PROTOCOLO DE ENTRADA - ESCRITORES
+        // Esperar acceso exclusivo (bloquea otros escritores y lectores)
+        sem_wait(&resource.write_lock);
+        
+        // SECCIÓN CRÍTICA - ESCRITURA
+        int new_value = (writer_id * 1000) + i;
+        printf("📝 Escritor %d escribiendo: %d → %d\n", 
+               writer_id, resource.shared_data, new_value);
+        
+        resource.shared_data = new_value;
+        resource.total_writes++;
+        
+        // Simular tiempo de escritura
+        usleep(300000 + (rand() % 400000));  // 300-700ms
+        
+        // PROTOCOLO DE SALIDA - ESCRITORES
+        sem_post(&resource.write_lock);
+        
+        printf("✅ Escritor %d terminó escritura %d\n", writer_id, i + 1);
+        
+        // Tiempo entre escrituras
+        usleep(800000 + (rand() % 1200000));  // 0.8-2.0s
+    }
+    
+    printf("✅ Escritor %d terminó todas las escrituras\n", writer_id);
+    return NULL;
+}
+
+void mostrar_estadisticas() {
+    pthread_mutex_lock(&resource.mutex);
+    
+    printf("\n📊 ESTADÍSTICAS:\n");
+    printf("   Valor actual: %d\n", resource.shared_data);
+    printf("   Lectores activos: %d\n", resource.reader_count);
+    printf("   Total lecturas: %d\n", resource.total_reads);
+    printf("   Total escrituras: %d\n", resource.total_writes);
+    
+    pthread_mutex_unlock(&resource.mutex);
+}
+
+int main() {
+    #define NUM_READERS 3
+    #define NUM_WRITERS 2
+    
+    pthread_t readers[NUM_READERS];
+    pthread_t writers[NUM_WRITERS];
+    int reader_ids[NUM_READERS];
+    int writer_ids[NUM_WRITERS];
+    
+    init_resource();
+    srand(time(NULL));
+    
+    printf("🚀 Iniciando Lectores-Escritores\n\n");
+    
+    // Crear lectores
+    for (int i = 0; i < NUM_READERS; i++) {
+        reader_ids[i] = i + 1;
+        pthread_create(&readers[i], NULL, lector, &reader_ids[i]);
+    }
+    
+    // Crear escritores con pequeño delay
+    sleep(1);
+    for (int i = 0; i < NUM_WRITERS; i++) {
+        writer_ids[i] = i + 1;
+        pthread_create(&writers[i], NULL, escritor, &writer_ids[i]);
+    }
+    
+    // Monitor periódico
+    for (int i = 0; i < 8; i++) {
+        sleep(2);
+        mostrar_estadisticas();
+    }
+    
+    // Esperar terminación
+    for (int i = 0; i < NUM_READERS; i++) {
+        pthread_join(readers[i], NULL);
+    }
+    for (int i = 0; i < NUM_WRITERS; i++) {
+        pthread_join(writers[i], NULL);
+    }
+    
+    printf("\n🏁 Simulación terminada\n");
+    mostrar_estadisticas();
+    
+    // Cleanup
+    pthread_mutex_destroy(&resource.mutex);
+    sem_destroy(&resource.write_lock);
+    
+    return 0;
+}
+```
+
+## Síntesis
+
+### Puntos Clave
+
+1. **Race Conditions** son la causa fundamental de bugs en programas concurrentes
+2. **Sección Crítica** debe protegerse con primitivas de sincronización
+3. **Semáforos** son la herramienta más versátil para sincronización
+5. **Overhead** de sincronización debe balancearse con necesidades de concurrencia
+
+### Conexiones con Otros Temas
+
+- **Scheduling**: Los procesos bloqueados en semáforos van a cola de espera
+- **Deadlock** puede prevenirse con diseño cuidadoso del orden de recursos
+- **Memory Management**: Variables compartidas requieren coherencia de cache
+- **File Systems**: Control de concurrencia en acceso a archivos
+- **Networks**: Sincronización en sistemas distribuidos

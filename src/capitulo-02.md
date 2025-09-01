@@ -1,4 +1,4 @@
-# Capítulo 2: Procesos  
+# Procesos  
 
 ## Objetivos de Aprendizaje  
 
