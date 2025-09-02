@@ -79,15 +79,25 @@ Un proceso es mucho más que un programa ejecutándose. Es una **abstracción** 
 
 **Definición**: Número de procesos que residen simultáneamente en memoria principal.
 
-**Factores que lo limitan:**
-- **Memoria disponible**: Más procesos → menos memoria por proceso
-- **Recursos del sistema**: File descriptors, sockets, etc.
-- **Overhead del SO**: PCBs, tablas de páginas, context switching
+**Factores que lo limitan:**  
+- **Memoria disponible**: Más procesos → menos memoria por proceso  
+- **Recursos del sistema**: File descriptors, sockets, etc.  
+- **Overhead del SO**: PCBs, tablas de páginas, context switching  
 
 
 ### Estructuras de Control del Sistema Operativo
 
-El SO mantiene varias tablas para gestionar todos los recursos:
+El SO mantiene varias tablas para gestionar todos los recursos:  
+
+**Tabla de Procesos:**
+- **Entry point** hacia todas las demás tablas  
+- **Un PCB por cada proceso** en el sistema  
+- **Referencias cruzadas** a memoria, I/O, archivos del proceso  
+- **Información de estado y control** del proceso  
+
+\begin{center}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-processTable.png}
+\end{center}
 
 **Tabla de Memoria:**
 - **Asignación de memoria** a cada proceso  
@@ -95,11 +105,19 @@ El SO mantiene varias tablas para gestionar todos los recursos:
 - **Atributos de protección** (read, write, execute)  
 - **Información de memoria virtual** (páginas, segmentos)  
 
+\begin{center}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-memoryTable.png}
+\end{center}
+
 **Tabla de I/O:**
 - **Estado de dispositivos** (libre, ocupado, error)  
 - **Colas de operaciones** pendientes por dispositivo  
 - **Buffers** asociados a cada operación  
 - **Controladores** de dispositivos activos  
+
+\begin{center}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-ioTable.png}
+\end{center}
 
 **Tabla de Archivos:**
 - **Archivos abiertos** en el sistema  
@@ -107,11 +125,9 @@ El SO mantiene varias tablas para gestionar todos los recursos:
 - **Estado de acceso** (lectura, escritura, compartido)  
 - **Locks** y permisos por archivo  
 
-**Tabla de Procesos:**
-- **Entry point** hacia todas las demás tablas  
-- **Un PCB por cada proceso** en el sistema  
-- **Referencias cruzadas** a memoria, I/O, archivos del proceso  
-- **Información de estado y control** del proceso  
+\begin{center}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-fileTable.png}
+\end{center}
 
 
 ### Imagen de un Proceso
@@ -785,29 +801,29 @@ int main() {
 
 ### Puntos Clave para Parcial
 
-**Definiciones esenciales:**
-- **Proceso vs Programa**: Proceso = programa + contexto de ejecución
-- **PCB**: Estructura que mantiene estado del proceso
-- **Estados**: NEW, READY, RUNNING, BLOCKED, TERMINATED
-- **fork()**: Retorna PID del hijo al padre, 0 al hijo, -1 en error
-- **exec()**: Reemplaza imagen del proceso (mismo PID)
-- **wait()**: Padre espera terminación de hijo, evita zombies
+**Definiciones esenciales:**  
+- **Proceso vs Programa**: Proceso = programa + contexto de ejecución  
+- **PCB**: Estructura que mantiene estado del proceso  
+- **Estados**: NEW, READY, RUNNING, BLOCKED, SUSPENDED BLOCKED, SUSPENDED READY, TERMINATED  
+- **fork()**: Retorna PID del hijo al padre, 0 al hijo, -1 en error  
+- **exec()**: Reemplaza imagen del proceso (mismo PID)  
+- **wait()**: Padre espera terminación de hijo, evita zombies  
 
-**Diferencias de Sistemas:**
-- **Monoprogramación**: Un programa por vez, CPU idle en I/O
-- **Multiprogramación**: Múltiples programas en memoria, maximiza CPU
-- **Multitarea**: Multiprogramación + time-sharing preemptivo
-- **Multiprocesamiento**: Múltiples CPUs físicos
+**Diferencias de Sistemas:**  
+- **Monoprogramación**: Un programa por vez, CPU idle en I/O  
+- **Multiprogramación**: Múltiples programas en memoria, maximiza CPU  
+- **Multitarea**: Multiprogramación + time-sharing preemptivo  
+- **Multiprocesamiento**: Múltiples CPUs físicos  
 
-**Estructuras del SO:**
-- **Tablas**: Memoria, I/O, Archivos, Procesos (referencia cruzada)
-- **Imagen del proceso**: Text, Data, BSS, Heap, Stack
-- **PCB**: Contexto completo para context switching
+**Estructuras del SO:**  
+- **Tablas**: Memoria, I/O, Archivos, Procesos (referencia cruzada)  
+- **Imagen del proceso**: Text, Data, BSS, Heap, Stack  
+- **PCB**: Contexto completo para context switching  
 
-**Diagramas de Estado:**
-- **3 estados**: Modelo básico para entender transiciones
-- **5 estados**: Incluye swapping (suspended states)
-- **7 estados**: Tres niveles de planificación
+**Diagramas de Estado:**  
+- **3 estados**: Modelo básico para entender transiciones  
+- **5 estados**: Incluye swapping (suspended states)  
+- **7 estados**: Tres niveles de planificación  
 
 **Syscalls fundamentales:**
 ```c

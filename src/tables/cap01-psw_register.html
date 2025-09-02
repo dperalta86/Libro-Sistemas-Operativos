@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Program Status Word (PSW) - Register</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .register-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .register-header {
+            background: linear-gradient(135deg, #4a5568, #2d3748);
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .register-description {
+            padding: 15px 20px;
+            background: #edf2f7;
+            font-size: 14px;
+            color: #4a5568;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        /* Registro de 32 bits */
+        .bit-register {
+            display: flex;
+            margin: 20px;
+            border: 2px solid #2d3748;
+            border-radius: 4px;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .bit-position {
+            background: #718096;
+            color: white;
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 10px;
+            font-weight: bold;
+            border-right: 1px solid #4a5568;
+            min-width: 25px;
+        }
+        
+        .bit-value {
+            background: #f7fafc;
+            color: #2d3748;
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 12px;
+            border-right: 1px solid #e2e8f0;
+            min-width: 25px;
+        }
+        
+        /* Colores para diferentes tipos de flags */
+        .condition-flag { background-color: #c6f6d5; color: #22543d; }
+        .control-flag { background-color: #fef5e7; color: #744210; }
+        .system-flag { background-color: #e6fffa; color: #234e52; }
+        .reserved-flag { background-color: #f0f0f0; color: #666; }
+        
+        /* Tabla de descripción */
+        .flags-table {
+            margin: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        th {
+            background: #718096;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+        }
+        
+        td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .bit-num { font-family: 'Courier New', monospace; font-weight: bold; }
+        .flag-name { font-weight: bold; }
+        
+        .condition { background-color: #c6f6d5; }
+        .control { background-color: #fef5e7; }
+        .system { background-color: #e6fffa; }
+        .reserved { background-color: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div class="register-header">
+            🏛️ Program Status Word (PSW) - 32-bit Register
+        </div>
+        <div class="register-description">
+            <strong>Propósito:</strong> Almacena el estado actual del procesador y flags de control<br>
+            <strong>Tamaño:</strong> 32 bits (en arquitecturas x86)
+        </div>
+        
+        <!-- Representación visual del registro -->
+        <div style="padding: 20px;">
+            <h4>Representación Binaria (bits 31-0):</h4>
+            
+            <!-- Bits 31-16 -->
+            <div class="bit-register">
+                <div class="bit-position">31</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">30</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">29</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">28</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">27</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">26</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">25</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">24</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">23</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">22</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">21</div><div class="bit-value system-flag">ID</div>
+                <div class="bit-position">20</div><div class="bit-value system-flag">VP</div>
+                <div class="bit-position">19</div><div class="bit-value system-flag">VF</div>
+                <div class="bit-position">18</div><div class="bit-value system-flag">AC</div>
+                <div class="bit-position">17</div><div class="bit-value system-flag">VM</div>
+                <div class="bit-position">16</div><div class="bit-value system-flag">RF</div>
+            </div>
+            
+            <!-- Bits 15-0 -->
+            <div class="bit-register">
+                <div class="bit-position">15</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">14</div><div class="bit-value system-flag">NT</div>
+                <div class="bit-position">13</div><div class="bit-value system-flag">IO</div>
+                <div class="bit-position">12</div><div class="bit-value system-flag">PL</div>
+                <div class="bit-position">11</div><div class="bit-value condition-flag">OF</div>
+                <div class="bit-position">10</div><div class="bit-value control-flag">DF</div>
+                <div class="bit-position">9</div><div class="bit-value control-flag">IF</div>
+                <div class="bit-position">8</div><div class="bit-value control-flag">TF</div>
+                <div class="bit-position">7</div><div class="bit-value condition-flag">SF</div>
+                <div class="bit-position">6</div><div class="bit-value condition-flag">ZF</div>
+                <div class="bit-position">5</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">4</div><div class="bit-value condition-flag">AF</div>
+                <div class="bit-position">3</div><div class="bit-value reserved-flag">0</div>
+                <div class="bit-position">2</div><div class="bit-value condition-flag">PF</div>
+                <div class="bit-position">1</div><div class="bit-value reserved-flag">1</div>
+                <div class="bit-position">0</div><div class="bit-value condition-flag">CF</div>
+            </div>
+        </div>
+        
+        <!-- Tabla descriptiva -->
+        <div class="flags-table">
+            <h4>Descripción de Flags:</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Bit</th>
+                        <th>Flag</th>
+                        <th>Nombre</th>
+                        <th>Descripción</th>
+                        <th>Tipo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="condition">
+                        <td class="bit-num">0</td>
+                        <td class="flag-name">CF</td>
+                        <td>Carry Flag</td>
+                        <td>Indica acarreo en operaciones aritméticas</td>
+                        <td><strong>Condición</strong></td>
+                    </tr>
+                    <tr class="condition">
+                        <td class="bit-num">2</td>
+                        <td class="flag-name">PF</td>
+                        <td>Parity Flag</td>
+                        <td>Paridad del resultado (par/impar)</td>
+                        <td><strong>Condición</strong></td>
+                    </tr>
+                    <tr class="condition">
+                        <td class="bit-num">4</td>
+                        <td class="flag-name">AF</td>
+                        <td>Auxiliary Flag</td>
+                        <td>Acarreo auxiliar (BCD)</td>
+                        <td><strong>Condición</strong></td>
+                    </tr>
+                    <tr class="condition">
+                        <td class="bit-num">6</td>
+                        <td class="flag-name">ZF</td>
+                        <td>Zero Flag</td>
+                        <td>Se activa si el resultado es cero</td>
+                        <td><strong>Condición</strong></td>
+                    </tr>
+                    <tr class="condition">
+                        <td class="bit-num">7</td>
+                        <td class="flag-name">SF</td>
+                        <td>Sign Flag</td>
+                        <td>Indica si el resultado es negativo</td>
+                        <td><strong>Condición</strong></td>
+                    </tr>
+                    <tr class="control">
+                        <td class="bit-num">8</td>
+                        <td class="flag-name">TF</td>
+                        <td>Trap Flag</td>
+                        <td>Modo single-step para debugging</td>
+                        <td><strong>Control</strong></td>
+                    </tr>
+                    <tr class="control">
+                        <td class="bit-num">9</td>
+                        <td class="flag-name">IF</td>
+                        <td>Interrupt Flag</td>
+                        <td>Habilita/deshabilita interrupciones</td>
+                        <td><strong>Control</strong></td>
+                    </tr>
+                    <tr class="control">
+                        <td class="bit-num">10</td>
+                        <td class="flag-name">DF</td>
+                        <td>Direction Flag</td>
+                        <td>Dirección para operaciones de string</td>
+                        <td><strong>Control</strong></td>
+                    </tr>
+                    <tr class="condition">
+                        <td class="bit-num">11</td>
+                        <td class="flag-name">OF</td>
+                        <td>Overflow Flag</td>
+                        <td>Desbordamiento en aritmética con signo</td>
+                        <td><strong>Condición</strong></td>
+                    </tr>
+                    <tr class="system">
+                        <td class="bit-num">12-13</td>
+                        <td class="flag-name">IOPL</td>
+                        <td>I/O Privilege Level</td>
+                        <td>Nivel de privilegio para operaciones E/S</td>
+                        <td><strong>Sistema</strong></td>
+                    </tr>
+                    <tr class="system">
+                        <td class="bit-num">14</td>
+                        <td class="flag-name">NT</td>
+                        <td>Nested Task Flag</td>
+                        <td>Indica tarea anidada</td>
+                        <td><strong>Sistema</strong></td>
+                    </tr>
+                    <tr class="system">
+                        <td class="bit-num">16</td>
+                        <td class="flag-name">RF</td>
+                        <td>Resume Flag</td>
+                        <td>Control de debugging</td>
+                        <td><strong>Sistema</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

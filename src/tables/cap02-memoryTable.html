@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabla de Memoria - Sistema Operativo</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .table-header {
+            background: linear-gradient(135deg, #4a5568, #2d3748);
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .table-description {
+            padding: 15px 20px;
+            background: #edf2f7;
+            font-size: 14px;
+            color: #4a5568;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        th {
+            background: #718096;
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e2e8f0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        tr:hover {
+            background-color: #f7fafc;
+        }
+        
+        .allocated {
+            background-color: #e6fffa;
+        }
+        
+        .free {
+            background-color: #fef5e7;
+        }
+        
+        .protection-rwx { color: #38a169; font-weight: bold; }
+        .protection-rw { color: #d69e2e; font-weight: bold; }
+        .protection-rx { color: #3182ce; font-weight: bold; }
+        .protection-none { color: #e53e3e; font-weight: bold; }
+        
+        .address { color: #805ad5; }
+        .size { color: #38a169; }
+    </style>
+</head>
+<body>
+    <div class="table-container">
+        <div class="table-header">
+            📋 Tabla de Memoria - Memory Management Unit
+        </div>
+        <div class="table-description">
+            <strong>Propósito:</strong> Gestiona la asignación de memoria a cada proceso<br>
+            <strong>Características:</strong> Control de límites, protección de memoria, gestión de páginas y segmentos
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Process ID</th>
+                    <th>Base Address</th>
+                    <th>Limit Address</th>
+                    <th>Size</th>
+                    <th>Page Table</th>
+                    <th>Segment Table</th>
+                    <th>State</th>
+                    <th>Protection</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="allocated">
+                    <td>1001</td>
+                    <td class="address">0x1000</td>
+                    <td class="address">0x2FFF</td>
+                    <td class="size">8192 bytes</td>
+                    <td class="address">0xA000</td>
+                    <td class="address">0xB000</td>
+                    <td><strong>ALLOCATED</strong></td>
+                    <td class="protection-rwx">RWX (111)</td>
+                </tr>
+                <tr class="allocated">
+                    <td>1002</td>
+                    <td class="address">0x3000</td>
+                    <td class="address">0x4FFF</td>
+                    <td class="size">8192 bytes</td>
+                    <td class="address">0xA100</td>
+                    <td class="address">0xB100</td>
+                    <td><strong>ALLOCATED</strong></td>
+                    <td class="protection-rw">RW- (110)</td>
+                </tr>
+                <tr class="allocated">
+                    <td>1003</td>
+                    <td class="address">0x5000</td>
+                    <td class="address">0x6FFF</td>
+                    <td class="size">8192 bytes</td>
+                    <td class="address">0xA200</td>
+                    <td class="address">0xB200</td>
+                    <td><strong>ALLOCATED</strong></td>
+                    <td class="protection-rx">R-X (101)</td>
+                </tr>
+                <tr class="free">
+                    <td>—</td>
+                    <td class="address">0x7000</td>
+                    <td class="address">0x8FFF</td>
+                    <td class="size">8192 bytes</td>
+                    <td>—</td>
+                    <td>—</td>
+                    <td><strong>FREE</strong></td>
+                    <td class="protection-none">--- (000)</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

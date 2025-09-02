@@ -35,7 +35,6 @@ Con los sistemas operativos pasa lo mismo. Puedes usar una computadora sin enten
 - Llegan datos por la red de forma asincrónica
 - Se necesita un mecanismo para "interrumpir" la ejecución normal  
 
-
 ## Conceptos Fundamentales
 
 ### Arquitectura de von Neumann
@@ -62,9 +61,7 @@ La arquitectura básica de casi todas las computadoras modernas:
   - Teclado, mouse, pantalla, red, etc.
   - Interfaces para interactuar con el mundo exterior
 
-![Diagrama de un Computador](src/images/capitulo-01/01.png){ width=350 height=265 style="display: block; margin: auto;" }
-
-
+![Diagrama de un Computador](src/images/capitulo-01/01.png){ width=350 height=265 style="display: block; margin: auto;" }  
 
 ### Buses de Comunicación
 
@@ -141,6 +138,10 @@ El **PSW** (también llamado FLAGS register) contiene información sobre el esta
 - **Nested Task Flag (NT)**: Indica tarea anidada  
 - **Resume Flag (RF)**: Control de debugging  
 
+\begin{center}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap01-psw_register.png}
+\end{center}
+
 ### Ciclo de Instrucción
 
 \begin{center}
@@ -203,7 +204,6 @@ Mecanismo hardware que permite detener temporalmente la ejecución normal del pr
 ### Interrupciones Enmascarables (Maskable Interrupts)  
 
 Pueden ser temporalmente deshabilitadas por software mediante el control del bit IF (Interrupt Flag) en el registro de estado del procesador (PSW/EFLAGS).
-\end{definitionbox}
 
 
 **Control**: 
@@ -229,7 +229,7 @@ sti();              // Rehabilitar interrupciones
 
 ### Interrupciones No Enmascarables (NMI - Non-Maskable Interrupts)
 
-**Definición**: NO pueden ser deshabilitadas por software, tienen prioridad absoluta y se ejecutan inmediatamente.
+NO pueden ser deshabilitadas por software, tienen prioridad absoluta y se ejecutan inmediatamente.
 
 **Propósito**: Eventos críticos que requieren atención inmediata del sistema.
 
@@ -409,6 +409,7 @@ Este sistema de interrupciones es fundamental para:
 - **Gestión de memoria**: Page faults y gestión de memoria virtual  
 - **Comunicación inter-procesos**: Señales y sincronización  
 - **Detección de errores**: Excepciones y fallos de hardware  
+
 ### Modos de Operación del Procesador
 
 **Modo Kernel (Supervisor/Privilegiado):**
@@ -463,7 +464,7 @@ Este procedimiento asegura la correcta continuidad de los procesos, pero introdu
 
 \begin{center}
 \begin{minipage}{0.52\linewidth}
-\textbf{Fases del Context Switch en Sistemas Unix} \\[2mm]
+\textbf{Fases del Context Switch en Sistemas Unix (detalle)} \\[2mm]
 
 \textcolor{blue!50!black}{\textbf{Fase Inicial - Ejecución Normal:}\\
 \textbf{0.} P₀ ejecuta en modo usuario → Estado normal usando su espacio de direcciones y time slice vigente.\\[2mm]
@@ -568,7 +569,7 @@ Sus principales tareas son:
 Las System Calls son un mecanismo mediante el cual los programas solicitan servicios al SO (acceso a hardware, creación de procesos, etc.)
 \end{definitionbox}
 
-**¿Por qué existen?**
+**¿Por qué existen?**  
 - **Protección**: Impiden acceso directo no controlado al hardware  
 - **Abstracción**: Proporcionan interfaz uniforme independiente del hardware específico  
 - **Eficiencia**: Centralizan funciones comunes del sistema  
@@ -600,7 +601,7 @@ int 0x80            ; interrupción de software
 Las interrupciones de software (INT) son relativamente lentas porque:
 - Deben guardar todo el contexto del procesador
 - Requieren consultar tabla de vectores de interrupción
-- Overhead de cambio de modo es considerable. (Overhead no es "sobre cabeza" cuack!. Es el tiempo que el CPU "pierde" realizando tareas que no son propias de los procesos).
+- Overhead de cambio de modo es considerable. *Overhead es es el conjunto de recursos (tiempo de CPU, memoria, etc.) que el sistema operativo utiliza realizando tareas que no son propias de los procesos.*
 
 **Solución: Fast System Calls**
 
@@ -624,17 +625,17 @@ syscall             ; Entrada directa al kernel
 ; Resultado en RAX al retornar
 ```
 
-**Ventajas de Fast Syscalls:**
-- **50-70% más rápidas** que INT tradicional
-- Menos overhead de cambio de contexto
-- Registros específicos en lugar de stack
-- Transición directa sin consultar vectores
+**Ventajas de Fast Syscalls:**  
+- **50-70% más rápidas** que INT tradicional  
+- Menos overhead de cambio de contexto  
+- Registros específicos en lugar de stack  
+- Transición directa sin consultar vectores  
 
-**Uso en Linux Moderno:**
-- **x86-32**: SYSENTER es el método preferido
-- **x86-64**: SYSCALL es el estándar
-- **ARM**: SVC (Supervisor Call) instruction
-- Biblioteca glibc automáticamente elige el método más eficiente
+**Uso en Linux Moderno:**  
+- **x86-32**: SYSENTER es el método preferido  
+- **x86-64**: SYSCALL es el estándar  
+- **ARM**: SVC (Supervisor Call) instruction  
+- Biblioteca glibc automáticamente elige el método más eficiente  
 
 ### Arquitecturas de Kernel
 
@@ -673,16 +674,16 @@ La organización interna del kernel afecta directamente el rendimiento, segurida
 - Kernel solo maneja: scheduling, IPC, memoria básica  
 
 \textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- **Mayor estabilidad**: Falla de driver no afecta al kernel\\
-- **Seguridad mejorada**: Servicios con privilegios mínimos necesarios\\
-- **Modularidad**: Fácil agregar/quitar componentes\\
-- **Debugging**: Aislamiento facilita encontrar problemas\\
+- Mayor estabilidad: Falla de driver no afecta al kernel\\
+- Seguridad mejorada: Servicios con privilegios mínimos necesarios\\
+- Modularidad: Fácil agregar/quitar componentes\\
+- Debugging: Aislamiento facilita encontrar problemas\\
 }
 
 \textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- **Rendimiento menor**: Overhead de IPC entre componentes\\
-- **Complejidad**: Más difícil de diseñar y implementar\\
-- **Latencia**: Múltiples cambios de contexto para operaciones simples\\
+- Rendimiento menor: Overhead de IPC entre componentes\\
+- Complejidad: Más difícil de diseñar y implementar\\
+- Latencia: Múltiples cambios de contexto para operaciones simples\\
 }
 
 *Ejemplos:* Minix, QNX, seL4, Hurd (GNU)

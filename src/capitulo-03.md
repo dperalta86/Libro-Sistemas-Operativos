@@ -436,12 +436,9 @@ P4      |    3    |     2     |     3     |     1
 **Solución con Round Robin (Q=3):**
 
 \begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap03-gantt-RR.png}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap03-gantt-RR.png}
 \end{center}
 
-\begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap03-gantt-RR-2.png}
-\end{center}
 
 **Desarrollo paso a paso:**
 
@@ -500,11 +497,7 @@ Promedio: (0+2+4+6)/4 = 3
 **Solución con SJF:**
 
 \begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap03-gantt-SJF.png}
-\end{center}
-
-\begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap03-gantt-SJF-2.png}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap03-gantt-SJF.png}
 \end{center}
 
 **Desarrollo paso a paso:**

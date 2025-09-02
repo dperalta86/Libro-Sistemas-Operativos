@@ -1,0 +1,66 @@
+classDiagram
+    class ProcessTable {
+        <<Process Control Block>>
+        +PID: int
+        +Process_State: enum
+        +Program_Counter: address
+        +CPU_Registers: struct
+        +Memory_Pointers: ptr[]
+        +Open_Files: fd[]
+        +Priority: int
+        +Parent_PID: int
+        +CPU_Time: int
+        --
+        +create_process()
+        +terminate_process()
+        +schedule_process()
+    }
+    
+    class ProcessEntry1 {
+        PID: 1001
+        Process_State: RUNNING
+        Program_Counter: 0x4A2B
+        CPU_Registers: EAX_0xFF_EBX_0x12
+        Memory_Pointers: 0x1000-0x2FFF
+        Open_Files: fd3_fd5_fd7
+        Priority: 0
+        Parent_PID: 1000
+        CPU_Time: 150ms
+    }
+    
+    class ProcessEntry2 {
+        PID: 1002
+        Process_State: WAITING
+        Program_Counter: 0x3C4F
+        CPU_Registers: EAX_0x00_EBX_0xAB
+        Memory_Pointers: 0x3000-0x4FFF
+        Open_Files: fd4_fd8
+        Priority: 1
+        Parent_PID: 1001
+        CPU_Time: 75ms
+    }
+    
+    class ProcessEntry3 {
+        PID: 1003
+        Process_State: READY
+        Program_Counter: 0x5B8A
+        CPU_Registers: EAX_0xCC_EBX_0x34
+        Memory_Pointers: 0x5000-0x6FFF
+        Open_Files: fd6_fd9_fd10
+        Priority: 2
+        Parent_PID: 1000
+        CPU_Time: 200ms
+    }
+    
+    ProcessTable --> ProcessEntry1 : contains
+    ProcessTable --> ProcessEntry2 : contains
+    ProcessTable --> ProcessEntry3 : contains
+
+    %% Styling
+    classDef tableStyle fill:#4a5568,stroke:#2d3748,stroke-width:2px,color:#ffffff
+    classDef entryStyle fill:#718096,stroke:#4a5568,stroke-width:1px,color:#ffffff
+    
+    class ProcessTable tableStyle
+    class ProcessEntry1 entryStyle
+    class ProcessEntry2 entryStyle
+    class ProcessEntry3 entryStyle

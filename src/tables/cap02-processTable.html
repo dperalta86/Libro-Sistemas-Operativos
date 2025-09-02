@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabla de Procesos - Sistema Operativo</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .table-header {
+            background: linear-gradient(135deg, #4a5568, #2d3748);
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .table-description {
+            padding: 15px 20px;
+            background: #edf2f7;
+            font-size: 14px;
+            color: #4a5568;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        th {
+            background: #718096;
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e2e8f0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        tr:hover {
+            background-color: #f7fafc;
+        }
+        
+        .running { background-color: #c6f6d5; }
+        .waiting { background-color: #fef5e7; }
+        .ready { background-color: #e6fffa; }
+        
+        .state-running { color: #38a169; font-weight: bold; }
+        .state-waiting { color: #d69e2e; font-weight: bold; }
+        .state-ready { color: #3182ce; font-weight: bold; }
+        
+        .address { color: #805ad5; }
+        .pid { color: #38a169; font-weight: bold; }
+        .priority { color: #e53e3e; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="table-container">
+        <div class="table-header">
+            ⚙️ Tabla de Procesos - Process Control Block (PCB)
+        </div>
+        <div class="table-description">
+            <strong>Propósito:</strong> Mantiene la información de control de cada proceso del sistema<br>
+            <strong>Características:</strong> Estado del proceso, contexto de CPU, asignación de recursos
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>PID</th>
+                    <th>Process State</th>
+                    <th>Program Counter</th>
+                    <th>CPU Registers</th>
+                    <th>Memory Pointers</th>
+                    <th>Open Files</th>
+                    <th>Priority</th>
+                    <th>Parent PID</th>
+                    <th>CPU Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="running">
+                    <td class="pid">1001</td>
+                    <td class="state-running">RUNNING</td>
+                    <td class="address">0x4A2B</td>
+                    <td>EAX: 0xFF<br>EBX: 0x12</td>
+                    <td class="address">0x1000-0x2FFF</td>
+                    <td>fd3, fd5, fd7</td>
+                    <td class="priority">0</td>
+                    <td class="pid">1000</td>
+                    <td>150ms</td>
+                </tr>
+                <tr class="waiting">
+                    <td class="pid">1002</td>
+                    <td class="state-waiting">WAITING</td>
+                    <td class="address">0x3C4F</td>
+                    <td>EAX: 0x00<br>EBX: 0xAB</td>
+                    <td class="address">0x3000-0x4FFF</td>
+                    <td>fd4, fd8</td>
+                    <td class="priority">1</td>
+                    <td class="pid">1001</td>
+                    <td>75ms</td>
+                </tr>
+                <tr class="ready">
+                    <td class="pid">1003</td>
+                    <td class="state-ready">READY</td>
+                    <td class="address">0x5B8A</td>
+                    <td>EAX: 0xCC<br>EBX: 0x34</td>
+                    <td class="address">0x5000-0x6FFF</td>
+                    <td>fd6, fd9, fd10</td>
+                    <td class="priority">2</td>
+                    <td class="pid">1000</td>
+                    <td>200ms</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

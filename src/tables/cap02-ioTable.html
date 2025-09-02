@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabla de E/S - Sistema Operativo</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .table-header {
+            background: linear-gradient(135deg, #4a5568, #2d3748);
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .table-description {
+            padding: 15px 20px;
+            background: #edf2f7;
+            font-size: 14px;
+            color: #4a5568;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        th {
+            background: #718096;
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e2e8f0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        tr:hover {
+            background-color: #f7fafc;
+        }
+        
+        .busy { background-color: #fed7d7; }
+        .idle { background-color: #c6f6d5; }
+        
+        .status-busy { color: #e53e3e; font-weight: bold; }
+        .status-idle { color: #38a169; font-weight: bold; }
+        
+        .device-disk { color: #805ad5; }
+        .device-keyboard { color: #3182ce; }
+        .device-printer { color: #d69e2e; }
+        .device-network { color: #38a169; }
+        
+        .address { color: #805ad5; }
+        .pid { color: #38a169; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="table-container">
+        <div class="table-header">
+            🖥️ Tabla de E/S - Device Control Table (DCT)
+        </div>
+        <div class="table-description">
+            <strong>Propósito:</strong> Controla el acceso y estado de los dispositivos de entrada/salida<br>
+            <strong>Características:</strong> Gestión de colas de espera, asignación de dispositivos, manejo de interrupciones
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Device ID</th>
+                    <th>Device Type</th>
+                    <th>Status</th>
+                    <th>Assigned Process</th>
+                    <th>Memory Address</th>
+                    <th>Queue</th>
+                    <th>Driver</th>
+                    <th>Interrupt Vector</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="busy">
+                    <td><strong>DEV_001</strong></td>
+                    <td class="device-disk">DISK</td>
+                    <td class="status-busy">BUSY</td>
+                    <td class="pid">1001</td>
+                    <td class="address">0xC000</td>
+                    <td>PID 1001, 1003</td>
+                    <td class="address">0xD000</td>
+                    <td>14</td>
+                </tr>
+                <tr class="idle">
+                    <td><strong>DEV_002</strong></td>
+                    <td class="device-keyboard">KEYBOARD</td>
+                    <td class="status-idle">IDLE</td>
+                    <td>—</td>
+                    <td class="address">0xC100</td>
+                    <td>empty</td>
+                    <td class="address">0xD100</td>
+                    <td>1</td>
+                </tr>
+                <tr class="busy">
+                    <td><strong>DEV_003</strong></td>
+                    <td class="device-printer">PRINTER</td>
+                    <td class="status-busy">BUSY</td>
+                    <td class="pid">1002</td>
+                    <td class="address">0xC200</td>
+                    <td>PID 1002</td>
+                    <td class="address">0xD200</td>
+                    <td>7</td>
+                </tr>
+                <tr class="idle">
+                    <td><strong>DEV_004</strong></td>
+                    <td class="device-network">NETWORK</td>
+                    <td class="status-idle">IDLE</td>
+                    <td>—</td>
+                    <td class="address">0xC300</td>
+                    <td>empty</td>
+                    <td class="address">0xD300</td>
+                    <td>11</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

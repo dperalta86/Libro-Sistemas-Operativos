@@ -1,0 +1,83 @@
+classDiagram
+    class FileTable {
+        <<File Control Block>>
+        +File_Name: string
+        +File_Descriptor: int
+        +Owner: uid
+        +Permissions: octal
+        +File_Pointer: offset
+        +Location: block_addr
+        +Open_Count: int
+        +Size: int
+        +Modified: timestamp
+        --
+        +open_file()
+        +close_file()
+        +read_file()
+        +write_file()
+    }
+    
+    class FileEntry1 {
+        File_Name: "system.log"
+        File_Descriptor: 3
+        Owner: 1001
+        Permissions: 0644
+        File_Pointer: 2048
+        Location: Block_456
+        Open_Count: 2
+        Size: 4096 bytes
+        Modified: 2024-03-15_14:30
+    }
+    
+    class FileEntry2 {
+        File_Name: "config.txt"
+        File_Descriptor: 4
+        Owner: 1000
+        Permissions: 0755
+        File_Pointer: 0
+        Location: Block_123
+        Open_Count: 1
+        Size: 1024 bytes
+        Modified: 2024-03-14_09:15
+    }
+    
+    class FileEntry3 {
+        File_Name: "data.bin"
+        File_Descriptor: 5
+        Owner: 1002
+        Permissions: 0600
+        File_Pointer: 8192
+        Location: Block_789
+        Open_Count: 1
+        Size: 16384 bytes
+        Modified: 2024-03-15_16:45
+    }
+    
+    class FileEntry4 {
+        File_Name: "temp.tmp"
+        File_Descriptor: 6
+        Owner: 1003
+        Permissions: 0666
+        File_Pointer: 512
+        Location: Block_321
+        Open_Count: 1
+        Size: 2048 bytes
+        Modified: 2024-03-15_17:00
+    }
+    
+    FileTable --> FileEntry1 : manages
+    FileTable --> FileEntry2 : manages
+    FileTable --> FileEntry3 : manages
+    FileTable --> FileEntry4 : manages
+
+    %% Styling
+    classDef tableStyle fill:#4a5568,stroke:#2d3748,stroke-width:2px,color:#ffffff
+    classDef systemStyle fill:#718096,stroke:#4a5568,stroke-width:1px,color:#ffffff
+    classDef userStyle fill:#a0aec0,stroke:#718096,stroke-width:1px,color:#2d3748
+    classDef tempStyle fill:#cbd5e0,stroke:#a0aec0,stroke-width:1px,color:#2d3748
+    
+    class FileTable tableStyle
+    class FileEntry1 systemStyle
+    class FileEntry2 systemStyle
+    class FileEntry3 userStyle
+    class FileEntry4 tempStyle

@@ -1,0 +1,76 @@
+classDiagram
+    class MemoryTable {
+        <<Memory Management Unit>>
+        +Process_ID: int
+        +Base_Address: address
+        +Limit_Address: address
+        +Page_Table: ptr
+        +Segment_Table: ptr
+        +Allocation_State: enum
+        +Size: int
+        +Protection: bits
+        --
+        +allocate_memory()
+        +deallocate_memory()
+        +check_bounds()
+    }
+    
+    class MemoryEntry1 {
+        Process_ID: 1001
+        Base_Address: 0x1000
+        Limit_Address: 0x2FFF
+        Page_Table: 0xA000
+        Segment_Table: 0xB000
+        Allocation_State: ALLOCATED
+        Size: 8192 bytes
+        Protection: RWX (111)
+    }
+    
+    class MemoryEntry2 {
+        Process_ID: 1002
+        Base_Address: 0x3000
+        Limit_Address: 0x4FFF
+        Page_Table: 0xA100
+        Segment_Table: 0xB100
+        Allocation_State: ALLOCATED
+        Size: 8192 bytes
+        Protection: RW- (110)
+    }
+    
+    class MemoryEntry3 {
+        Process_ID: 1003
+        Base_Address: 0x5000
+        Limit_Address: 0x6FFF
+        Page_Table: 0xA200
+        Segment_Table: 0xB200
+        Allocation_State: ALLOCATED
+        Size: 8192 bytes
+        Protection: R-X (101)
+    }
+    
+    class MemoryEntry4 {
+        Process_ID: NULL
+        Base_Address: 0x7000
+        Limit_Address: 0x8FFF
+        Page_Table: NULL
+        Segment_Table: NULL
+        Allocation_State: FREE
+        Size: 8192 bytes
+        Protection: --- (000)
+    }
+    
+    MemoryTable --> MemoryEntry1 : manages
+    MemoryTable --> MemoryEntry2 : manages
+    MemoryTable --> MemoryEntry3 : manages
+    MemoryTable --> MemoryEntry4 : manages
+
+    %% Styling
+    classDef tableStyle fill:#4a5568,stroke:#2d3748,stroke-width:2px,color:#ffffff
+    classDef allocatedStyle fill:#718096,stroke:#4a5568,stroke-width:1px,color:#ffffff
+    classDef freeStyle fill:#a0aec0,stroke:#718096,stroke-width:1px,color:#2d3748
+    
+    class MemoryTable tableStyle
+    class MemoryEntry1 allocatedStyle
+    class MemoryEntry2 allocatedStyle
+    class MemoryEntry3 allocatedStyle
+    class MemoryEntry4 freeStyle

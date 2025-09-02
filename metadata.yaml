@@ -22,8 +22,7 @@ toc-depth: 3
 page-background: ""
 page-background-opacity: 1
 geometry: "left=2.5cm,right=2.5cm,top=3cm,bottom=3cm"
-fontfamily: ""
-fontsize: "12pt"
+fontsize: "11pt"
 
 # Headers y footers Eisvogel
 header-left: "Daniel Peralta"
@@ -33,34 +32,33 @@ footer-left: ""
 footer-center: ""
 footer-right: ""
 
-# Configuración de código Eisvogel
 listings-disable-line-numbers: false
-# code-block-font-size: "\\footnotesize"
+code-block-font-size: "\\footnotesize"
 listings-no-page-break: false
-
-# Configuración específica de Eisvogel
 book: true
-classoption: "oneside"
+classoption: "twoside"
 papersize: "a4"
+openright: true
 
 # Configuración imagenes
-figureTitle: "Figura"
-figureAlign: center
+#figureTitle: "Figura"
+#figureAlign: center
 
 # Configuración de LaTeX mínima para evitar conflictos
 header-includes: |
   \usepackage{float}
+  \usepackage{booktabs}
   \usepackage{tcolorbox}
   \usepackage{fontspec}
   \usepackage{xcolor}
   \newtcolorbox{definitionbox}{colback=blue!5!white,colframe=blue!50!white,boxrule=0.5pt,arc=2pt,left=6pt,right=6pt,top=6pt,bottom=6pt}
   \floatplacement{figure}{H}
- 
 
-  \setsansfont{Roboto}
-  \setmonofont{Fira Code}
+  \setmainfont{IBM Plex Serif}
+  \setsansfont{IBM Plex Sans}
+  \setmonofont{JetBrains Mono}
 
-  \linespread{1.2}
+  \linespread{1.1}
 
   \setcounter{chapter}{0}
   \setcounter{section}{0}

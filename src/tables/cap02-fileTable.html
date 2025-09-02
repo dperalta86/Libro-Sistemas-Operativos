@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabla de Archivos - Sistema Operativo</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .table-header {
+            background: linear-gradient(135deg, #4a5568, #2d3748);
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .table-description {
+            padding: 15px 20px;
+            background: #edf2f7;
+            font-size: 14px;
+            color: #4a5568;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        th {
+            background: #718096;
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e2e8f0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        tr:hover {
+            background-color: #f7fafc;
+        }
+        
+        .system-file { background-color: #e6fffa; }
+        .user-file { background-color: #fef5e7; }
+        .temp-file { background-color: #f0fff4; }
+        
+        .file-log { color: #e53e3e; }
+        .file-config { color: #3182ce; }
+        .file-data { color: #805ad5; }
+        .file-temp { color: #38a169; }
+        
+        .permissions { font-weight: bold; }
+        .size { color: #38a169; }
+        .fd { color: #d69e2e; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="table-container">
+        <div class="table-header">
+            📁 Tabla de Archivos - File Control Block (FCB)
+        </div>
+        <div class="table-description">
+            <strong>Propósito:</strong> Gestiona la información de archivos abiertos en el sistema<br>
+            <strong>Características:</strong> Control de acceso, punteros de archivo, metadatos, contadores de referencia
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>File Name</th>
+                    <th>File Descriptor</th>
+                    <th>Owner</th>
+                    <th>Permissions</th>
+                    <th>File Pointer</th>
+                    <th>Location</th>
+                    <th>Open Count</th>
+                    <th>Size</th>
+                    <th>Modified</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="system-file">
+                    <td class="file-log">system.log</td>
+                    <td class="fd">3</td>
+                    <td>1001</td>
+                    <td class="permissions">0644</td>
+                    <td>2048</td>
+                    <td>Block_456</td>
+                    <td>2</td>
+                    <td class="size">4096 bytes</td>
+                    <td>2024-03-15<br>14:30</td>
+                </tr>
+                <tr class="system-file">
+                    <td class="file-config">config.txt</td>
+                    <td class="fd">4</td>
+                    <td>1000</td>
+                    <td class="permissions">0755</td>
+                    <td>0</td>
+                    <td>Block_123</td>
+                    <td>1</td>
+                    <td class="size">1024 bytes</td>
+                    <td>2024-03-14<br>09:15</td>
+                </tr>
+                <tr class="user-file">
+                    <td class="file-data">data.bin</td>
+                    <td class="fd">5</td>
+                    <td>1002</td>
+                    <td class="permissions">0600</td>
+                    <td>8192</td>
+                    <td>Block_789</td>
+                    <td>1</td>
+                    <td class="size">16384 bytes</td>
+                    <td>2024-03-15<br>16:45</td>
+                </tr>
+                <tr class="temp-file">
+                    <td class="file-temp">temp.tmp</td>
+                    <td class="fd">6</td>
+                    <td>1003</td>
+                    <td class="permissions">0666</td>
+                    <td>512</td>
+                    <td>Block_321</td>
+                    <td>1</td>
+                    <td class="size">2048 bytes</td>
+                    <td>2024-03-15<br>17:00</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

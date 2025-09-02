@@ -1,0 +1,76 @@
+classDiagram
+    class IOTable {
+        <<Device Control Table>>
+        +Device_ID: int
+        +Device_Type: enum
+        +Status: enum
+        +Assigned_Process: int
+        +Memory_Address: address
+        +Queue: queue
+        +Driver: ptr
+        +Interrupt_Vector: int
+        --
+        +allocate_device()
+        +release_device()
+        +handle_interrupt()
+    }
+    
+    class IOEntry1 {
+        Device_ID: DEV_001
+        Device_Type: DISK
+        Status: BUSY
+        Assigned_Process: 1001
+        Memory_Address: 0xC000
+        Queue: proc1001_proc1003
+        Driver: 0xD000
+        Interrupt_Vector: 14
+    }
+    
+    class IOEntry2 {
+        Device_ID: DEV_002
+        Device_Type: KEYBOARD
+        Status: IDLE
+        Assigned_Process: NULL
+        Memory_Address: 0xC100
+        Queue: empty
+        Driver: 0xD100
+        Interrupt_Vector: 1
+    }
+    
+    class IOEntry3 {
+        Device_ID: DEV_003
+        Device_Type: PRINTER
+        Status: BUSY
+        Assigned_Process: 1002
+        Memory_Address: 0xC200
+        Queue: proc1002
+        Driver: 0xD200
+        Interrupt_Vector: 7
+    }
+    
+    class IOEntry4 {
+        Device_ID: DEV_004
+        Device_Type: NETWORK
+        Status: IDLE
+        Assigned_Process: NULL
+        Memory_Address: 0xC300
+        Queue: empty
+        Driver: 0xD300
+        Interrupt_Vector: 11
+    }
+    
+    IOTable --> IOEntry1 : controls
+    IOTable --> IOEntry2 : controls
+    IOTable --> IOEntry3 : controls
+    IOTable --> IOEntry4 : controls
+
+    %% Styling
+    classDef tableStyle fill:#4a5568,stroke:#2d3748,stroke-width:2px,color:#ffffff
+    classDef busyStyle fill:#718096,stroke:#4a5568,stroke-width:1px,color:#ffffff
+    classDef idleStyle fill:#a0aec0,stroke:#718096,stroke-width:1px,color:#2d3748
+    
+    class IOTable tableStyle
+    class IOEntry1 busyStyle
+    class IOEntry2 idleStyle
+    class IOEntry3 busyStyle
+    class IOEntry4 idleStyle
