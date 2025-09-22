@@ -21,11 +21,8 @@ Al finalizar este capítulo, el estudiante debe ser capaz de:
 
 Imaginemos un supermercado en hora pico:
 
-**Sin coordinación:**
-- **20 cajas** funcionando independientemente
-- **1 empleado** que debe ordenar las filas, pero puede estar en cualquier lugar
-- **1 sistema de promociones** que solo permite una aplicación a la vez
-- **Clientes** que llegan aleatoriamente y eligen cajas
+**Sin coordinación:**  
+**20 cajas** funcionando independientemente, **1 empleado** que debe ordenar las filas, pero puede estar en cualquier lugar. **1 sistema de promociones** que solo permite una aplicación a la vez, **Clientes** que llegan aleatoriamente y eligen cajas.  
 
 **¿Qué problemas pueden ocurrir?**
 
@@ -112,14 +109,18 @@ do {
 
 Para que dos procesos puedan ejecutarse concurrentemente de manera segura, deben cumplirse las **Condiciones de Bernstein**:
 
-Sean P₁ y P₂ dos procesos con:
-- **R₁, R₂**: Conjuntos de variables que leen
-- **W₁, W₂**: Conjuntos de variables que escriben
+Sean P₁ y P₂ dos procesos con:  
+```
+- R₁, R₂: Conjuntos de variables que leen  
+- W₁, W₂: Conjuntos de variables que escriben  
+```
 
-**Condiciones necesarias:**
-1. **R₁ ∩ W₂ = ∅** (P₁ no lee lo que P₂ escribe)
-2. **W₁ ∩ R₂ = ∅** (P₁ no escribe lo que P₂ lee)  
-3. **W₁ ∩ W₂ = ∅** (P₁ y P₂ no escriben las mismas variables)
+**Condiciones necesarias:**  
+```
+1. R₁ ∩ W₂ = (vacío) (P₁ no lee lo que P₂ escribe)  
+2. W₁ ∩ R₂ = (vacío) (P₁ no escribe lo que P₂ lee)  
+3. W₁ ∩ W₂ = (vacío) (P₁ y P₂ no escriben las mismas variables)  
+```
 
 **Ejemplo de violación:**
 ```c
@@ -131,11 +132,12 @@ x = y * 2;
 ```
 
 **Violaciones:**
-- W₁ ∩ R₂ = {y} ≠ ∅ (P₁ escribe y, P₂ lee y)
-- R₁ ∩ W₂ = {x} ≠ ∅ (P₁ lee x, P₂ escribe x)
+- W₁ ∩ R₂ = {y} ≠ (vacío) (P₁ escribe y, P₂ lee y)
+- R₁ ∩ W₂ = {x} ≠ (vacío) (P₁ lee x, P₂ escribe x)
 
 Por tanto, **NO pueden ejecutarse concurrentemente** sin sincronización.
 
+\newpage
 ## Soluciones a Nivel Software
 
 ### Evolución Histórica de las Soluciones
@@ -484,10 +486,7 @@ void consumidor() {
 ### Planteamiento del Problema
 
 Una cochera tiene:
-- **20 espacios** para autos
-- **1 entrada** (con barrera)
-- **2 salidas** (con barreras)
-- **Sistema de control** que debe llevar cuenta de espacios ocupados
+- **20 espacios** para autos **1 entrada** (con barrera), **2 salidas** (con barreras) y un **Sistema de control** que debe llevar cuenta de espacios ocupados
 
 **Requerimientos:**
 1. No permitir entrada si cochera está llena
@@ -541,24 +540,24 @@ void inicializar_cochera() {
     cochera.total_entradas = 0;
     cochera.total_salidas = 0;
     
-    printf("🏢 Cochera inicializada: %d espacios disponibles\n", CAPACIDAD_COCHERA);
+    printf("Cochera inicializada: %d espacios disponibles\n", CAPACIDAD_COCHERA);
 }
 
 void* auto_entrando(void* arg) {
     int auto_id = *(int*)arg;
     
-    printf("🚗 Auto %d llegó a la cochera\n", auto_id);
+    printf("Auto %d llegó a la cochera\n", auto_id);
     
     // 1. Verificar si hay espacio disponible
-    printf("⏳ Auto %d esperando espacio...\n", auto_id);
+    printf("Auto %d esperando espacio...\n", auto_id);
     sem_wait(&cochera.espacios_disponibles);  // Bloquea si cochera llena
     
     // 2. Hay espacio garantizado, obtener acceso exclusivo a entrada
-    printf("🚪 Auto %d esperando acceso a entrada...\n", auto_id);
+    printf("Auto %d esperando acceso a entrada...\n", auto_id);
     sem_wait(&cochera.mutex_entrada);
     
     // 3. SECCIÓN CRÍTICA: Procesar entrada
-    printf("✅ Auto %d entrando a cochera\n", auto_id);
+    printf("Auto %d entrando a cochera\n", auto_id);
     
     // Simular tiempo de entrada (abrir barrera, validar ticket, etc.)
     sleep(1);
@@ -567,14 +566,14 @@ void* auto_entrando(void* arg) {
     sem_wait(&cochera.mutex_contador);
     cochera.autos_dentro++;
     cochera.total_entradas++;
-    printf("📊 Auto %d dentro. Total en cochera: %d/%d\n", 
+    printf("Auto %d dentro. Total en cochera: %d/%d\n", 
            auto_id, cochera.autos_dentro, CAPACIDAD_COCHERA);
     sem_post(&cochera.mutex_contador);
     
     // 4. Liberar acceso a entrada
     sem_post(&cochera.mutex_entrada);
     
-    printf("🅿️ Auto %d estacionado exitosamente\n", auto_id);
+    printf("Auto %d estacionado exitosamente\n", auto_id);
     
     // Simular tiempo estacionado
     sleep(2 + (rand() % 5));  // 2-6 segundos estacionado
@@ -586,18 +585,18 @@ void* auto_entrando(void* arg) {
 void* auto_saliendo(void* arg) {
     int auto_id = *(int*)arg;
     
-    printf("🚗 Auto %d quiere salir\n", auto_id);
+    printf("Auto %d quiere salir\n", auto_id);
     
     // Elegir salida aleatoriamente (load balancing simple)
     int salida = (rand() % 2) + 1;
     sem_t* mutex_salida = (salida == 1) ? &cochera.mutex_salida1 : &cochera.mutex_salida2;
     
     // 1. Obtener acceso exclusivo a la salida elegida
-    printf("🚪 Auto %d esperando acceso a salida %d...\n", auto_id, salida);
+    printf("Auto %d esperando acceso a salida %d...\n", auto_id, salida);
     sem_wait(mutex_salida);
     
     // 2. SECCIÓN CRÍTICA: Procesar salida
-    printf("🚦 Auto %d saliendo por salida %d\n", auto_id, salida);
+    printf("Auto %d saliendo por salida %d\n", auto_id, salida);
     
     // Simular tiempo de salida (validar pago, abrir barrera, etc.)
     sleep(1);
@@ -606,7 +605,7 @@ void* auto_saliendo(void* arg) {
     sem_wait(&cochera.mutex_contador);
     cochera.autos_dentro--;
     cochera.total_salidas++;
-    printf("📊 Auto %d salió. Total en cochera: %d/%d\n", 
+    printf("Auto %d salió. Total en cochera: %d/%d\n", 
            auto_id, cochera.autos_dentro, CAPACIDAD_COCHERA);
     sem_post(&cochera.mutex_contador);
     
@@ -616,7 +615,7 @@ void* auto_saliendo(void* arg) {
     // 4. IMPORTANTE: Señalar que hay un espacio más disponible
     sem_post(&cochera.espacios_disponibles);
     
-    printf("👋 Auto %d salió exitosamente por salida %d\n", auto_id, salida);
+    printf("Auto %d salió exitosamente por salida %d\n", auto_id, salida);
     
     return NULL;
 }
@@ -642,7 +641,7 @@ int main() {
     inicializar_cochera();
     srand(time(NULL));
     
-    printf("🚦 Iniciando simulación: %d autos intentarán usar la cochera\n\n", NUM_AUTOS);
+    printf("Iniciando simulación: %d autos intentarán usar la cochera\n\n", NUM_AUTOS);
     
     // Crear hilos de entrada
     for (int i = 0; i < NUM_AUTOS; i++) {
@@ -673,7 +672,7 @@ int main() {
         pthread_join(hilos_salida[i], NULL);
     }
     
-    printf("\n🏁 Simulación terminada\n");
+    printf("\nSimulación terminada\n");
     mostrar_estadisticas();
     
     // Cleanup
@@ -773,16 +772,16 @@ void* procesar_request(void* arg) {
     int request_id = *(int*)arg;
     worker_type_t tipo_necesario = rand() % 4;  // Request aleatorio
     
-    printf("📥 Request %d necesita worker tipo %d\n", request_id, tipo_necesario);
+    printf("Request %d necesita worker tipo %d\n", request_id, tipo_necesario);
     
     // Obtener worker
     int worker_id = obtener_worker(tipo_necesario);
     if (worker_id == -1) {
-        printf("❌ Request %d: Error obteniendo worker\n", request_id);
+        printf("Request %d: Error obteniendo worker\n", request_id);
         return NULL;
     }
     
-    printf("⚡ Request %d asignado a worker %d (tipo %d)\n", 
+    printf("Request %d asignado a worker %d (tipo %d)\n", 
            request_id, worker_id, tipo_necesario);
     
     // Simular procesamiento
@@ -791,7 +790,7 @@ void* procesar_request(void* arg) {
     // Liberar worker
     liberar_worker(worker_id);
     
-    printf("✅ Request %d completado por worker %d\n", request_id, worker_id);
+    printf("Request %d completado por worker %d\n", request_id, worker_id);
     
     return NULL;
 }
@@ -839,7 +838,7 @@ void init_buffer() {
     
     pthread_mutex_init(&shared_buffer.mutex, NULL);
     
-    printf("📦 Buffer inicializado (tamaño: %d)\n", BUFFER_SIZE);
+    printf("Buffer inicializado (tamaño: %d)\n", BUFFER_SIZE);
 }
 
 void* productor(void* arg) {
@@ -849,10 +848,10 @@ void* productor(void* arg) {
         // Producir elemento
         int item = (prod_id * 100) + i;
         
-        printf("🏭 Productor %d creó item %d\n", prod_id, item);
+        printf("Productor %d creó item %d\n", prod_id, item);
         
         // PASO 1: Esperar espacio vacío
-        printf("⏳ Productor %d esperando espacio...\n", prod_id);
+        printf("Productor %d esperando espacio...\n", prod_id);
         sem_wait(&shared_buffer.empty);
         
         // PASO 2: Obtener exclusión mutua sobre buffer
@@ -860,7 +859,7 @@ void* productor(void* arg) {
         
         // PASO 3: SECCIÓN CRÍTICA - Insertar en buffer
         shared_buffer.buffer[shared_buffer.in] = item;
-        printf("📥 Item %d insertado en posición %d\n", 
+        printf("Item %d insertado en posición %d\n", 
                item, shared_buffer.in);
         
         shared_buffer.in = (shared_buffer.in + 1) % BUFFER_SIZE;
@@ -876,7 +875,7 @@ void* productor(void* arg) {
         usleep(200000 + (rand() % 300000));  // 200-500ms
     }
     
-    printf("✅ Productor %d terminó\n", prod_id);
+    printf("Productor %d terminó\n", prod_id);
     return NULL;
 }
 
@@ -885,7 +884,7 @@ void* consumidor(void* arg) {
     
     for (int i = 0; i < NUM_ITEMS; i++) {
         // PASO 1: Esperar elemento disponible
-        printf("⏳ Consumidor %d esperando elemento...\n", cons_id);
+        printf("Consumidor %d esperando elemento...\n", cons_id);
         sem_wait(&shared_buffer.full);
         
         // PASO 2: Obtener exclusión mutua sobre buffer
@@ -893,7 +892,7 @@ void* consumidor(void* arg) {
         
         // PASO 3: SECCIÓN CRÍTICA - Extraer del buffer
         int item = shared_buffer.buffer[shared_buffer.out];
-        printf("📤 Item %d extraído de posición %d por consumidor %d\n", 
+        printf("Item %d extraído de posición %d por consumidor %d\n", 
                item, shared_buffer.out, cons_id);
         
         shared_buffer.out = (shared_buffer.out + 1) % BUFFER_SIZE;
@@ -906,18 +905,18 @@ void* consumidor(void* arg) {
         sem_post(&shared_buffer.empty);
         
         // Consumir elemento
-        printf("🔄 Consumidor %d procesando item %d\n", cons_id, item);
+        printf("Consumidor %d procesando item %d\n", cons_id, item);
         usleep(300000 + (rand() % 400000));  // 300-700ms
     }
     
-    printf("✅ Consumidor %d terminó\n", cons_id);
+    printf("Consumidor %d terminó\n", cons_id);
     return NULL;
 }
 
 void mostrar_estado_buffer() {
     pthread_mutex_lock(&shared_buffer.mutex);
     
-    printf("\n📊 ESTADO DEL BUFFER:\n");
+    printf("\nESTADO DEL BUFFER:\n");
     printf("   Producidos: %d | Consumidos: %d\n",
            shared_buffer.items_produced, shared_buffer.items_consumed);
     
@@ -944,7 +943,7 @@ int main() {
     init_buffer();
     srand(time(NULL));
     
-    printf("🚀 Iniciando Productor-Consumidor\n\n");
+    printf("Iniciando Productor-Consumidor\n\n");
     
     // Crear threads
     pthread_create(&prod_thread, NULL, productor, &prod_id);
@@ -960,7 +959,7 @@ int main() {
     pthread_join(prod_thread, NULL);
     pthread_join(cons_thread, NULL);
     
-    printf("\n🏁 Simulación terminada\n");
+    printf("\nSimulación terminada\n");
     mostrar_estado_buffer();
     
     // Cleanup
@@ -1007,14 +1006,14 @@ void init_resource() {
     pthread_mutex_init(&resource.mutex, NULL);
     sem_init(&resource.write_lock, 0, 1);  // Un escritor a la vez
     
-    printf("📚 Recurso compartido inicializado\n");
+    printf("Recurso compartido inicializado\n");
 }
 
 void* lector(void* arg) {
     int reader_id = *(int*)arg;
     
     for (int i = 0; i < 5; i++) {
-        printf("👁️ Lector %d quiere leer\n", reader_id);
+        printf("Lector %d quiere leer\n", reader_id);
         
         // PROTOCOLO DE ENTRADA - LECTORES
         pthread_mutex_lock(&resource.mutex);
@@ -1023,14 +1022,14 @@ void* lector(void* arg) {
         
         // El primer lector bloquea escritores
         if (resource.reader_count == 1) {
-            printf("🚫 Primer lector %d bloqueando escritores\n", reader_id);
+            printf("Primer lector %d bloqueando escritores\n", reader_id);
             sem_wait(&resource.write_lock);
         }
         
         pthread_mutex_unlock(&resource.mutex);
         
         // SECCIÓN CRÍTICA - LECTURA
-        printf("📖 Lector %d leyendo: valor = %d\n", 
+        printf("Lector %d leyendo: valor = %d\n", 
                reader_id, resource.shared_data);
         resource.total_reads++;
         
@@ -1044,19 +1043,19 @@ void* lector(void* arg) {
         
         // El último lector desbloquea escritores
         if (resource.reader_count == 0) {
-            printf("✅ Último lector %d desbloqueando escritores\n", reader_id);
+            printf("Último lector %d desbloqueando escritores\n", reader_id);
             sem_post(&resource.write_lock);
         }
         
         pthread_mutex_unlock(&resource.mutex);
         
-        printf("👁️ Lector %d terminó lectura %d\n", reader_id, i + 1);
+        printf("Lector %d terminó lectura %d\n", reader_id, i + 1);
         
         // Tiempo entre lecturas
         usleep(500000 + (rand() % 1000000));  // 0.5-1.5s
     }
     
-    printf("✅ Lector %d terminó todas las lecturas\n", reader_id);
+    printf("Lector %d terminó todas las lecturas\n", reader_id);
     return NULL;
 }
 
@@ -1064,7 +1063,7 @@ void* escritor(void* arg) {
     int writer_id = *(int*)arg;
     
     for (int i = 0; i < 3; i++) {
-        printf("✏️ Escritor %d quiere escribir\n", writer_id);
+        printf("Escritor %d quiere escribir\n", writer_id);
         
         // PROTOCOLO DE ENTRADA - ESCRITORES
         // Esperar acceso exclusivo (bloquea otros escritores y lectores)
@@ -1072,7 +1071,7 @@ void* escritor(void* arg) {
         
         // SECCIÓN CRÍTICA - ESCRITURA
         int new_value = (writer_id * 1000) + i;
-        printf("📝 Escritor %d escribiendo: %d → %d\n", 
+        printf("Escritor %d escribiendo: %d → %d\n", 
                writer_id, resource.shared_data, new_value);
         
         resource.shared_data = new_value;
@@ -1084,20 +1083,20 @@ void* escritor(void* arg) {
         // PROTOCOLO DE SALIDA - ESCRITORES
         sem_post(&resource.write_lock);
         
-        printf("✅ Escritor %d terminó escritura %d\n", writer_id, i + 1);
+        printf("Escritor %d terminó escritura %d\n", writer_id, i + 1);
         
         // Tiempo entre escrituras
         usleep(800000 + (rand() % 1200000));  // 0.8-2.0s
     }
     
-    printf("✅ Escritor %d terminó todas las escrituras\n", writer_id);
+    printf("Escritor %d terminó todas las escrituras\n", writer_id);
     return NULL;
 }
 
 void mostrar_estadisticas() {
     pthread_mutex_lock(&resource.mutex);
     
-    printf("\n📊 ESTADÍSTICAS:\n");
+    printf("\nESTADÍSTICAS:\n");
     printf("   Valor actual: %d\n", resource.shared_data);
     printf("   Lectores activos: %d\n", resource.reader_count);
     printf("   Total lecturas: %d\n", resource.total_reads);
@@ -1118,7 +1117,7 @@ int main() {
     init_resource();
     srand(time(NULL));
     
-    printf("🚀 Iniciando Lectores-Escritores\n\n");
+    printf("Iniciando Lectores-Escritores\n\n");
     
     // Crear lectores
     for (int i = 0; i < NUM_READERS; i++) {
@@ -1147,7 +1146,7 @@ int main() {
         pthread_join(writers[i], NULL);
     }
     
-    printf("\n🏁 Simulación terminada\n");
+    printf("\nSimulación terminada\n");
     mostrar_estadisticas();
     
     // Cleanup

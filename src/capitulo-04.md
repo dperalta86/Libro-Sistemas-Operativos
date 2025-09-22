@@ -22,7 +22,7 @@ Los procesos tradicionales resuelven la multiprogramación, pero presentan limit
 - Creación costosa: fork() copia todo el espacio de direcciones\\
 - Context switch lento: cambio de mapa de memoria, flush de caches y TLB\\
 - Comunicación compleja: requiere IPC, pipes o memoria compartida\\
-- Recursos aislados: dificultad para compartir datos eficientemente\\
+- Recursos aislados: dificultad para compartir datos eficientemente
 }
 
 Consideremos un navegador web moderno. Durante la carga de una página se ejecutan simultáneamente múltiples tareas: descarga de HTML, procesamiento y renderizado, descarga de imágenes, ejecución de JavaScript y manejo de eventos del usuario. Si estas tareas fueran procesos separados, el overhead de comunicación y context switching sería prohibitivo.
@@ -72,22 +72,7 @@ typedef struct thread_control_block {
 
 El espacio de direcciones de un proceso multihilo se organiza de la siguiente manera:
 
-```
-Proceso con múltiples hilos:
-┌─────────────────────────────────────┐
-│          TEXT (código)              │ ← Compartido entre hilos
-├─────────────────────────────────────┤
-│          DATA (globales)            │ ← Compartido entre hilos
-├─────────────────────────────────────┤
-│          HEAP (malloc/free)         │ ← Compartido entre hilos
-├─────────────────────────────────────┤
-│          Stack Hilo 1               │ ← Privado del hilo 1
-├─────────────────────────────────────┤
-│          Stack Hilo 2               │ ← Privado del hilo 2
-├─────────────────────────────────────┤
-│          Stack Hilo N               │ ← Privado del hilo N
-└─────────────────────────────────────┘
-```
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/01.png}
 
 \textcolor{orange!70!black}{\textbf{Advertencia:}\\
 Las variables globales y el heap son compartidos entre hilos, lo que requiere sincronización para evitar race conditions. Las variables locales (en el stack) son automáticamente privadas de cada hilo.\\
@@ -200,46 +185,27 @@ void klt_context_switch(tcb_t *from, tcb_t *to) {
 #### Modelo Many-to-One (N:1)
 Múltiples hilos de usuario mapean a un solo hilo kernel:
 
-```
-Aplicación:  [ULT1] [ULT2] [ULT3] [ULT4]
-                  \    |    |    /
-                   \   |    |   /
-Kernel:             [    KLT1     ]
-                         |
-CPU:                  [Core1]
-```
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/02.png}  
 
 Este modelo maximiza la eficiencia del context switch pero sacrifica paralelismo.
 
 #### Modelo One-to-One (1:1)
 Cada hilo de usuario mapea a un hilo kernel dedicado:
 
-```
-Aplicación:  [ULT1] [ULT2] [ULT3] [ULT4]
-                |      |      |      |
-Kernel:      [KLT1] [KLT2] [KLT3] [KLT4]
-                |      |      |      |
-CPU:         [Core1][Core2][Core3][Core4]
-```
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/03.png}  
 
 Este modelo maximiza paralelismo pero incrementa overhead.
 
 #### Modelo Many-to-Many (M:N)
 M hilos de usuario mapean a N hilos kernel (donde M > N):
 
-```
-Aplicación:  [ULT1] [ULT2] [ULT3] [ULT4] [ULT5]
-                \      |      |      /      /
-                 \     |      |     /      /
-Kernel:           [KLT1]   [KLT2]   [KLT3]
-                     |        |        |
-CPU:              [Core1]  [Core2]  [Core3]
-```
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/04.png}  
 
 \textcolor{blue!50!black}{\textbf{Información técnica:}\\
 El modelo M:N requiere scheduler de dos niveles: uno en espacio de usuario (ULT) y otro en kernel (KLT). La biblioteca de hilos debe coordinar con el kernel para optimizar el mapeo dinámico.\\
 }
 
+\newpage
 ## Implementación en C con pthreads
 
 ### Creación básica de hilos

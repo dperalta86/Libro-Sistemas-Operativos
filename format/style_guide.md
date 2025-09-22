@@ -191,10 +191,9 @@ stateDiagram-v2
 **Uso:** Estados de procesos, transiciones del sistema
 
 ### Inserción en Documento
+La configuracióń de metadata.yaml se ocupa del formato.  
 ```latex
-\begin{center}
 \includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap02-sieteEstadosProcesos.png}
-\end{center}
 ```
 
 ### Parámetros de Tamaño Recomendados

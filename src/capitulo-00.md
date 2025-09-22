@@ -95,7 +95,7 @@ Este libro se centra en sistemas Unix/Linux, no por preferencia ideológica, sin
 
 En este libro recorreremos el sistema operativo desde sus cimientos hasta sus aspectos más sofisticados:
 
-**Fundamentos (Caps. 1-2)**: Arquitectura de computadores, concepto de proceso
+**Fundamentos (Caps. 1-2)**: Arquitectura de computadores, concepto de proceso  
 **Concurrencia (Caps. 3-6)**: Planificación, hilos, sincronización, interbloqueos  
 **Memoria (Caps. 7-8)**: Gestión de memoria real y virtual  
 **Almacenamiento (Cap. 9)**: Sistemas de archivos  

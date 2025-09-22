@@ -17,3 +17,8 @@ libro-completo.md
 # Logs Files
 *.log
 pandoc.log
+node_modules
+
+# Make y Metadata (Modificaciones minimalistas en local)
+Makefile
+metadata.yaml

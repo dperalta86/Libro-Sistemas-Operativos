@@ -156,7 +156,7 @@ Variables locales, parámetros de funciones → Return addresses, frame pointers
 \end{minipage}
 \end{center}
 
-
+\newpage
 ### Process Control Block (PCB)  
 
 >
@@ -230,21 +230,20 @@ struct process_control_block {
 \end{center}
 
 
-
 **Estados:**
-- **NEW**: Proceso creado pero no admitido al pool de ejecutables
-- **READY**: Listo para ejecutar, esperando asignación de CPU
-- **RUNNING**: Ejecutándose actualmente en el CPU
-- **BLOCKED**: Esperando un evento (I/O, señal, recurso)
-- **TERMINATED**: Proceso terminado, liberando recursos
+- **NEW**: Proceso creado pero no admitido al pool de ejecutables  
+- **READY**: Listo para ejecutar, esperando asignación de CPU  
+- **RUNNING**: Ejecutándose actualmente en el CPU  
+- **BLOCKED**: Esperando un evento (I/O, señal, recurso)  
+- **EXIT**: Proceso terminado, liberando recursos  
 
 **Transiciones:**
-1. **Admit**: NEW → READY (SO admite el proceso)
-2. **Dispatch**: READY → RUNNING (scheduler asigna CPU)
-3. **Preempt**: RUNNING → READY (quantum agotado/mayor prioridad)
-4. **Block**: RUNNING → BLOCKED (syscall bloqueante)
-5. **Wakeup**: BLOCKED → READY (evento completado)
-6. **Exit**: RUNNING → TERMINATED (proceso termina)
+1. **Admit**: NEW → READY (SO admite el proceso)  
+2. **Dispatch**: READY → RUNNING (scheduler asigna CPU)  
+3. **Preempt**: RUNNING → READY (quantum agotado/mayor prioridad)  
+4. **Block**: RUNNING → BLOCKED (syscall bloqueante)  
+5. **Wakeup**: BLOCKED → READY (evento completado)  
+6. **Exit**: RUNNING → EXIT (proceso termina)  
 
 **El Dispatcher:**
 Componente del SO que ejecuta el **context switch**:
@@ -265,20 +264,19 @@ void dispatcher() {
 \end{center}
 
 
+**Estados Adicionales:**  
+- **READY/SUSPENDED**: Proceso listo pero swappeado a disco  
+- **BLOCKED/SUSPENDED**: Proceso bloqueado y swappeado  
 
-**Estados Adicionales:**
-- **READY/SUSPENDED**: Proceso listo pero swappeado a disco
-- **BLOCKED/SUSPENDED**: Proceso bloqueado y swappeado
-
-**Razones para Swapping:**
-- **Memoria insuficiente**: Hacer espacio para otros procesos
-- **Proceso inactivo**: No ha ejecutado por mucho tiempo
-- **Decisión del SO**: Balancear carga del sistema
+**Razones para Swapping:**  
+- **Memoria insuficiente**: Hacer espacio para otros procesos  
+- **Proceso inactivo**: No ha ejecutado por mucho tiempo  
+- **Decisión del SO**: Balancear carga del sistema  
 
 
 **Tres Niveles de Planificación:**
 
-1. **Long-Term Scheduler (Job Scheduler):**
+1. **Long-Term Scheduler (Job Scheduler/ Admission):**
    - Controla **grado de multiprogramación**
    - Decide qué procesos **admitir** desde NEW
    - Ejecuta **cada varios segundos**
@@ -290,60 +288,21 @@ void dispatcher() {
    - Ejecuta **cada varios segundos**
    - **Suspende procesos** que no usan CPU
 
-3. **Short-Term Scheduler (CPU Scheduler):**
+3. **Short-Term Scheduler (CPU Scheduler/ Dispatcher):**
    - Decide **qué proceso ejecutar** de la ready queue
    - Ejecuta **cada 10-100 ms** (muy frecuente)
    - **Algoritmos**: FIFO, SJF, RR, Priority, etc.
-
-### Procesos Zombie y Huérfanos
-
-**Procesos Zombie:**
-- **Definición**: Proceso que terminó pero su PCB permanece en el sistema
-- **Causa**: Proceso padre no ha llamado `wait()` para leer el exit status
-- **Estado**: "defunct" o "zombie" en `ps`
-- **Problema**: Consumen entradas en la tabla de procesos
-- **Solución**: Padre debe hacer `wait()` o configurar handler para SIGCHLD
-
-**Ejemplo de Zombie:**
-```c
-if (fork() == 0) {
-    // Hijo termina rápidamente
-    exit(42);
-}
-// Padre NO hace wait() y continúa ejecutando
-sleep(60);  // Hijo queda zombie por 1 minuto
-```
-
-**Procesos Huérfanos:**
-- **Definición**: Proceso cuyo padre murió antes que él
-- **Adopción**: Automáticamente adoptado por el proceso `init` (PID 1)
-- **Comportamiento**: Continúa ejecutándose normalmente
-- **Cleanup**: `init` hace `wait()` automáticamente cuando terminan
-
-**Ejemplo de Huérfano:**
-```c
-if (fork() == 0) {
-    // Hijo duerme por mucho tiempo
-    sleep(300);  
-    exit(0);
-}
-// Padre termina inmediatamente
-exit(0);
-// Hijo queda huérfano, adoptado por init
-```
 
 
 ## Análisis Técnico
 
 ### Creación de Procesos en Unix/Linux
 
-En Unix, los procesos se crean mediante la syscall `fork()`:
-
-**Características de fork():**
-- Crea una **copia exacta** del proceso padre
-- Ambos procesos continúan desde el punto del fork()
-- **Valor de retorno diferente** permite distinguirlos
-- **Copy-on-Write**: Optimización que copia páginas solo cuando se modifican
+En Unix, los procesos se crean mediante la syscall `fork()`: **Características de fork():**  
+- Crea una **copia exacta** del proceso padre  
+- Ambos procesos continúan desde el punto del fork()  
+- **Valor de retorno diferente** permite distinguirlos  
+- **Copy-on-Write**: Optimización que copia páginas solo cuando se modifican  
 
 **Algoritmo simplificado de fork():**
 ```
@@ -381,9 +340,46 @@ La familia `exec()` **reemplaza** la imagen del proceso actual:
 - Señales: SIGKILL, SIGSEGV, etc.
 - Abort: `abort()` envía SIGABRT
 
-**Estados post-mortem:**
-- **Zombie**: Proceso terminado pero PCB mantenido hasta que padre lea exit status
-- **Orphan**: Proceso cuyo padre murió (adoptado por init)
+**Estados post-mortem:**  
+- **Zombie**: Proceso terminado pero PCB mantenido hasta que padre lea exit status  
+- **Orphan (huérfano)**: Proceso cuyo padre murió (adoptado por init)  
+
+### Procesos Zombies y Huérfanos
+
+**Proceso Zombie:**  
+- **Definición**: Proceso que terminó pero su PCB permanece en el sistema  
+- **Causa**: Proceso padre no ha llamado `wait()` para leer el exit status  
+- **Estado**: "defunct" o "zombie" en `ps`  
+- **Problema**: Consumen entradas en la tabla de procesos  
+- **Solución**: Padre debe hacer `wait()` o configurar handler para SIGCHLD, ejecutar 'kill' no causa efecto  
+
+**Ejemplo de Zombie:**
+```c
+if (fork() == 0) {
+    // Hijo termina rápidamente
+    exit(42);
+}
+// Padre NO hace wait() y continúa ejecutando
+sleep(60);  // Hijo queda zombie por 1 minuto
+```
+
+**Proceso Huérfano:**  
+- **Definición**: Proceso cuyo padre murió antes que él  
+- **Adopción**: Automáticamente adoptado por el proceso `init` (PID 1)  
+- **Comportamiento**: Continúa ejecutándose normalmente  
+- **Cleanup**: `init` hace `wait()` automáticamente cuando terminan  
+
+**Ejemplo de Huérfano:**
+```c
+if (fork() == 0) {
+    // Hijo duerme por mucho tiempo
+    sleep(300);  
+    exit(0);
+}
+// Padre termina inmediatamente
+exit(0);
+// Hijo queda huérfano, adoptado por init
+```
 
 
 ## Código en C
@@ -737,12 +733,12 @@ int main() {
 }
 ```
 
-**Análisis del comportamiento:**
-- **Shell en loop infinito** hasta comando "exit"
-- **Cada comando se ejecuta en proceso hijo** (aislamiento)
-- **execvp()** busca el ejecutable en PATH
-- **Padre espera** a que termine cada comando antes de mostrar prompt
-- **Manejo de errores** para comandos inexistentes
+**Análisis del comportamiento:**  
+- **Shell en loop infinito** hasta comando "exit"  
+- **Cada comando se ejecuta en proceso hijo** (aislamiento)  
+- **execvp()** busca el ejecutable en PATH  
+- **Padre espera** a que termine cada comando antes de mostrar prompt  
+- **Manejo de errores** para comandos inexistentes  
 
 ### Caso de Estudio 3: Problema de procesos zombie
 
@@ -837,7 +833,7 @@ pid_t getppid(void);                // Obtener PID del padre
 
 ### Errores Comunes y Tips
 
-**❌ Errores frecuentes:**
+**Errores frecuentes:**
 
 1. **No verificar retorno de fork()**
    ```c

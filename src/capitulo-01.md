@@ -382,6 +382,8 @@ local_irq_save(flags);      // Guarda estado actual y deshabilita
 // ... sección crítica ...
 local_irq_restore(flags);   // Restaura estado previo
 ```
+  
+  
 
 ### Disable/Enable por IRQ Específico
 

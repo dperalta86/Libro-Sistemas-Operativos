@@ -167,13 +167,13 @@ La planificación puede ser invocada por diferentes eventos, con **prioridades e
 \textcolor{teal!60!black}{\textbf{Ventajas:\\}
 - Simple de implementar\\
 - No hay starvation\\
-- Predecible\\
+- Predecible
 }
 
 \textcolor{red!60!gray}{\textbf{Desventajas:}\\
 - Convoy effect: procesos cortos esperan tras uno largo\\
 - Pobre tiempo de respuesta promedio\\
-- No aprovecha paralelismo I/O-CPU\\
+- No aprovecha paralelismo I/O-CPU
 }
 
 ### Shortest Job First (SJF)
@@ -195,18 +195,18 @@ La planificación puede ser invocada por diferentes eventos, con **prioridades e
 
 \textcolor{teal!60!black}{\textbf{Ventajas:\\}
 - Óptimo para tiempo de retorno promedio (demostrable matemáticamente)\\
-- Minimiza tiempo de espera promedio\\
+- Minimiza tiempo de espera promedio
 }
 
 \textcolor{red!60!gray}{\textbf{Desventajas:}\\
 - Requiere conocer tiempo de ejecución (imposible en la práctica)\\
 - Starvation de procesos largos\\
-- No apropiado para sistemas interactivos\\
+- No apropiado para sistemas interactivos
 }
 
 **Estimación de tiempo**: Se usa predicción basada en historia:
 ```
-τ(n+1) = α × t(n) + (1-α) × τ(n)
+ τ(n+1) = α × t(n) + (1-α) × τ(n)
 ```
 Donde:
 - τ(n+1) = tiempo estimado para próxima ráfaga  
@@ -233,13 +233,13 @@ Donde:
 
 \textcolor{teal!60!black}{\textbf{Ventajas:\\}
 - Mejor tiempo de retorno promedio que SJF\\
-- Respuesta rápida para procesos cortos que llegan tarde\\
+- Respuesta rápida para procesos cortos que llegan tarde
 }
 
 \textcolor{red!60!gray}{\textbf{Desventajas:}\\
 - Mayor overhead por context switches frecuentes\\
 - Starvation severa de procesos largos\\
-- Impredecible para procesos largos\\
+- Impredecible para procesos largos
 }
 
 ### Round Robin (RR)
@@ -270,13 +270,13 @@ Donde:
 - Justo: todos los procesos progresan\\
 - Buen tiempo de respuesta\\
 - No hay starvation\\
-- Predecible\\
+- Predecible
 }
 
 \textcolor{red!60!gray}{\textbf{Desventajas:}\\
 - Tiempo de retorno puede ser pobre para procesos largos\\
 - Overhead de context switch\\
-- No favorece procesos interactivos\\
+- No favorece procesos interactivos
 }
 
 ### Virtual Round Robin (VRR)
@@ -300,12 +300,12 @@ Donde:
 \textcolor{teal!60!black}{\textbf{Ventajas:\\}
  - Favorece procesos I/O-bound (más interactivos)\\
  - Mejor respuesta que RR puro\\
- - Mantiene fairness de RR\\
+ - Mantiene fairness de RR
 }
 
 \textcolor{red!60!gray}{\textbf{Desventajas:}\\
 - Mayor complejidad de implementación\\
-- Overhead adicional por doble cola\\
+- Overhead adicional por doble cola
 }
 
 ### Highest Response Ratio Next (HRRN)
@@ -329,13 +329,13 @@ Donde:
 \textcolor{teal!60!black}{\textbf{Ventajas:\\}
 - Combina ventajas de SJF y FCFS\\
 - Aging automático previene starvation\\  
-- Favorece trabajos cortos pero no ignora largos\\
+- Favorece trabajos cortos pero no ignora largos
 }  
 
 \textcolor{red!60!gray}{\textbf{Desventajas:}\\
 - Requiere estimar tiempo de servicio\\
 - Cálculo adicional en cada decisión\\
-- No preemptivo\\
+- No preemptivo
 }
 
 ### Planificación por Prioridades
@@ -374,13 +374,13 @@ nueva_prioridad = prioridad_base + (tiempo_espera / factor_aging)
 \textcolor{teal!60!black}{\textbf{Ventajas:\\}
 - Flexible y configurable\\
 - Apropiado para tiempo real\\
-- Control fino del sistema\\
+- Control fino del sistema
 }
 
 \textcolor{red!60!gray}{\textbf{Desventajas:}\\
 - Starvation sin aging\\
 - Dificultad para asignar prioridades apropiadas\\
-- Puede ser unfair\\
+- Puede ser unfair
 }
 
 ### Multilevel Feedback Queue
@@ -409,13 +409,13 @@ Reglas:
 \textcolor{teal!60!black}{\textbf{Ventajas:\\}
 - Se adapta al comportamiento del proceso\\
 - Favorece procesos interactivos (I/O bound)\\
-- Procesos largos eventualmente reciben servicio\\
+- Procesos largos eventualmente reciben servicio
 }
 
 \textcolor{red!60!gray}{\textbf{Desventajas:}\\
 - Complejidad alta de implementación\\
 - Difícil de tunear parámetros\\
-- Overhead considerable\\
+- Overhead considerable
 }
 
 ## Casos de Estudio
@@ -560,20 +560,20 @@ Promedio: (0+6+10+2)/4 = 4.5
 
 ### Manejo de Prioridades en Eventos Simultáneos
 
-**Escenario**: Múltiples eventos ocurren simultáneamente en t=10:
-- Interrupción de reloj (P1 agota quantum)
+**Escenario**: Múltiples eventos ocurren simultáneamente en t=10:  
+- Interrupción de reloj (P1 agota quantum)  
 - Finalización de I/O (P2 se vuelve READY)  
-- System call (P3 se bloquea)
+- System call (P3 se bloquea)  
 
-**Orden de procesamiento**:
-1. **Interrupción de reloj**: P1 → READY (final de cola)
-2. **Finalización de I/O**: P2 → READY (puede tener prioridad alta)
-3. **System call**: P3 → BLOCKED
+**Orden de procesamiento (si y sólo si llegan a la cola de listos en el mismo instante):**
+1. **Interrupción de reloj (vuelve por fin de Q)**  
+2. **Interrupción fin evento (Finalización de I/O)**  
+3. **System call (New a Ready)**  
 
-**Decisión de planificación**:
-- Si P2 tiene mayor prioridad → P2 ejecuta
-- Si P2 tiene igual prioridad → P4 ejecuta (ya estaba en READY)
-- Aplicar algoritmo de planificación con nueva configuración
+**Decisión de planificación**:  
+- Si P2 tiene mayor prioridad → P2 ejecuta  
+- Si P2 tiene igual prioridad → P4 ejecuta (ya estaba en READY)  
+- Aplicar algoritmo de planificación con nueva configuración  
 
 ## Síntesis
 
@@ -602,12 +602,12 @@ HRRN: Response_Ratio = (Tiempo_espera + Tiempo_servicio) / Tiempo_servicio
 Aging: Nueva_prioridad = Prioridad_base + (Tiempo_espera / Factor_aging)
 ```
 
-**Criterios para resolver ejercicios:**
-1. **Dibujar timeline** con llegadas y eventos
-2. **Identificar interrupciones** y sus prioridades
-3. **Aplicar algoritmo** respetando preemptividad
-4. **Manejar I/O** correctamente (tiempos de bloqueo)
-5. **Calcular métricas** para cada proceso
+**Criterios para resolver ejercicios:**  
+1. **Dibujar timeline** con llegadas y eventos  
+2. **Identificar interrupciones** y sus prioridades  
+3. **Aplicar algoritmo** respetando preemptividad  
+4. **Manejar I/O** correctamente (tiempos de bloqueo)  
+5. **Calcular métricas** para cada proceso  
 
 ### Ejemplo simulación Round Robin
 
