@@ -18,7 +18,7 @@ $(SRC_DIR)/capitulo-08.md
 # Archivos de configuración
 METADATA = metadata.yaml
 COMBINED_MD = libro-completo.md
-TEMPLATE = templates/eisvogel.latex
+TEMPLATE = templates/eisvogel-modified.latex
 
 # Diagramas Mermaid
 DIAGRAMS := $(wildcard $(SRC_DIR)/diagrams/*.mmd)

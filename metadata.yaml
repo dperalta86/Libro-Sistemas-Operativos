@@ -11,6 +11,7 @@ titlepage-text-color: "FFFFFF"
 titlepage-rule-color: "360049"
 titlepage-rule-height: 0
 titlepage-background: "src/images/portada.jpeg"
+documentclass: scrbook 
 
 # Configuración del índice
 toc: true
@@ -21,7 +22,7 @@ toc-depth: 3
 # Configuración de página
 page-background: ""
 page-background-opacity: 1
-geometry: "left=2.5cm,right=2.5cm,top=3cm,bottom=3cm"
+geometry: "left=3cm,right=3cm,top=3.5cm,bottom=3.5cm"
 fontsize: "11pt"
 
 # Headers y footers Eisvogel
@@ -29,113 +30,16 @@ header-left: "Daniel Peralta"
 header-center: ""
 header-right: "Introducción a los Sistemas Operativos"
 footer-left: ""
-footer-center: ""
+footer-center: "Página \\thepage"
 footer-right: ""
 
 listings-disable-line-numbers: false
 code-block-font-size: "\\footnotesize"
 listings-no-page-break: false
 book: true
-classoption: "twoside"
+classoption: "twoside,openright"
 papersize: "a4"
 openright: true
-
-# Configuración de LaTeX 
-header-includes: |
-  \usepackage{float}
-  \usepackage{booktabs}
-  \usepackage{tcolorbox}
-  \tcbuselibrary{skins,breakable}
-  \usepackage{fontspec}
-  \usepackage{xcolor}
-  \usepackage{mdframed}
-  \usepackage{tikz}
-  \usetikzlibrary{shapes.geometric}
-  \usepackage{enumitem}
-  \usepackage{caption}
-
-  \newtcolorbox{definitionbox}{
-    colback=blue!5!white,
-    colframe=blue!50!white,
-    boxrule=0.5pt,
-    arc=2pt,
-    left=6pt,
-    right=6pt,
-    top=6pt,
-    bottom=6pt
-  }
-  
-  
-  \definecolor{codebg}{RGB}{245,245,245}
-  \definecolor{codeframe}{RGB}{220,220,220}
-  \definecolor{linkcolor}{RGB}{220,50,47}
-  \definecolor{sidebarcolor}{RGB}{0,100,200}
-  \definecolor{warningbg}{RGB}{255,250,240}
-  \definecolor{infobg}{RGB}{240,248,255}
-  
-  \setmonofont{JetBrains Mono}
-  
-  \linespread{1.15}
-  \setlength{\parskip}{0.6em}
-  \setlength{\parindent}{0pt}
-  \setlist{itemsep=0.4em, parsep=0.2em, topsep=0.5em}
-  
-  \lstset{
-    backgroundcolor=\color{codebg},
-    frame=single,
-    framerule=0.5pt,
-    rulecolor=\color{codeframe},
-    basicstyle=\small\ttfamily,
-    keywordstyle=\color{blue!80!black}\bfseries,
-    commentstyle=\color{green!60!black}\itshape,
-    stringstyle=\color{red!70!black},
-    numbers=left,
-    numberstyle=\tiny\color{gray},
-    numbersep=8pt,
-    tabsize=4,
-    breaklines=true,
-    breakatwhitespace=false,
-    showspaces=false,
-    showstringspaces=false,
-    showtabs=false,
-    xleftmargin=12pt,
-    xrightmargin=12pt,
-    framexleftmargin=8pt,
-    framexrightmargin=8pt,
-    aboveskip=12pt,
-    belowskip=12pt,
-    captionpos=b
-  }
-  
-  \newcommand{\secref}[1]{\textcolor{linkcolor}{§\ref{#1}}}
-  
-  \let\oldtexttt\texttt
-  \renewcommand{\texttt}[1]{%
-    \colorbox{codebg}{\oldtexttt{#1}}%
-  }
-  
-  \hypersetup{
-    colorlinks=true,
-    linkcolor=linkcolor,
-    filecolor=linkcolor,
-    urlcolor=blue!70!black,
-    citecolor=linkcolor
-  }
-  
-  \captionsetup{
-    font=small,
-    labelfont=bf,
-    format=plain,
-    justification=centering,
-    skip=10pt
-  }
-  
-  \floatplacement{figure}{H}
-  
-  \setcounter{chapter}{0}
-  \setcounter{section}{0}
-  \renewcommand{\thechapter}{\arabic{chapter}}
-  \renewcommand{\thesection}{\thechapter.\arabic{section}}
   
 # Páginas adicionales (sin frontmatter/mainmatter)
 include-before: |
@@ -170,18 +74,5 @@ include-before: |
   \newpage
   \thispagestyle{empty}
   \null\vfill
-  \begin{center}
-    {\Large\textbf{Agradecimientos}}
-  \end{center}
-  \vspace{1cm}
-  \begin{center}
-    A los profesores de la materia por su dedicación y materiales, ya que \\
-    no solo transmiten conocimiento, sino que también el entusiasmo por aprender.\\[1em]
-    A mis compañeros de estudio por las valiosas discusiones y aportes. \\[1em]
-    A la comunidad de código abierto por las herramientas \\
-    que hicieron posible este proyecto.\\[1em]
-    Finalmente a todos los que se tomaron el tiempo de leer y dar feedback\\
-    sobre este material.
-  \end{center}
   \vfill
   \newpage

@@ -1,146 +1,92 @@
 # Introducción y Arquitectura de Computadores
 
+
+
+
+
+
+
+
+
+
+
+
 ## Objetivos de Aprendizaje
 
 Al finalizar este capítulo, el estudiante será capaz de:
 
-- **Identificar** los componentes principales de la arquitectura de von Neumann y su relación con el sistema operativo
-- **Explicar** la diferencia entre modo kernel y modo usuario, y por qué es fundamental para el SO
-- **Describir** el proceso de arranque (boot) y cómo se carga el sistema operativo
-- **Analizar** los mecanismos de interrupciones y llamadas al sistema (syscalls)
-- **Relacionar** la arquitectura del hardware con las funciones básicas del sistema operativo
+- Identificar los componentes principales de la arquitectura de von Neumann y su relación con el sistema operativo
+- Explicar la diferencia entre modo kernel y modo usuario, y por qué es fundamental para el SO
+- Describir el proceso de arranque (boot) y cómo se carga el sistema operativo
+- Analizar los mecanismos de interrupciones y llamadas al sistema (syscalls)
+- Relacionar la arquitectura del hardware con las funciones básicas del sistema operativo
 
 ## Introducción y Contexto
-
 ### ¿Por qué necesitamos entender la arquitectura?
+Imaginá que querés entender cómo funciona un auto. Podrías aprender a manejarlo sin saber nada del motor, pero si quieres ser mecánico, necesitas entender pistones, válvulas, y transmisión.
+Con los sistemas operativos pasa lo mismo. Podés usar una computadora sin entender qué hay "debajo del capó", pero para diseñar, optimizar o debuggear un SO, necesitas entender el hardware que administra. 
+Esta comprensión no es opcional: es el fundamento sobre el cual construiremos todos los conceptos posteriores.  
 
-Imaginá que querés entender cómo funciona un auto. Podrías aprender a manejarlo sin saber nada del motor, pero si quieres ser mecánico, necesitas entender pistones, válvulas, y transmisión. 
+### Los problemas que resuelve esta arquitectura  
 
-Con los sistemas operativos pasa lo mismo. Puedes usar una computadora sin entender qué hay "debajo del capó", pero **para diseñar, optimizar o debuggear un SO, necesitas entender el hardware que administra**.
+Todo sistema operativo moderno enfrenta tres desafíos fundamentales que la arquitectura de hardware debe resolver. Veamos cada uno:  
+El primer desafío es la comunicación entre software y hardware. El procesador solo entiende instrucciones binarias, mientras que los dispositivos tienen interfaces completamente diferentes. Se necesita un "traductor" capaz de convertir las intenciones de alto nivel de un programa en señales eléctricas específicas que cada componente pueda comprender.  
+El segundo desafío es la protección del sistema. Sin mecanismos de seguridad, un programa con errores podría crashear toda la máquina, o peor aún, múltiples programas competirían por los mismos recursos sin ningún tipo de arbitraje. La arquitectura debe proporcionar "niveles de privilegio" que limiten lo que cada programa puede hacer.  
+El tercer desafío es el manejo de eventos impredecibles. El usuario puede presionar una tecla en cualquier momento, los datos pueden llegar por la red de forma asincrónica, un proceso puede solicitar un archivo mientras otro está escribiendo en disco. El sistema necesita un mecanismo para "interrumpir" la ejecución normal y atender estos eventos de manera ordenada y eficiente.
 
-### Los problemas que resuelve esta arquitectura
-
-**Problema 1: ¿Cómo puede software controlar hardware?**
-- El procesador solo entiende instrucciones binarias
-- Los dispositivos tienen interfaces completamente diferentes
-- Se necesita un "traductor" entre programas y circuitos
-
-**Problema 2: ¿Cómo proteger el sistema de programas maliciosos?**
-- Un programa bugueado podría crashear toda la máquina
-- Múltiples programas compiten por los mismos recursos
-- Se necesitan "niveles de privilegio" y protección
-
-**Problema 3: ¿Cómo manejar eventos impredecibles?**
-- El usuario presiona una tecla en cualquier momento
-- Llegan datos por la red de forma asincrónica
-- Se necesita un mecanismo para "interrumpir" la ejecución normal  
 
 ## Conceptos Fundamentales
-
 ### Arquitectura de von Neumann
+La arquitectura de von Neumann es el modelo fundamental sobre el cual se construyen prácticamente todas las computadoras modernas. Aunque han surgido variaciones y optimizaciones, los principios básicos permanecen intactos desde su concepción en la década de 1940.
 
-La arquitectura básica de casi todas las computadoras modernas:
 
-**Componentes principales:**
-- **CPU (Unidad Central de Procesamiento)**
-  - Unidad de Control (CU): decodifica y ejecuta instrucciones
-  - Unidad Aritmético-Lógica (ALU): realiza operaciones matemáticas
-  - Registros: almacenamiento ultrarrápido dentro del procesador
+\begin{theory}
+La característica distintiva de la arquitectura de von Neumann es que \textit{programa y datos comparten el mismo espacio de memoria}. Esto permite que los programas sean tratados como datos, habilitando conceptos como compiladores, intérpretes y sistemas operativos que pueden cargar y ejecutar otros programas dinámicamente.
+\end{theory}
 
-- **Memoria Principal (RAM)**
-  - Almacena programas y datos temporalmente
-  - Acceso directo y aleatorio
-  - Volátil (se pierde al apagar)
 
-- **Almacenamiento Secundario**
-  - Discos duros, SSD, etc.
-  - Persistente pero más lento
-  - Mayor capacidad
+Esta arquitectura se compone de cuatro subsistemas principales que trabajan en conjunto. La **CPU** (Unidad Central de Procesamiento) es el cerebro del sistema, conteniendo la Unidad de Control que decodifica y ejecuta instrucciones, la Unidad Aritmético-Lógica que realiza operaciones matemáticas y lógicas, y un conjunto de registros que proporcionan almacenamiento ultrarrápido dentro del procesador mismo.  
+La **Memoria Principal** (RAM) almacena tanto programas como datos de forma temporal. Su característica de acceso directo y aleatorio significa que cualquier ubicación puede ser accedida en tiempo constante, pero su naturaleza volátil implica que todo su contenido se pierde al apagar el sistema.  
+El **Almacenamiento Secundario** complementa a la RAM proporcionando persistencia. Los discos duros, SSD y otros medios de almacenamiento son significativamente más lentos que la RAM, pero mantienen la información incluso sin energía eléctrica y ofrecen capacidades mucho mayores.
+Los **Dispositivos de E/S** son las interfaces que permiten al sistema interactuar con el mundo exterior: teclado, mouse, pantalla, tarjetas de red, y una variedad de periféricos especializados.  
 
-- **Dispositivos de E/S**
-  - Teclado, mouse, pantalla, red, etc.
-  - Interfaces para interactuar con el mundo exterior
 
 ![Diagrama de un Computador](src/images/capitulo-01/01.png){ width=350 height=265 style="display: block; margin: auto;" }  
 
-### Buses de Comunicación
+## Buses de Comunicación
+Los componentes de la arquitectura de von Neumann no pueden funcionar de forma aislada. Los **buses** son las "autopistas" que permiten la comunicación entre CPU, memoria y dispositivos. Sin ellos, tendríamos componentes poderosos pero incapaces de colaborar.  
+El sistema de buses se divide en tres tipos especializados, cada uno con una función específica:  
+El **Bus de Datos** transporta la información real entre componentes. Su ancho, medido en bits, determina cuánta información puede transferirse simultáneamente. Un bus de 64 bits, por ejemplo, puede mover 8 bytes en cada ciclo de reloj, lo que impacta directamente en el rendimiento del sistema.  
+El **Bus de Direcciones** especifica la ubicación de memoria que se desea acceder. Su ancho determina el espacio máximo de direcciones que el sistema puede manejar. Con 32 bits podemos direccionar hasta 4GB de memoria, mientras que con 64 bits ese límite se extiende hasta 16 exabytes, una cantidad astronómica para estándares actuales.  
+El **Bus de Control** coordina todas las operaciones mediante señales especializadas. Señales como READ, WRITE, IRQ y RESET sincronizan las transferencias entre componentes y aseguran que cada operación se complete correctamente antes de iniciar la siguiente.  
 
-Los **buses** son las "autopistas" que conectan los componentes del sistema. Sin ellos, CPU, memoria y dispositivos estarían aislados.
+## Registros del Procesador
+Los registros son la forma más rápida de memoria disponible en un sistema de cómputo. Están físicamente integrados en el chip del procesador, lo que los hace extremadamente veloces pero también extremadamente caros. Por esta razón, su número es limitado y cada uno tiene propósitos específicos.  
 
-**Tipos de Buses:**
-
-1. **Bus de Datos**
-   - Transporta la información real (instrucciones, datos)
-   - Ancho determina cantidad de bits transferidos simultáneamente
-   - Ejemplo: bus de 64 bits puede transferir 8 bytes por ciclo
-
-2. **Bus de Direcciones**
-   - Especifica la ubicación de memoria a acceder
-   - Ancho determina máximo espacio de direcciones
-   - Ejemplo: 32 bits = 4GB máximo, 64 bits = 16 exabytes
-
-3. **Bus de Control**
-   - Coordina las operaciones (lectura, escritura, interrupciones)
-   - Señales como: READ, WRITE, IRQ, RESET
-   - Sincroniza transferencias entre componentes
+\begin{infobox}
+La jerarquía de velocidad de memoria va desde los registros (1 ciclo de CPU) hasta el almacenamiento secundario (millones de ciclos). Esta diferencia de velocidad determina muchas de las decisiones de diseño de un sistema operativo.
+\end{infobox}
 
 
-### Registros del Procesador
+Los registros se dividen en dos categorías principales según su nivel de privilegio:
+Los **Registros Visibles al Usuario** pueden ser utilizados por programas en modo usuario. Entre ellos encontramos los registros de propósito general como EAX, EBX, ECX y EDX en arquitecturas x86-32, o sus equivalentes de 64 bits RAX, RBX, RCX y RDX. Estos registros son la memoria de trabajo del procesador, almacenando valores temporales durante cálculos y operaciones.  
 
-Los registros son la memoria más rápida y cara del sistema. Están físicamente dentro de la CPU.
+Los registros de índice ESI (Source Index) y EDI (Destination Index) están optimizados para operaciones con strings y arrays, facilitando copias y comparaciones de bloques de memoria. El registro ESP/RSP actúa como puntero de stack, apuntando siempre al tope de la pila actual, mientras que EBP/RBP sirve como frame pointer, facilitando el acceso a parámetros y variables locales de funciones.  
 
-**Registros Visibles al Usuario (Modo Usuario):**
+Los **Registros Privilegiados** solo pueden ser accedidos en modo kernel. Los registros de control CR0 a CR4 configuran características fundamentales del procesador. CR0 controla modos de operación básicos, CR2 almacena la dirección que causó el último page fault (crucial para memoria virtual), CR3 contiene el directorio de páginas actual para la MMU, y CR4 habilita extensiones modernas del procesador.
+Los registros de segmento en modo kernel (CS, DS, SS) son críticos para la protección de memoria, especificando qué regiones de memoria puede acceder cada proceso y con qué privilegios.  
 
-- **Registros de Propósito General**
-  - EAX, EBX, ECX, EDX (x86-32)
-  - RAX, RBX, RCX, RDX, etc. (x86-64)
-  - Usados para cálculos y almacenamiento temporal
+## Program Status Word (PSW)
+El **PSW**, también conocido como registro FLAGS, es un registro especial que contiene información sobre el estado actual del procesador. Cada bit en este registro tiene un significado específico y afecta cómo se ejecutan las instrucciones subsiguientes.  
 
-- **Registros de Índice**
-  - ESI (Source Index), EDI (Destination Index)
-  - Útiles para operaciones con strings y arrays
+Los flags de condición reflejan el resultado de operaciones aritméticas y lógicas. El Zero Flag (ZF) se activa cuando una operación produce resultado cero, el Carry Flag (CF) indica acarreo en operaciones aritméticas, el Sign Flag (SF) señala si el resultado es negativo, y el Overflow Flag (OF) detecta desbordamientos en aritmética con signo.  
 
-- **Registro Puntero de Stack (ESP/RSP)**
-  - Apunta al tope del stack actual
-  - Crítico para manejo de funciones y variables locales
-
-- **Registro Base del Stack (EBP/RBP)**
-  - Frame pointer para acceso a parámetros y variables locales
-
-**Registros Privilegiados (Solo Modo Kernel):**
-
-- **Registro de Control (CR0, CR2, CR3, CR4)**
-  - CR0: Control de características del procesador
-  - CR2: Dirección que causó page fault
-  - CR3: Directorio de páginas actual (MMU)
-
-- **Registros de Segmento en Modo Kernel**
-  - CS (Code Segment), DS (Data Segment), SS (Stack Segment)
-  - Críticos para protección de memoria
-
-### Program Status Word (PSW)
-
-El **PSW** (también llamado FLAGS register) contiene información sobre el estado actual del procesador:
-
-**Flags de Condición:**  
-- **Zero Flag (ZF)**: Se activa si el resultado de una operación es cero  
-- **Carry Flag (CF)**: Indica acarreo en operaciones aritméticas  
-- **Sign Flag (SF)**: Indica si el resultado es negativo  
-- **Overflow Flag (OF)**: Desbordamiento en aritmética con signo  
-
-**Flags de Control:**  
-- **Interrupt Enable Flag (IF)**: Habilita/deshabilita interrupciones enmascarables  
-- **Direction Flag (DF)**: Dirección para operaciones de string  
-- **Trap Flag (TF)**: Modo single-step para debugging  
-
-**Flags de Sistema:**  
-- **I/O Privilege Level (IOPL)**: Nivel de privilegio para operaciones de E/S  
-- **Nested Task Flag (NT)**: Indica tarea anidada  
-- **Resume Flag (RF)**: Control de debugging  
+Los flags de control modifican el comportamiento del procesador. El Interrupt Enable Flag (IF) determina si las interrupciones enmascarables están habilitadas, el Direction Flag (DF) controla la dirección de operaciones con strings, y el Trap Flag (TF) activa el modo single-step para debugging.
+Los flags de sistema controlan aspectos avanzados de la ejecución. El I/O Privilege Level (IOPL) especifica el nivel de privilegio necesario para operaciones de E/S, el Nested Task Flag (NT) indica si estamos en una tarea anidada, y el Resume Flag (RF) ayuda en el control de debugging.  
 
 \begin{center}
 \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap01-psw_register.png}
-\end{center}
+\end{center}  
 
 ### Ciclo de Instrucción
 
@@ -170,47 +116,34 @@ Se verifica interrupción → si hay ISR: guarda contexto, salta a rutina de ser
 \end{minipage}
 \end{center}
 
+
 ## Sistema de Interrupciones
+Las interrupciones son posiblemente el mecanismo de hardware más importante para un sistema operativo. Sin ellas, el SO no podría mantener control sobre el sistema ni implementar multitasking efectivo.  
 
-Las interrupciones son el mecanismo fundamental que permite al SO mantener control sobre el hardware y gestionar múltiples tareas de manera eficiente.
+\begin{excerpt}
+\emph{Definición:}
+Una interrupción es un mecanismo hardware que permite detener temporalmente la ejecución normal del procesador para atender un evento urgente, sea este generado por hardware externo, por software, o por condiciones excepcionales durante la ejecución.
+\end{excerpt}
 
-\begin{definitionbox}
-\emph{Definición:}  
+Existen tres categorías principales de interrupciones, cada una con características y propósitos distintos. Las interrupciones de hardware son generadas por dispositivos externos al procesador, como el teclado cuando se presiona una tecla, el timer del sistema que marca intervalos regulares, o la tarjeta de red al recibir paquetes. Estas interrupciones son asincrónicas: pueden ocurrir en cualquier momento, independientemente de lo que esté ejecutando el procesador.  
 
+Las interrupciones de software son generadas explícitamente por instrucciones del programa. Las system calls, por ejemplo, son interrupciones de software que solicitan servicios al sistema operativo. A diferencia de las interrupciones de hardware, estas son sincrónicas: ocurren en puntos predecibles del programa.  
 
-Mecanismo hardware que permite detener temporalmente la ejecución normal del procesador para atender un evento urgente.
-\end{definitionbox}
-
-**Tipos de Interrupciones:**
-
-1. **Interrupciones de Hardware:**
-   - Generadas por dispositivos externos
-   - Ejemplos: teclado, timer, red
-   - Asincrónicas (impredecibles)
-
-2. **Interrupciones de Software:**
-   - Generadas por instrucciones del programa
-   - Ejemplos: syscalls, excepciones
-   - Sincrónicas (predecibles)
-
-3. **Excepciones:**
-   - Errores durante la ejecución
-   - Ejemplos: división por cero, acceso a memoria inválida
+Las excepciones son eventos síncronos generados por condiciones de error durante la ejecución. Una división por cero, un acceso a memoria inválida, o una instrucción ilegal generan excepciones que deben ser manejadas inmediatamente.  
 
 \begin{center}
 \includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-01/bloque-interrupciones.png}
 \end{center}
 
-### Interrupciones Enmascarables (Maskable Interrupts)  
-
+### Interrupciones Enmascarables (Maskable Interrupts)
 Pueden ser temporalmente deshabilitadas por software mediante el control del bit IF (Interrupt Flag) en el registro de estado del procesador (PSW/EFLAGS).
 
 
-**Control**: 
+Control:  
 - **CLI** (Clear Interrupt Flag): Deshabilita interrupciones  
 - **STI** (Set Interrupt Flag): Habilita interrupciones  
 
-**Ejemplos**:  
+Ejemplos:  
 - Timer del sistema (IRQ0 - genera multitasking preemptivo)  
 - Teclado (IRQ1) y mouse (IRQ12)  
 - Tarjeta de red (IRQ variable)  
@@ -227,20 +160,21 @@ modify_memory_mapping();
 sti();              // Rehabilitar interrupciones
 ```
 
+\begin{warning}
+Deshabilitar interrupciones por períodos prolongados puede causar pérdida de eventos y afectar la responsividad del sistema. Las secciones críticas deben ser lo más breves posible.
+\end{warning}
+
+
 ### Interrupciones No Enmascarables (NMI - Non-Maskable Interrupts)
 
-NO pueden ser deshabilitadas por software, tienen prioridad absoluta y se ejecutan inmediatamente.
+Algunas situaciones son tan críticas que no pueden esperar. Las interrupciones no enmascarables tienen prioridad absoluta y no pueden ser deshabilitadas por software, ni siquiera por el kernel. Estas interrupciones se reservan para eventos que requieren atención inmediata del sistema.  
 
-**Propósito**: Eventos críticos que requieren atención inmediata del sistema.
+Los eventos que generan NMI típicamente indican condiciones catastróficas: errores de paridad en memoria RAM que podrían corromper datos, fallas críticas de hardware como sobrecalentamiento extremo, watchdog timers que detectan que el sistema está completamente colgado, errores en el bus del sistema, o fallos de alimentación eléctrica inminentes.  
 
-**Ejemplos**:
-- Errores de paridad en memoria RAM
-- Fallas críticas de hardware (sobrecalentamiento)
-- Watchdog timer (detecta sistema colgado)
-- Errores del bus del sistema
-- Fallos de alimentación inminentes
+\begin{infobox}
+Las NMI pueden interrumpir incluso al kernel en medio de secciones críticas. Esto significa que el handler de NMI debe ser extremadamente cuidadoso y no puede asumir que las estructuras del kernel están en estado consistente.
+\end{infobox}
 
-**Prioridad**: Máxima - pueden interrumpir incluso al kernel en secciones críticas.
 
 ## Jerarquía de Prioridades
 
@@ -283,10 +217,16 @@ IRQ 13 → Coprocesador matemático
 IRQ 14 → Controlador IDE primario
 IRQ 15 → Controlador IDE secundario
 ```
+\begin{infobox}
+En sistemas modernos con APIC, el número de IRQs disponibles se extiende hasta 256, y múltiples procesadores pueden recibir interrupciones simultáneamente. Sin embargo, el modelo conceptual permanece similar.
+\end{infobox}
+
 
 ## Interrupt Handlers (Manejadores de Interrupción)
+Cada tipo de interrupción debe tener asociado un handler: una rutina de código que sabe cómo responder a ese evento específico. Los handlers son las piezas de código más críticas del sistema operativo, y deben seguir reglas estrictas.  
 
 ### Estructura de un Handler
+Un handler de interrupción debe ser eficiente y predecible. La estructura típica sigue este patrón:  
 
 ```c
 // Prototipo genérico de handler
@@ -318,10 +258,11 @@ void timer_interrupt_handler(int irq, struct pt_regs *regs) {
     send_eoi(IRQ_TIMER);
 }
 ```
+Este ejemplo muestra el handler del timer del sistema, una de las interrupciones más importantes. Cada "tick" del timer permite al sistema operativo mantener noción del tiempo transcurrido y decidir si es momento de cambiar al siguiente proceso.  
 
 ### Interrupciones Anidadas
 
-**Concepto**: Capacidad de que una interrupción de mayor prioridad interrumpa el procesamiento de una de menor prioridad.
+Una característica avanzada de muchos sistemas es la capacidad de permitir que una interrupción de mayor prioridad interrumpa el procesamiento de una de menor prioridad. Esto se conoce como **anidamiento de interrupciones.**
 
 ```c
 // Ejemplo de manejo de interrupciones anidadas
@@ -338,18 +279,7 @@ void high_priority_handler(int irq, struct pt_regs *regs) {
     handle_normal_processing();
 }
 ```
-
-### Características de Interrupciones Anidadas
-
-**Ventajas**:
-- Mejor tiempo de respuesta para eventos críticos
-- Priorización automática de eventos
-- Maximiza el rendimiento del sistema
-
-**Desafíos**:
-- Complejidad en la gestión del stack
-- Posibles deadlocks si no se maneja correctamente
-- Overflow del stack en cascadas profundas
+El anidamiento ofrece ventajas significativas: mejor tiempo de respuesta para eventos críticos, priorización automática, y maximización del throughput del sistema. Sin embargo, introduce desafíos de complejidad en la gestión del stack, posibles deadlocks si no se maneja correctamente, y riesgo de overflow del stack si las interrupciones se anidan demasiado profundamente.  
 
 ```c
 // Control de profundidad de anidamiento
@@ -368,8 +298,10 @@ void generic_handler(int irq, struct pt_regs *regs) {
 ```
 
 ## Estados de Interrupciones
+El sistema operativo necesita control fino sobre cuándo las interrupciones pueden ocurrir. Esto se logra mediante mecanismos que permiten habilitar y deshabilitar interrupciones a diferentes niveles de granularidad.  
 
 ### Disable/Enable a Nivel de Sistema
+El control global de interrupciones se realiza mediante instrucciones que afectan el flag IF del procesador:  
 
 ```c
 // Macros comunes en kernels Unix
@@ -382,10 +314,10 @@ local_irq_save(flags);      // Guarda estado actual y deshabilita
 // ... sección crítica ...
 local_irq_restore(flags);   // Restaura estado previo
 ```
-  
-  
+La variante con salvado y restauración es preferible porque no asume que las interrupciones estaban habilitadas antes de entrar a la sección crítica.  
 
 ### Disable/Enable por IRQ Específico
+En ocasiones es necesario deshabilitar solo una fuente de interrupciones específica, sin afectar a las demás:  
 
 ```c
 // Deshabilitar IRQ específico en PIC
@@ -405,31 +337,30 @@ void disable_irq(int irq) {
 }
 ```
 
-Este sistema de interrupciones es fundamental para:  
-- **Multitasking preemptivo**: Timer interrupts permiten cambios de contexto  
-- **Manejo de E/S**: Respuesta eficiente a dispositivos  
-- **Gestión de memoria**: Page faults y gestión de memoria virtual  
-- **Comunicación inter-procesos**: Señales y sincronización  
-- **Detección de errores**: Excepciones y fallos de hardware  
+Este nivel de control permite, por ejemplo, deshabilitar el IRQ del teclado durante una actualización crítica de las estructuras de entrada, sin afectar el timer del sistema o la red.
+\begin{theory}
+El sistema de interrupciones es fundamental para implementar:
+\begin{itemize}
+\item \textbf{Multitasking preemptivo}: Timer interrupts permiten cambios de contexto forzados
+\item \textbf{Manejo eficiente de E/S}: Los dispositivos notifican al CPU cuando tienen datos
+\item \textbf{Gestión de memoria virtual}: Page faults son excepciones que permiten demand paging
+\item \textbf{Comunicación inter-procesos}: Señales se implementan sobre el sistema de interrupciones
+\item \textbf{Detección de errores}: Excepciones capturan condiciones anómalas inmediatamente
+\end{itemize}
+\end{theory}
 
 ### Modos de Operación del Procesador
+La arquitectura moderna del procesador distingue entre dos modos de operación fundamentales que son la base de toda la seguridad y estabilidad del sistema.  
 
-**Modo Kernel (Supervisor/Privilegiado):**
-- Acceso completo a todas las instrucciones del procesador
-- Puede modificar registros críticos del sistema
-- Puede acceder directamente a hardware
-- Solo el SO ejecuta en este modo
+En **Modo Kernel** (también llamado Supervisor o modo privilegiado), el procesador tiene acceso sin restricciones. Puede ejecutar cualquier instrucción, modificar registros críticos del sistema, acceder directamente a cualquier dispositivo hardware, y reconfigurar aspectos fundamentales de la operación del procesador. Este modo es extremadamente poderoso, pero también extremadamente peligroso: un error en modo kernel puede crashear todo el sistema. Por esta razón, solo el código del sistema operativo ejecuta en este modo.  
 
-**Modo Usuario (User Mode):**
-- Subconjunto restringido de instrucciones
-- No puede acceder directamente a hardware
-- No puede modificar configuraciones críticas
-- Aplicaciones ejecutan en este modo
+En **Modo Usuario** (user mode), el procesador opera con un subconjunto restringido de instrucciones. No puede acceder directamente a hardware, no puede modificar configuraciones críticas del sistema, y no puede acceder a memoria que no le pertenece. Todas las aplicaciones de usuario ejecutan en este modo, lo que las aísla tanto del hardware como entre ellas.  
 
+\begin{infobox}
+Esta separación de modos es la base de la seguridad y estabilidad del sistema. Sin ella, cualquier programa podría crashear la máquina o acceder a datos privados de otros procesos. Es la razón por la que un navegador web con errores puede cerrarse sin afectar al resto del sistema.
+\end{infobox}
 
-\textcolor{blue!50!black}{\textbf{¿Por qué es importante?}\\
-Esta separación es la base de la seguridad y estabilidad del sistema. Sin ella, cualquier programa podría crashear la máquina o acceder a datos privados. Más adelante se verá como se las arreglan las aplicaciones de usuario para realizar tareas "privilegiadas".
-}
+Pero surge una pregunta natural: si las aplicaciones no pueden acceder al hardware directamente, ¿cómo escriben a disco, muestran gráficos en pantalla, o envían datos por la red? La respuesta son las system calls, el puente controlado entre modo usuario y modo kernel que veremos en detalle más adelante.  
 
 ### Cambio de Procesos
 Cuándo por algún motivo existe un cambio de proceso en ejecución (los motivos se verán en detalle mas adelante), se realizan varias tareas que son "transparentes" para el usuario final.  
@@ -515,12 +446,12 @@ Acceso a memoria para guardar/restaurar registros → Invalidación de TLB y cac
 
 Ahora que entendemos el hardware, podemos definir qué es realmente un sistema operativo.
   
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Definición:}  
 
 
 Un Sistema Operativo es un conjunto de rutinas y procedimientos manuales y automáticos que permiten la operatoria en un sistema de computación, es un \textbf{programa de control.}
-\end{definitionbox}  
+\end{excerpt}  
 
 
 Sus principales tareas son:  
@@ -564,12 +495,12 @@ Sus principales tareas son:
 
 ### System Calls (Llamadas al Sistema)
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Definición:}  
 
 
 Las System Calls son un mecanismo mediante el cual los programas solicitan servicios al SO (acceso a hardware, creación de procesos, etc.)
-\end{definitionbox}
+\end{excerpt}
 
 **¿Por qué existen?**  
 - **Protección**: Impiden acceso directo no controlado al hardware  

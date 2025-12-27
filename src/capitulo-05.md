@@ -29,9 +29,9 @@ Consideremos un navegador web moderno. Durante la carga de una página se ejecut
 
 ### La solución: hilos como procesos livianos
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Hilo (Thread):} Unidad básica de utilización del CPU dentro de un proceso, caracterizada por tener su propio flujo de ejecución independiente pero compartiendo el espacio de direcciones con otros hilos del mismo proceso.
-\end{definitionbox}
+\end{excerpt}
 
 Los hilos comparten recursos del proceso padre pero mantienen elementos privados:
 
@@ -82,9 +82,9 @@ Las variables globales y el heap son compartidos entre hilos, lo que requiere si
 
 ### User-Level Threads (ULT)
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{User-Level Threads (ULT):} Hilos implementados completamente en espacio de usuario mediante bibliotecas especializadas, donde el kernel del sistema operativo no tiene conocimiento de los hilos individuales.
-\end{definitionbox}
+\end{excerpt}
 
 En el modelo ULT, el kernel ve únicamente un proceso con un solo hilo de ejecución. La biblioteca de hilos en espacio de usuario maneja toda la gestión:
 
@@ -127,9 +127,9 @@ void ult_context_switch(ult_t *from, ult_t *to) {
 
 ### Kernel-Level Threads (KLT)
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Kernel-Level Threads (KLT):} Hilos implementados y gestionados directamente por el kernel del sistema operativo, donde cada hilo es una entidad de planificación independiente conocida por el SO.
-\end{definitionbox}
+\end{excerpt}
 
 En el modelo KLT, cada hilo tiene entrada propia en las tablas del kernel y es planificado independientemente:
 

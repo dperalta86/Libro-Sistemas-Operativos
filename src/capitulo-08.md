@@ -56,10 +56,10 @@ void fase2_procesamiento() {
 
 **La solución moderna: Memoria Virtual**
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Memoria Virtual:}
 Técnica que permite ejecutar procesos cuyo espacio de direcciones total excede la memoria física disponible, mediante la ilusión de que cada proceso tiene acceso a un espacio de direcciones enorme y contiguo, gestionado automáticamente por el hardware y el sistema operativo.
-\end{definitionbox}
+\end{excerpt}
 
 \textcolor{teal!60!black}{\textbf{Ventajas revolucionarias:}\\
 - Transparente al programador (¡no más overlays!)\\
@@ -147,10 +147,10 @@ Para más detalles sobre paginación básica, tablas multinivel, TLB y segmentac
 
 ### Espacio de Direcciones Virtual vs Físico
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Espacio de Direcciones Virtual:}
 El rango completo de direcciones que un proceso puede generar, independiente de la cantidad de memoria física disponible. En un sistema de 32 bits: 0 a 4 GB, en 64 bits: 0 a 16 EB (exabytes).
-\end{definitionbox}
+\end{excerpt}
 
 **Ejemplo práctico:**
 
@@ -232,10 +232,10 @@ Entrada de Tabla de Páginas (expandida):
               Bit presencia (P)
 ```
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Bit presencia (P):}
 Indica si la página está presente en memoria RAM (P=1) o está en disco/swap (P=0). Es la base del mecanismo de memoria virtual.
-\end{definitionbox}
+\end{excerpt}
 
 **Estados posibles:**
 
@@ -277,10 +277,10 @@ El resto permanece en disco hasta que se necesite\\
 
 Este es un punto que genera mucha confusión en estudiantes. Aclaremos:
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Page Fault:}
 Interrupción generada por la MMU cuando el CPU intenta acceder a una página cuyo bit presencia está en 0 (página no presente en RAM). Es un mecanismo normal y esperado del sistema de memoria virtual, NO un error de programación.
-\end{definitionbox}
+\end{excerpt}
 
 \textcolor{orange!70!black}{\textbf{¡IMPORTANTE!}\\
 Page Fault ≠ Segmentation Fault\\
@@ -298,10 +298,10 @@ Page Fault ≠ Segmentation Fault\\
 
 ### Swap Space (Backing Store)
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Swap Space:}
 Área del disco duro reservada para almacenar páginas que no están en RAM. Actúa como extensión de la memoria física.
-\end{definitionbox}
+\end{excerpt}
 
 **Configuración típica en Linux:**
 
@@ -504,10 +504,10 @@ El principio de localidad es **LA RAZÓN** por la cual la memoria virtual funcio
 
 ### ¿Qué es el Principio de Localidad?
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Principio de Localidad:}
 Observación empírica de que los programas tienden a acceder un subconjunto relativamente pequeño de su espacio de direcciones en cualquier intervalo de tiempo dado. Se divide en dos tipos: localidad temporal y localidad espacial.
-\end{definitionbox}
+\end{excerpt}
 
 \textcolor{orange!70!black}{\textbf{¿Por qué es crítico para memoria virtual?}\\
 Si un proceso de 1 GB necesitara acceder aleatoriamente\\
@@ -522,10 +522,10 @@ Pero GRACIAS a la localidad, el proceso solo accede\\
 
 ### Localidad Temporal
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Localidad Temporal:}
 Si se referencia una ubicación de memoria en el tiempo t, es muy probable que se referencie nuevamente en un futuro cercano (t + Δt).
-\end{definitionbox}
+\end{excerpt}
 
 **Ejemplo clásico: Variables en un bucle**
 
@@ -575,10 +575,10 @@ Durante el bucle:
 
 ### Localidad Espacial
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Localidad Espacial:}
 Si se referencia una ubicación de memoria en la dirección X, es muy probable que se referencien ubicaciones cercanas (X ± δ) en un futuro próximo.
-\end{definitionbox}
+\end{excerpt}
 
 **Ejemplo clásico: Recorrido de array**
 
@@ -660,10 +660,10 @@ Ratio: 25/550 = 4.5% del espacio en uso activo
 
 ### Working Set
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Working Set (Conjunto de Trabajo):}
 El conjunto de páginas que un proceso está usando activamente en un intervalo de tiempo dado. Es el "tamaño mínimo de RAM" que el proceso necesita para ejecutar eficientemente.
-\end{definitionbox}
+\end{excerpt}
 
 ```
 Working set de un proceso:
@@ -746,10 +746,10 @@ Cuando se carga un proceso en memoria, ¿cargamos todas sus páginas inmediatame
 
 ### Demand Paging (Paginación Bajo Demanda)
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Demand Paging:}
 Política donde las páginas se cargan en memoria SOLO cuando se referencian por primera vez, generando un page fault. Es la estrategia más común en sistemas modernos.
-\end{definitionbox}
+\end{excerpt}
 
 **Funcionamiento:**
 
@@ -813,10 +813,10 @@ int main() {
 
 ### Prepaging (Paginación Anticipada)
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Prepaging:}
 Política donde el SO intenta predecir qué páginas se necesitarán pronto y las carga anticipadamente, antes de que se generen page faults.
-\end{definitionbox}
+\end{excerpt}
 
 **Estrategias de prepaging:**
 
@@ -885,10 +885,10 @@ Solo vale la pena si la predicción es correcta > 80\\% del tiempo.\\
 
 Copy-on-Write es una optimización crucial que hace viable la operación `fork()` en sistemas Unix/Linux.
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Copy-on-Write (COW):}
 Técnica donde múltiples procesos comparten las mismas páginas físicas de memoria mientras sean solo lectura. Al intentar escribir, se crea una copia privada de la página para ese proceso.
-\end{definitionbox}
+\end{excerpt}
 
 **Problema sin COW:**
 
@@ -978,10 +978,10 @@ fork() donde hijo modifica 10% de páginas:
 
 ### Memory-Mapped Files
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Memory-Mapped Files:}
 Técnica que mapea un archivo del disco directamente al espacio de direcciones virtual de un proceso, permitiendo acceder al archivo como si fuera un array en memoria.
-\end{definitionbox}
+\end{excerpt}
 
 **Syscall principal: `mmap()`**
 
@@ -1114,10 +1114,10 @@ En servidor con 100 procesos: ahorro de ~200 MB\\
 
 ### TLB Reach (Comentario Breve)
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{TLB Reach:}
 Cantidad de memoria que puede ser mapeada por todas las entradas del TLB. Se calcula como: TLB Reach = (número de entradas TLB) × (tamaño de página).
-\end{definitionbox}
+\end{excerpt}
 
 **Ejemplo:**
 
@@ -1155,10 +1155,10 @@ Cuando ocurre un page fault y no hay marcos libres, el SO debe seleccionar una p
 
 ### Objetivo del Algoritmo de Reemplazo
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Algoritmo de Reemplazo:}
 Política que selecciona cuál página residente en RAM será reemplazada cuando se necesita cargar una nueva página y no hay marcos libres. El objetivo es minimizar la tasa de page faults.
-\end{definitionbox}
+\end{excerpt}
 
 **Métrica clave: Page Fault Rate**
 
@@ -1203,10 +1203,10 @@ Oldest              Newest
 
 Algoritmo teórico propuesto por Belady: reemplazar la página que NO se usará por más tiempo en el futuro.
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Algoritmo Óptimo:}
 Selecciona como víctima la página cuya próxima referencia está más lejana en el futuro, o que nunca será referenciada nuevamente.
-\end{definitionbox}
+\end{excerpt}
 
 \textcolor{orange!70!black}{\textbf{¿Por qué no se usa en la práctica?}\\
 Requiere conocer el futuro (secuencia completa de referencias)\\
@@ -1223,10 +1223,10 @@ Requiere conocer el futuro (secuencia completa de referencias)\\
 
 Aproximación práctica al óptimo: reemplazar la página que NO se ha usado por más tiempo en el pasado.
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{LRU (Least Recently Used):}
 Selecciona como víctima la página cuyo último acceso fue el más lejano en el pasado. Se basa en la observación de que páginas recientemente usadas probablemente se usarán pronto (localidad temporal).
-\end{definitionbox}
+\end{excerpt}
 
 **Implementación ideal:** Timestamp en cada acceso
 
@@ -1319,10 +1319,10 @@ Al buscar víctima:
 
 Versión mejorada de Clock que considera tanto el bit U (Referenced) como el bit M (Modified/Dirty).
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Clock-M (Clock Mejorado):}
 Extensión del algoritmo Clock que usa los bits U y M para clasificar páginas en 4 categorías de prioridad para reemplazo. Prefiere reemplazar páginas no modificadas para evitar escrituras a disco.
-\end{definitionbox}
+\end{excerpt}
 
 **Clasificación de páginas:**
 
@@ -1579,10 +1579,10 @@ Clock-M      │     10      │    O(n)     │ Bits U y M
 
 ### ¿Qué es Thrashing?
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Thrashing:}
 Estado del sistema donde se dedica más tiempo a manejar page faults (cargar/descargar páginas) que a ejecutar instrucciones útiles. Ocurre cuando la suma de los working sets de todos los procesos excede la memoria física disponible.
-\end{definitionbox}
+\end{excerpt}
 
 **Síntomas de thrashing:**
 - CPU utilization muy baja (< 20%)

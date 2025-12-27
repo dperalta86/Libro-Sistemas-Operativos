@@ -65,10 +65,10 @@ Este capítulo recorre esta evolución para entender por qué los sistemas moder
 
 ### Espacios de Direcciones
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Espacio de Direcciones:}
 Conjunto de direcciones que una entidad puede usar para referenciar memoria. Existen tres tipos fundamentales.
-\end{definitionbox}
+\end{excerpt}
 
 #### Dirección Lógica (Virtual)
 
@@ -173,10 +173,10 @@ Sin binding dinámico, no existirían los SO modernos.\\
 
 #### Memory Management Unit (MMU)
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{MMU (Memory Management Unit):}
 Circuito hardware que traduce direcciones lógicas a físicas en tiempo de ejecución. Opera a velocidad del CPU sin intervención del SO.
-\end{definitionbox}
+\end{excerpt}
 
 **Funcionamiento básico:**
 
@@ -201,10 +201,10 @@ El SO configura los **parámetros** (registros base/límite, tablas de páginas)
 
 La MMU necesita consultar tablas de páginas en RAM para traducir direcciones. Como esto es lento (100+ ns), existe una caché especial dentro del CPU:
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{TLB (Translation Lookaside Buffer):}
 Caché hardware de alta velocidad que almacena traducciones recientes de páginas. Típicamente 64-512 entradas, tiempo de acceso < 1 ns.
-\end{definitionbox}
+\end{excerpt}
 
 **Proceso de traducción con TLB:**
 
@@ -249,10 +249,10 @@ La fragmentación es el desperdicio de memoria que no puede usarse eficientement
 
 #### Fragmentación Interna
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Fragmentación Interna:}
 Memoria desperdiciada DENTRO de una región asignada. Ocurre cuando se asigna más memoria de la necesitada.
-\end{definitionbox}
+\end{excerpt}
 
 **Ejemplo:** Un proceso necesita 19 KB pero el sistema asigna bloques de 4 KB. Se asignan 5 bloques (20 KB), desperdiciando 1 KB.
 
@@ -275,10 +275,10 @@ Bloque asignado: [===================·]
 
 #### Fragmentación Externa
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Fragmentación Externa:}
 Memoria desperdiciada ENTRE regiones asignadas. Hay suficiente memoria libre total, pero no es contigua.
-\end{definitionbox}
+\end{excerpt}
 
 **Ejemplo:** Memoria total: 100 KB, Libres: 40 KB, pero en bloques de 10 KB cada uno. No se puede asignar un proceso de 30 KB.
 
@@ -532,10 +532,10 @@ La paginación fue un avance revolucionario que resolvió el problema de fragmen
 
 **Idea central:** Dividir el espacio de direcciones lógicas y la memoria física en bloques de **tamaño fijo** llamados páginas y marcos (frames).
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Paginación:}
 Técnica de gestión de memoria que divide el espacio lógico en páginas de tamaño fijo y la memoria física en marcos del mismo tamaño. Las páginas se mapean a marcos de forma no contigua.
-\end{definitionbox}
+\end{excerpt}
 
 **Conceptos clave:**
 
@@ -586,10 +586,10 @@ Una dirección lógica en paginación se divide en dos campos:
 └─────────────────┴──────────────────┘
 ```
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Formato de Dirección Lógica:}
 Si el tamaño de página es $2^d$ bytes y el espacio lógico es $2^m$ bytes, entonces una dirección lógica tiene m bits divididos en: p = m - d bits para número de página, d bits para offset dentro de la página.
-\end{definitionbox}
+\end{excerpt}
 
 **Ejemplo:** Espacio de 64 KB con páginas de 4 KB
 
@@ -684,10 +684,10 @@ DF = 2*1024 + 276 = 2324
 
 ### Tabla de Páginas
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Tabla de Páginas:}
 Estructura de datos mantenida por el SO que mapea números de página lógica a números de marco físico. Cada proceso tiene su propia tabla de páginas.
-\end{definitionbox}
+\end{excerpt}
 
 **Contenido de una entrada de tabla de páginas (PTE):**
 
@@ -767,10 +767,10 @@ La paginación resuelve problemas técnicos pero no refleja la estructura lógic
 - Segmento de stack (variables locales)
 - Segmentos de librerías compartidas
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Segmentación:}
 Técnica de gestión de memoria que divide el espacio de direcciones en segmentos de tamaño variable, donde cada segmento representa una unidad lógica del programa.
-\end{definitionbox}
+\end{excerpt}
 
 **Diferencia clave con paginación:**
 
@@ -876,10 +876,10 @@ Proceso A:                Proceso B:
 
 Los sistemas modernos combinan ambas técnicas para obtener ventajas de cada una:
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Segmentación Paginada:}
 Cada segmento se divide en páginas. El espacio lógico está segmentado, pero cada segmento se implementa con paginación.
-\end{definitionbox}
+\end{excerpt}
 
 **Proceso de traducción en dos niveles:**
 
@@ -927,10 +927,10 @@ Dirección lógica: (s, p, d)
 
 El Buddy System es un algoritmo de asignación que busca balancear la velocidad de asignación con la fragmentación.
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Buddy System:}
 Algoritmo de asignación de memoria que divide bloques en potencias de 2. Cuando se libera un bloque, se intenta fusionar con su "buddy" (compañero) para formar bloques más grandes.
-\end{definitionbox}
+\end{excerpt}
 
 **Funcionamiento:**
 
@@ -1021,10 +1021,10 @@ Si hay 100 procesos: 400 MB solo en tablas de páginas (inaceptable).
 
 #### Paginación de Dos Niveles
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Paginación de Dos Niveles:}
 La tabla de páginas se divide en páginas. Se mantiene un directorio de páginas que apunta a las tablas de páginas de segundo nivel.
-\end{definitionbox}
+\end{excerpt}
 
 **Formato de dirección lógica:**
 
@@ -1099,10 +1099,10 @@ Dirección de 48 bits (no se usan los 64 completos):
 
 Un enfoque radicalmente diferente: en lugar de una tabla por proceso, **una tabla global** para todo el sistema.
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Tabla de Páginas Invertida:}
 Una tabla única que tiene una entrada por cada marco físico (no por página lógica). Cada entrada indica qué proceso y qué página está en ese marco.
-\end{definitionbox}
+\end{excerpt}
 
 **Estructura:**
 
@@ -1157,10 +1157,10 @@ Hash(PID, página) -> índice en tabla hash -> cadena de colisiones -> entrada
 
 La compactación es el proceso de mover procesos en memoria para consolidar los espacios libres.
 
-\begin{definitionbox}
+\begin{excerpt}
 \emph{Compactación:}
 Técnica que reorganiza la memoria moviendo procesos activos para eliminar fragmentación externa, creando un único bloque contiguo de memoria libre.
-\end{definitionbox}
+\end{excerpt}
 
 **Proceso de compactación:**
 
