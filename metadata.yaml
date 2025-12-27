@@ -6,7 +6,7 @@ subject: "Sistemas Operativos"
 keywords: [Sistemas Operativos, Operative systems, Example]
 subtitle: ""
 lang: "es"
-titlepage: true,
+titlepage: true
 titlepage-text-color: "FFFFFF"
 titlepage-rule-color: "360049"
 titlepage-rule-height: 0
@@ -40,26 +40,98 @@ classoption: "twoside"
 papersize: "a4"
 openright: true
 
-# Configuración imagenes
-#figureTitle: "Figura"
-#figureAlign: center
-
-# Configuración de LaTeX mínima para evitar conflictos
+# Configuración de LaTeX 
 header-includes: |
   \usepackage{float}
   \usepackage{booktabs}
   \usepackage{tcolorbox}
+  \tcbuselibrary{skins,breakable}
   \usepackage{fontspec}
   \usepackage{xcolor}
-  \newtcolorbox{definitionbox}{colback=blue!5!white,colframe=blue!50!white,boxrule=0.5pt,arc=2pt,left=6pt,right=6pt,top=6pt,bottom=6pt}
-  \floatplacement{figure}{H}
+  \usepackage{mdframed}
+  \usepackage{tikz}
+  \usetikzlibrary{shapes.geometric}
+  \usepackage{enumitem}
+  \usepackage{caption}
 
-  \setmainfont{IBM Plex Serif}
-  \setsansfont{IBM Plex Sans}
+  \newtcolorbox{definitionbox}{
+    colback=blue!5!white,
+    colframe=blue!50!white,
+    boxrule=0.5pt,
+    arc=2pt,
+    left=6pt,
+    right=6pt,
+    top=6pt,
+    bottom=6pt
+  }
+  
+  
+  \definecolor{codebg}{RGB}{245,245,245}
+  \definecolor{codeframe}{RGB}{220,220,220}
+  \definecolor{linkcolor}{RGB}{220,50,47}
+  \definecolor{sidebarcolor}{RGB}{0,100,200}
+  \definecolor{warningbg}{RGB}{255,250,240}
+  \definecolor{infobg}{RGB}{240,248,255}
+  
   \setmonofont{JetBrains Mono}
-
-  \linespread{1.1}
-
+  
+  \linespread{1.15}
+  \setlength{\parskip}{0.6em}
+  \setlength{\parindent}{0pt}
+  \setlist{itemsep=0.4em, parsep=0.2em, topsep=0.5em}
+  
+  \lstset{
+    backgroundcolor=\color{codebg},
+    frame=single,
+    framerule=0.5pt,
+    rulecolor=\color{codeframe},
+    basicstyle=\small\ttfamily,
+    keywordstyle=\color{blue!80!black}\bfseries,
+    commentstyle=\color{green!60!black}\itshape,
+    stringstyle=\color{red!70!black},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    numbersep=8pt,
+    tabsize=4,
+    breaklines=true,
+    breakatwhitespace=false,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    xleftmargin=12pt,
+    xrightmargin=12pt,
+    framexleftmargin=8pt,
+    framexrightmargin=8pt,
+    aboveskip=12pt,
+    belowskip=12pt,
+    captionpos=b
+  }
+  
+  \newcommand{\secref}[1]{\textcolor{linkcolor}{§\ref{#1}}}
+  
+  \let\oldtexttt\texttt
+  \renewcommand{\texttt}[1]{%
+    \colorbox{codebg}{\oldtexttt{#1}}%
+  }
+  
+  \hypersetup{
+    colorlinks=true,
+    linkcolor=linkcolor,
+    filecolor=linkcolor,
+    urlcolor=blue!70!black,
+    citecolor=linkcolor
+  }
+  
+  \captionsetup{
+    font=small,
+    labelfont=bf,
+    format=plain,
+    justification=centering,
+    skip=10pt
+  }
+  
+  \floatplacement{figure}{H}
+  
   \setcounter{chapter}{0}
   \setcounter{section}{0}
   \renewcommand{\thechapter}{\arabic{chapter}}

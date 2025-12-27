@@ -1,4 +1,4 @@
-.PHONY: all clean debug structure test-latex tables setup install-deps
+.PHONY: all clean debug structure test-latex tables setup install-deps fedora
 
 # Configuración del libro
 BOOK_NAME = Introduccion_a_los_Sistemas_Operativos
@@ -11,31 +11,44 @@ $(SRC_DIR)/capitulo-01.md \
 $(SRC_DIR)/capitulo-02.md \
 $(SRC_DIR)/capitulo-03.md \
 $(SRC_DIR)/capitulo-04.md \
-$(SRC_DIR)/capitulo-05.md
+$(SRC_DIR)/capitulo-05.md \
+$(SRC_DIR)/capitulo-06.md
 
 # Archivos de configuración
 METADATA = metadata.yaml
 COMBINED_MD = libro-completo.md
 TEMPLATE = templates/eisvogel.latex
 
-# Lista todos los diagramas Mermaid
+# Diagramas Mermaid
 DIAGRAMS := $(wildcard $(SRC_DIR)/diagrams/*.mmd)
 PNG_DIAGRAMS := $(DIAGRAMS:.mmd=.png)
 
-# Lista todas las tablas HTML
+# Tablas HTML
 TABLES := $(wildcard $(SRC_DIR)/tables/*.html)
 PNG_TABLES := $(TABLES:.html=.png)
 
-# Todas las imágenes PNG (diagramas + tablas)
+# Todas las imágenes
 ALL_PNG := $(PNG_DIAGRAMS) $(PNG_TABLES)
 
-# Target principal - versión digital (pantalla)
+# ===========================
+# Target principal
+# ===========================
 all: setup $(OUTPUT_DIR)/$(BOOK_NAME).pdf
 
-# Target para versión de impresión
 print: setup $(OUTPUT_DIR)/$(BOOK_NAME)_print.pdf
 
-# Verificar e instalar dependencias
+# ===========================
+# Target especial Fedora
+# ===========================
+fedora:
+	@echo "🐧 Configuración especial para Fedora..."
+	@chmod +x ./scripts/setup_fedora.sh
+	./scripts/setup_fedora.sh
+	$(MAKE) all
+
+# ===========================
+# Dependencias básicas (comunes a todos)
+# ===========================
 install-deps:
 	@echo "🔧 Verificando dependencias..."
 	@command -v wkhtmltoimage >/dev/null 2>&1 || { \
@@ -45,11 +58,12 @@ install-deps:
 			sudo apt-get update && sudo apt-get install -y wkhtmltopdf; \
 		elif command -v yum >/dev/null 2>&1; then \
 			sudo yum install -y wkhtmltopdf; \
+		elif command -v dnf >/dev/null 2>&1; then \
+			sudo dnf install -y wkhtmltopdf; \
 		elif command -v brew >/dev/null 2>&1; then \
 			brew install wkhtmltopdf; \
 		else \
 			echo "❌ No se pudo instalar wkhtmltopdf automáticamente"; \
-			echo "   Por favor instálalo manualmente según tu sistema operativo"; \
 			exit 1; \
 		fi; \
 	}
@@ -57,11 +71,11 @@ install-deps:
 		echo "⚠️  mermaid-cli no está instalado (opcional para diagramas)"; \
 		echo "💡 Para instalar: npm install -g @mermaid-js/mermaid-cli"; \
 	}
-	sudo apt install fonts-ibm-plex
-	sudo apt install fonts-jetbrains-mono
-	@echo "✅ Dependencias verificadas"
+	@echo "✅ Dependencias comunes verificadas"
 
-# Generar archivo markdown combinado
+# ===========================
+# Generar archivo combinado
+# ===========================
 $(COMBINED_MD): $(METADATA) $(CAPITULOS)
 	@echo "🔄 Combinando archivos markdown..."
 	@echo "---" > $(COMBINED_MD)
@@ -80,40 +94,32 @@ $(COMBINED_MD): $(METADATA) $(CAPITULOS)
 	done
 	@echo "📄 Archivo combinado generado: $(COMBINED_MD)"
 
-# Renderizar diagramas Mermaid
+# ===========================
+# Renderizar diagramas
+# ===========================
 $(PNG_DIAGRAMS): %.png : %.mmd
 	@echo "🖼️  Exportando diagrama Mermaid: $< → $@"
 	@mkdir -p $(dir $@)
-	@command -v mmdc >/dev/null 2>&1 || { \
-		echo "❌ mermaid-cli no está instalado. Instalando..."; \
-		npm install -g @mermaid-js/mermaid-cli; \
-	}
-	mmdc -i $< -o $@ --backgroundColor white --theme neutral
+	npx mmdc -i $< -o $@ --backgroundColor white --theme neutral
 
-# Convertir tablas HTML a PNG
 $(PNG_TABLES): %.png : %.html
 	@echo "📊 Exportando tabla HTML: $< → $@"
 	@mkdir -p $(dir $@)
 	wkhtmltoimage --width 1200 --quality 100 $< $@
 
-# Target para generar todas las tablas
 tables: install-deps $(PNG_TABLES)
 	@echo "✅ Todas las tablas HTML convertidas a PNG"
 
-# Generar PDF versión digital (pantalla)
+# ===========================
+# Generar PDF
+# ===========================
 $(OUTPUT_DIR)/$(BOOK_NAME).pdf: $(COMBINED_MD) $(ALL_PNG) $(TEMPLATE)
 	@echo "📚 Generando PDF (versión digital)..."
 	@mkdir -p $(OUTPUT_DIR)
-	@echo "🔧 Verificando template..."
-	@if [ ! -f "$(TEMPLATE)" ]; then \
-		echo "❌ Template no encontrado: $(TEMPLATE)"; \
-		exit 1; \
-	fi
-	@echo "🔧 Ejecutando pandoc..."
 	pandoc $(COMBINED_MD) \
 		-o $(OUTPUT_DIR)/$(BOOK_NAME).pdf \
 		--from markdown \
-		--template templates/eisvogel.latex \
+		--template $(TEMPLATE) \
 		--pdf-engine=xelatex \
 		--pdf-engine-opt=-shell-escape \
 		--top-level-division="chapter" \
@@ -125,42 +131,22 @@ $(OUTPUT_DIR)/$(BOOK_NAME).pdf: $(COMBINED_MD) $(ALL_PNG) $(TEMPLATE)
 	@echo "✅ PDF digital generado: $(OUTPUT_DIR)/$(BOOK_NAME).pdf"
 	@ls -lh $(OUTPUT_DIR)/$(BOOK_NAME).pdf
 
-
-# Para debugging
+# ===========================
+# Utilidades
+# ===========================
 debug: $(COMBINED_MD)
 	@echo "🔍 Información de debugging:"
-	@echo "📄 Archivo temporal generado: $(COMBINED_MD)"
 	@wc -l $(COMBINED_MD)
-	@echo "📊 Diagrams encontrados: $(DIAGRAMS)"
-	@echo "📊 Tablas encontradas: $(TABLES)"
-	@echo "📊 PNGs de diagramas: $(PNG_DIAGRAMS)"
-	@echo "📊 PNGs de tablas: $(PNG_TABLES)"
-	@echo "📊 Primeras 20 líneas del archivo combinado:"
-	@head -20 $(COMBINED_MD)
-	@echo "📊 Últimas 10 líneas del archivo combinado:"
-	@tail -10 $(COMBINED_MD)
+	@echo "📊 Diagrams: $(DIAGRAMS)"
+	@echo "📊 Tablas: $(TABLES)"
 
-# Limpiar archivos temporales
 clean:
 	rm -f $(COMBINED_MD)
 	rm -f pandoc.log
 	rm -rf $(OUTPUT_DIR)
-	rm -f test.*
-	rm -f $(PNG_DIAGRAMS)
-	rm -f $(PNG_TABLES)
+	rm -f $(PNG_DIAGRAMS) $(PNG_TABLES)
 	@echo "🧹 Archivos temporales eliminados"
 
-# Mostrar estructura del proyecto
 structure:
 	@echo "📂 Estructura actual del proyecto:"
 	@find . -name "*.md" -o -name "*.yaml" -o -name "*.latex" -o -name "*.jpeg" -o -name "*.jpg" -o -name "*.png" -o -name "*.mmd" -o -name "*.html" | sort
-	@echo ""
-	@echo "📊 Estadísticas:"
-	@echo "   • Capítulos: $(words $(CAPITULOS))"
-	@echo "   • Diagramas Mermaid: $(words $(DIAGRAMS))"
-	@echo "   • Tablas HTML: $(words $(TABLES))"
-
-# Llamamos al setup antes de compilar
-setup: install-deps
-	@chmod +x ./scripts/setup.sh
-	./scripts/setup.sh
