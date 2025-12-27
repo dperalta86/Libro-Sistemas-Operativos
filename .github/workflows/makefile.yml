@@ -29,6 +29,7 @@ jobs:
             fonts-dejavu \
             fonts-liberation \
             fonts-noto \
+            fonts-jetbrains-mono \
             librsvg2-bin
 
       - name: Install Mermaid CLI
