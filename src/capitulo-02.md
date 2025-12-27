@@ -1,945 +1,922 @@
-# Procesos  
+# Introducción y Arquitectura de Computadores
 
-## Objetivos de Aprendizaje  
+## Objetivos de Aprendizaje
 
-Al finalizar este capítulo, el estudiante debe ser capaz de:
+Al finalizar este capítulo, el estudiante será capaz de:
 
-- Definir qué es un proceso y diferenciarlo de un programa
-- Explicar las diferencias entre monoprogramación, multiprocesamiento, multiprogramación y multitarea
-- Describir las estructuras de control del SO para gestionar procesos
-- Analizar la imagen de un proceso y la estructura del PCB
-- Interpretar los diagramas de estados (3, 5 y 7 estados) y sus transiciones
-- Identificar el rol del dispatcher y los diferentes planificadores
-- Implementar operaciones básicas con procesos usando syscalls de Unix/Linux
-- Resolver ejercicios sobre creación, comunicación y terminación de procesos
-- Manejar correctamente procesos zombie y huérfanos  
+- **Identificar** los componentes principales de la arquitectura de von Neumann y su relación con el sistema operativo
+- **Explicar** la diferencia entre modo kernel y modo usuario, y por qué es fundamental para el SO
+- **Describir** el proceso de arranque (boot) y cómo se carga el sistema operativo
+- **Analizar** los mecanismos de interrupciones y llamadas al sistema (syscalls)
+- **Relacionar** la arquitectura del hardware con las funciones básicas del sistema operativo
 
-## Introducción y Contexto  
+## Introducción y Contexto
 
-### ¿Por qué existen los procesos?  
+### ¿Por qué necesitamos entender la arquitectura?
 
-Imaginen una computadora de los años 1950: un solo programa ejecutándose, ocupando toda la memoria y el procesador hasta terminar. Si querían ejecutar otro programa, debían esperar. Si el programa se colgaba, reiniciaban toda la máquina.
+Imaginá que querés entender cómo funciona un auto. Podrías aprender a manejarlo sin saber nada del motor, pero si quieres ser mecánico, necesitas entender pistones, válvulas, y transmisión. 
 
-Los **procesos** nacieron como la solución a un problema fundamental: **¿Cómo hacer que múltiples programas compartan eficientemente los recursos de una sola computadora?**
+Con los sistemas operativos pasa lo mismo. Puedes usar una computadora sin entender qué hay "debajo del capó", pero **para diseñar, optimizar o debuggear un SO, necesitas entender el hardware que administra**.
 
-Un proceso es mucho más que un programa ejecutándose. Es una **abstracción** que el SO crea para:
+### Los problemas que resuelve esta arquitectura
 
-1. **Aislar programas**: Un proceso no puede corromper la memoria de otro
-2. **Compartir recursos**: CPU, memoria, archivos de manera controlada
-3. **Facilitar la concurrencia**: Múltiples tareas "simultáneas"
-4. **Permitir comunicación**: Entre programas de manera segura
+**Problema 1: ¿Cómo puede software controlar hardware?**
+- El procesador solo entiende instrucciones binarias
+- Los dispositivos tienen interfaces completamente diferentes
+- Se necesita un "traductor" entre programas y circuitos
+
+**Problema 2: ¿Cómo proteger el sistema de programas maliciosos?**
+- Un programa bugueado podría crashear toda la máquina
+- Múltiples programas compiten por los mismos recursos
+- Se necesitan "niveles de privilegio" y protección
+
+**Problema 3: ¿Cómo manejar eventos impredecibles?**
+- El usuario presiona una tecla en cualquier momento
+- Llegan datos por la red de forma asincrónica
+- Se necesita un mecanismo para "interrumpir" la ejecución normal  
 
 ## Conceptos Fundamentales
 
-### Programa vs Proceso: La Diferencia Esencial  
+### Arquitectura de von Neumann
 
-**Programa (Entidad Estática):** Archivo ejecutable almacenado en disco. Código fuente compilado en instrucciones de máquina y secuencia pasiva de instrucciones. No consume recursos del sistema hasta ejecutarse.  
-- Ejemplo: `/bin/ls`, `notepad.exe`
+La arquitectura básica de casi todas las computadoras modernas:
 
-**Proceso (Entidad Dinámica):** Instancia de un programa en ejecución, incluye código + datos + contexto de ejecución. Entidad activa que puede realizar acciones y consume memoria, CPU, archivos, etc.  
-- Ejemplo: El programa `ls` ejecutándose como PID 1234
+**Componentes principales:**
+- **CPU (Unidad Central de Procesamiento)**
+  - Unidad de Control (CU): decodifica y ejecuta instrucciones
+  - Unidad Aritmético-Lógica (ALU): realiza operaciones matemáticas
+  - Registros: almacenamiento ultrarrápido dentro del procesador
+
+- **Memoria Principal (RAM)**
+  - Almacena programas y datos temporalmente
+  - Acceso directo y aleatorio
+  - Volátil (se pierde al apagar)
+
+- **Almacenamiento Secundario**
+  - Discos duros, SSD, etc.
+  - Persistente pero más lento
+  - Mayor capacidad
+
+- **Dispositivos de E/S**
+  - Teclado, mouse, pantalla, red, etc.
+  - Interfaces para interactuar con el mundo exterior
+
+![Diagrama de un Computador](src/images/capitulo-01/01.png){ width=350 height=265 style="display: block; margin: auto;" }  
+
+### Buses de Comunicación
+
+Los **buses** son las "autopistas" que conectan los componentes del sistema. Sin ellos, CPU, memoria y dispositivos estarían aislados.
+
+**Tipos de Buses:**
+
+1. **Bus de Datos**
+   - Transporta la información real (instrucciones, datos)
+   - Ancho determina cantidad de bits transferidos simultáneamente
+   - Ejemplo: bus de 64 bits puede transferir 8 bytes por ciclo
+
+2. **Bus de Direcciones**
+   - Especifica la ubicación de memoria a acceder
+   - Ancho determina máximo espacio de direcciones
+   - Ejemplo: 32 bits = 4GB máximo, 64 bits = 16 exabytes
+
+3. **Bus de Control**
+   - Coordina las operaciones (lectura, escritura, interrupciones)
+   - Señales como: READ, WRITE, IRQ, RESET
+   - Sincroniza transferencias entre componentes
 
 
-### Evolución de los Sistemas de Procesamiento
+### Registros del Procesador
 
-**Monoprogramación:**  
-- **Un solo programa** ejecutándose a la vez  
-- CPU idle durante operaciones de I/O  
-- **Utilización de CPU muy baja** (5-10%)  
-- Sistemas batch simples de los años 1950  
+Los registros son la memoria más rápida y cara del sistema. Están físicamente dentro de la CPU.
+
+**Registros Visibles al Usuario (Modo Usuario):**
+
+- **Registros de Propósito General**
+  - EAX, EBX, ECX, EDX (x86-32)
+  - RAX, RBX, RCX, RDX, etc. (x86-64)
+  - Usados para cálculos y almacenamiento temporal
+
+- **Registros de Índice**
+  - ESI (Source Index), EDI (Destination Index)
+  - Útiles para operaciones con strings y arrays
+
+- **Registro Puntero de Stack (ESP/RSP)**
+  - Apunta al tope del stack actual
+  - Crítico para manejo de funciones y variables locales
+
+- **Registro Base del Stack (EBP/RBP)**
+  - Frame pointer para acceso a parámetros y variables locales
+
+**Registros Privilegiados (Solo Modo Kernel):**
+
+- **Registro de Control (CR0, CR2, CR3, CR4)**
+  - CR0: Control de características del procesador
+  - CR2: Dirección que causó page fault
+  - CR3: Directorio de páginas actual (MMU)
+
+- **Registros de Segmento en Modo Kernel**
+  - CS (Code Segment), DS (Data Segment), SS (Stack Segment)
+  - Críticos para protección de memoria
+
+### Program Status Word (PSW)
+
+El **PSW** (también llamado FLAGS register) contiene información sobre el estado actual del procesador:
+
+**Flags de Condición:**  
+- **Zero Flag (ZF)**: Se activa si el resultado de una operación es cero  
+- **Carry Flag (CF)**: Indica acarreo en operaciones aritméticas  
+- **Sign Flag (SF)**: Indica si el resultado es negativo  
+- **Overflow Flag (OF)**: Desbordamiento en aritmética con signo  
+
+**Flags de Control:**  
+- **Interrupt Enable Flag (IF)**: Habilita/deshabilita interrupciones enmascarables  
+- **Direction Flag (DF)**: Dirección para operaciones de string  
+- **Trap Flag (TF)**: Modo single-step para debugging  
+
+**Flags de Sistema:**  
+- **I/O Privilege Level (IOPL)**: Nivel de privilegio para operaciones de E/S  
+- **Nested Task Flag (NT)**: Indica tarea anidada  
+- **Resume Flag (RF)**: Control de debugging  
 
 \begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-02/sequential.png}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap01-psw_register.png}
 \end{center}
 
-
-**Multiprocesamiento (Multiprocessing):**
-- **Múltiples CPUs** físicos en una máquina  
-- Verdadero paralelismo hardware  
-- Cada CPU puede ejecutar un proceso diferente  
-- Sistemas SMP (Symmetric Multiprocessing)  
-
-**Multiprogramación (Multiprogramming):**  
-- **Múltiples programas cargados** en memoria simultáneamente  
-- **Una sola CPU** alterna entre ellos  
-- Cuando un proceso hace I/O, otro usa la CPU  
-- **Objetivo**: Maximizar utilización de CPU  
-
-\begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-02/pipelined.png}
-\end{center}
-
-**Multitarea (Multitasking):**  
-- **Extensión de multiprogramación** con time-sharing  
-- **Preemptive scheduling**: SO puede interrumpir procesos  
-- **Time slices**: Cada proceso recibe quantum de CPU  
-- **Interactividad**: Respuesta rápida al usuario  
-
-### Grado de Multiprogramación
-
-**Definición**: Número de procesos que residen simultáneamente en memoria principal.
-
-**Factores que lo limitan:**  
-- **Memoria disponible**: Más procesos → menos memoria por proceso  
-- **Recursos del sistema**: File descriptors, sockets, etc.  
-- **Overhead del SO**: PCBs, tablas de páginas, context switching  
-
-
-### Estructuras de Control del Sistema Operativo
-
-El SO mantiene varias tablas para gestionar todos los recursos:  
-
-**Tabla de Procesos:**
-- **Entry point** hacia todas las demás tablas  
-- **Un PCB por cada proceso** en el sistema  
-- **Referencias cruzadas** a memoria, I/O, archivos del proceso  
-- **Información de estado y control** del proceso  
-
-\begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-processTable.png}
-\end{center}
-
-**Tabla de Memoria:**
-- **Asignación de memoria** a cada proceso  
-- **Memoria libre** disponible  
-- **Atributos de protección** (read, write, execute)  
-- **Información de memoria virtual** (páginas, segmentos)  
-
-\begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-memoryTable.png}
-\end{center}
-
-**Tabla de I/O:**
-- **Estado de dispositivos** (libre, ocupado, error)  
-- **Colas de operaciones** pendientes por dispositivo  
-- **Buffers** asociados a cada operación  
-- **Controladores** de dispositivos activos  
-
-\begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-ioTable.png}
-\end{center}
-
-**Tabla de Archivos:**
-- **Archivos abiertos** en el sistema  
-- **Ubicación** de archivos en almacenamiento  
-- **Estado de acceso** (lectura, escritura, compartido)  
-- **Locks** y permisos por archivo  
-
-\begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-fileTable.png}
-\end{center}
-
-
-### Imagen de un Proceso
-
-La **imagen del proceso** es la representación completa de un proceso en memoria:
-
-**Segmentos de la Imagen:**
+### Ciclo de Instrucción
 
 \begin{center}
 \begin{minipage}{0.55\linewidth}
-\textbf{Text Segment (Código):} \\
-Instrucciones ejecutables del programa → Read-only, compartible entre procesos del mismo programa → Cargado desde el archivo ejecutable. \\[2mm]
-
-\textbf{Data Segment:} \\
-\textbf{Initialized Data}: Variables globales con valor inicial → \textbf{BSS (Block Started by Symbol)}: Variables globales no inicializadas → Read-write, específico por proceso. \\[2mm]
-
-\textbf{Heap:} \\
-Memoria dinámica (malloc, new) → Crece hacia direcciones altas → Gestionado por el proceso. \\[2mm]
-
-\textbf{Stack:} \\
-Variables locales, parámetros de funciones → Return addresses, frame pointers → Crece hacia direcciones bajas.
+    \includegraphics[width=0.8\linewidth,keepaspectratio]{src/diagrams/cap01-cicloInstruccion.png}
 \end{minipage}%
 \hspace{0.05\linewidth}%
 \begin{minipage}{0.35\linewidth}
-    \includegraphics[width=\linewidth,keepaspectratio]{src/images/capitulo-02/layout-memoria.jpg}
+\textbf{Fase 1: FETCH} \\
+PC apunta a próxima instrucción → se carga en IR → PC se incrementa automáticamente. \\[2mm]
+
+\textbf{Fase 2: DECODE} \\
+Unidad de Control interpreta la instrucción → determina operación y operandos → prepara rutas de datos. \\[2mm]
+
+\textbf{Fase 3: OPERAND FETCH} \\
+Si la instrucción requiere datos: dirección en bus → dato desde memoria → carga en registro temporal/ALU. \\[2mm]
+
+\textbf{Fase 4: EXECUTE} \\
+ALU ejecuta la operación → actualización de registros y flags → resultados a memoria si aplica. \\[2mm]
+
+\textbf{Fase 5: WRITE BACK} \\
+Resultados transferidos a registro destino → PSW actualizado → CPU lista para nuevo ciclo. \\[2mm]
+
+\textbf{Fase 0: CHECK INTERRUPT} \\
+Se verifica interrupción → si hay ISR: guarda contexto, salta a rutina de servicio → al terminar, retorno al ciclo normal.
 \end{minipage}
 \end{center}
 
-\newpage
-### Process Control Block (PCB)  
+## Sistema de Interrupciones
 
->
-> El PCB es la **estructura de datos más importante** para el manejo de procesos.
->
+Las interrupciones son el mecanismo fundamental que permite al SO mantener control sobre el hardware y gestionar múltiples tareas de manera eficiente.
 
-```c
-struct process_control_block {
-    // Identificación del proceso
-    pid_t pid;                    // Process ID único
-    pid_t ppid;                   // Parent Process ID
-    uid_t uid;                    // User ID del propietario
-    gid_t gid;                    // Group ID
-    
-    // Estado del proceso
-    int state;                    // NEW, READY, RUNNING, etc.
-    int priority;                 // Prioridad de scheduling
-    
-    // Contexto del procesador
-    struct cpu_context {
-        unsigned long regs[16];   // Registros de propósito general
-        unsigned long pc;         // Program Counter
-        unsigned long sp;         // Stack Pointer
-        unsigned long psw;        // Program Status Word
-    } context;
-    
-    // Información de memoria
-    struct memory_map {
-        unsigned long code_start, code_end;
-        unsigned long data_start, data_end;
-        unsigned long heap_start, heap_end;
-        unsigned long stack_start, stack_end;
-        struct page_table *pgd;   // Page Global Directory
-    } mm;
-    
-    // Información de archivos
-    struct files_struct {
-        int max_fds;              // Máximo file descriptors
-        struct file **fd_array;   // Array de archivos abiertos
-    } files;
-    
-    // Manejo de señales
-    struct signal_struct {
-        unsigned long pending;    // Señales pendientes
-        struct sigaction actions[32]; // Handlers por señal
-    } signals;
-    
-    // Información de scheduling
-    int time_slice;               // Quantum restante
-    unsigned long cpu_time_used;  // Tiempo de CPU acumulado
-    
-    // Enlaces en listas del SO
-    struct list_head run_list;    // Lista de procesos READY
-    struct list_head children;    // Lista de procesos hijos
-    struct pcb *parent;           // Puntero al proceso padre
-};
-```
+\begin{definitionbox}
+\emph{Definición:}  
 
-**Funciones del PCB:**  
-- **Context Switching**: Guardar/restaurar estado completo  
-- **Scheduling**: Información para decidir próximo proceso  
-- **Seguridad**: Permisos y propietario del proceso  
-- **Resource Management**: Qué recursos usa el proceso  
 
-### Diagramas de Estado de Procesos
+Mecanismo hardware que permite detener temporalmente la ejecución normal del procesador para atender un evento urgente.
+\end{definitionbox}
 
-**Diagrama de 5 Estados (Modelo Básico):**  
+**Tipos de Interrupciones:**
+
+1. **Interrupciones de Hardware:**
+   - Generadas por dispositivos externos
+   - Ejemplos: teclado, timer, red
+   - Asincrónicas (impredecibles)
+
+2. **Interrupciones de Software:**
+   - Generadas por instrucciones del programa
+   - Ejemplos: syscalls, excepciones
+   - Sincrónicas (predecibles)
+
+3. **Excepciones:**
+   - Errores durante la ejecución
+   - Ejemplos: división por cero, acceso a memoria inválida
 
 \begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap02-cincoEstadosProcesos.png}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-01/bloque-interrupciones.png}
 \end{center}
 
+### Interrupciones Enmascarables (Maskable Interrupts)  
 
-**Estados:**
-- **NEW**: Proceso creado pero no admitido al pool de ejecutables  
-- **READY**: Listo para ejecutar, esperando asignación de CPU  
-- **RUNNING**: Ejecutándose actualmente en el CPU  
-- **BLOCKED**: Esperando un evento (I/O, señal, recurso)  
-- **EXIT**: Proceso terminado, liberando recursos  
+Pueden ser temporalmente deshabilitadas por software mediante el control del bit IF (Interrupt Flag) en el registro de estado del procesador (PSW/EFLAGS).
 
-**Transiciones:**
-1. **Admit**: NEW → READY (SO admite el proceso)  
-2. **Dispatch**: READY → RUNNING (scheduler asigna CPU)  
-3. **Preempt**: RUNNING → READY (quantum agotado/mayor prioridad)  
-4. **Block**: RUNNING → BLOCKED (syscall bloqueante)  
-5. **Wakeup**: BLOCKED → READY (evento completado)  
-6. **Exit**: RUNNING → EXIT (proceso termina)  
 
-**El Dispatcher:**
-Componente del SO que ejecuta el **context switch**:
+**Control**: 
+- **CLI** (Clear Interrupt Flag): Deshabilita interrupciones  
+- **STI** (Set Interrupt Flag): Habilita interrupciones  
+
+**Ejemplos**:  
+- Timer del sistema (IRQ0 - genera multitasking preemptivo)  
+- Teclado (IRQ1) y mouse (IRQ12)  
+- Tarjeta de red (IRQ variable)  
+- Controladores de disco (IRQ14, IRQ15)  
+- Puertos serie (IRQ3, IRQ4)  
 
 ```c
-void dispatcher() {
-    while (sistema_activo) {
-        proceso_actual = scheduler();  // Seleccionar próximo proceso
-        context_switch(proceso_anterior, proceso_actual);
-        // Al retornar aquí, proceso_actual ha ejecutado
+// Pseudocódigo de sección crítica
+cli();              // Deshabilitar interrupciones
+// ... código crítico que no debe ser interrumpido ...
+// Ejemplo: manipulación de estructuras del kernel
+update_process_table();
+modify_memory_mapping();
+sti();              // Rehabilitar interrupciones
+```
+
+### Interrupciones No Enmascarables (NMI - Non-Maskable Interrupts)
+
+NO pueden ser deshabilitadas por software, tienen prioridad absoluta y se ejecutan inmediatamente.
+
+**Propósito**: Eventos críticos que requieren atención inmediata del sistema.
+
+**Ejemplos**:
+- Errores de paridad en memoria RAM
+- Fallas críticas de hardware (sobrecalentamiento)
+- Watchdog timer (detecta sistema colgado)
+- Errores del bus del sistema
+- Fallos de alimentación inminentes
+
+**Prioridad**: Máxima - pueden interrumpir incluso al kernel en secciones críticas.
+
+## Jerarquía de Prioridades
+
+```
+NMI (Prioridad 0 - más alta)
+  ↓
+Interrupciones de Hardware IRQ0-IRQ15 (Prioridad por IRQ)
+  ↓
+Excepciones del Procesador (Divide by zero, Page Fault)
+  ↓
+Interrupciones de Software (INT 0x80, syscalls)
+  ↓
+Trampas y Breakpoints (más baja)
+```
+
+## IRQ (Interrupt Request Lines)
+
+### Controlador PIC (Programmable Interrupt Controller)
+
+**PIC Primario (IRQ0-7)**:
+```
+IRQ 0  → Timer del sistema (8253/8254)
+IRQ 1  → Teclado PS/2
+IRQ 2  → Cascade a PIC secundario
+IRQ 3  → Puerto serie COM2/COM4
+IRQ 4  → Puerto serie COM1/COM3
+IRQ 5  → Tarjeta de sonido/LPT2
+IRQ 6  → Controlador de disquete
+IRQ 7  → Puerto paralelo LPT1
+```
+
+**PIC Secundario (IRQ8-15)** - conectado via IRQ2:
+```
+IRQ 8  → Reloj de tiempo real (CMOS)
+IRQ 9  → Redireccionado desde IRQ2
+IRQ 10 → Libre (tarjetas de red)
+IRQ 11 → Libre (USB, tarjetas PCI)
+IRQ 12 → Mouse PS/2
+IRQ 13 → Coprocesador matemático
+IRQ 14 → Controlador IDE primario
+IRQ 15 → Controlador IDE secundario
+```
+
+## Interrupt Handlers (Manejadores de Interrupción)
+
+### Estructura de un Handler
+
+```c
+// Prototipo genérico de handler
+void interrupt_handler(int irq_number, struct pt_regs *regs) {
+    // 1. Guardar contexto (automático en entrada)
+    // 2. Identificar fuente de interrupción
+    // 3. Ejecutar lógica específica
+    // 4. Enviar EOI (End of Interrupt)
+    // 5. Restaurar contexto (automático en salida)
+}
+
+// Ejemplo: Handler del timer del sistema
+void timer_interrupt_handler(int irq, struct pt_regs *regs) {
+    // Incrementar jiffies (contador global de tiempo)
+    jiffies++;
+    
+    // Actualizar estadísticas del proceso actual
+    current->utime++;
+    
+    // Verificar si el quantum del proceso expiró
+    if (--current->time_slice <= 0) {
+        current->need_resched = 1;  // Marcar para replanificación
     }
+    
+    // Ejecutar timers pendientes
+    run_timer_list();
+    
+    // EOI al controlador de interrupciones
+    send_eoi(IRQ_TIMER);
 }
 ```
 
-**Diagrama de 7 Estados (Con Swapping):**  
+### Interrupciones Anidadas
+
+**Concepto**: Capacidad de que una interrupción de mayor prioridad interrumpa el procesamiento de una de menor prioridad.
+
+```c
+// Ejemplo de manejo de interrupciones anidadas
+void high_priority_handler(int irq, struct pt_regs *regs) {
+    // Esta interrupción puede ser interrumpida por NMI
+    disable_interrupts();  // Opcional: crear sección crítica
+    
+    // Procesar evento crítico
+    handle_critical_event();
+    
+    enable_interrupts();   // Permitir interrupciones anidadas
+    
+    // Continuar con procesamiento menos crítico
+    handle_normal_processing();
+}
+```
+
+### Características de Interrupciones Anidadas
+
+**Ventajas**:
+- Mejor tiempo de respuesta para eventos críticos
+- Priorización automática de eventos
+- Maximiza el rendimiento del sistema
+
+**Desafíos**:
+- Complejidad en la gestión del stack
+- Posibles deadlocks si no se maneja correctamente
+- Overflow del stack en cascadas profundas
+
+```c
+// Control de profundidad de anidamiento
+#define MAX_NESTED_INTERRUPTS 8
+static int nested_count = 0;
+
+void generic_handler(int irq, struct pt_regs *regs) {
+    if (++nested_count > MAX_NESTED_INTERRUPTS) {
+        panic("Interrupt nesting overflow");
+    }
+    
+    // ... lógica del handler ...
+    
+    --nested_count;
+}
+```
+
+## Estados de Interrupciones
+
+### Disable/Enable a Nivel de Sistema
+
+```c
+// Macros comunes en kernels Unix
+#define local_irq_disable()     asm volatile("cli" ::: "memory")
+#define local_irq_enable()      asm volatile("sti" ::: "memory")
+
+// Con salvado y restauración de estado
+unsigned long flags;
+local_irq_save(flags);      // Guarda estado actual y deshabilita
+// ... sección crítica ...
+local_irq_restore(flags);   // Restaura estado previo
+```
+  
+  
+
+### Disable/Enable por IRQ Específico
+
+```c
+// Deshabilitar IRQ específico en PIC
+void disable_irq(int irq) {
+    uint16_t port;
+    uint8_t value;
+    
+    if (irq < 8) {
+        port = 0x21;    // PIC primario
+    } else {
+        port = 0xA1;    // PIC secundario
+        irq -= 8;
+    }
+    
+    value = inb(port) | (1 << irq);
+    outb(port, value);
+}
+```
+
+Este sistema de interrupciones es fundamental para:  
+- **Multitasking preemptivo**: Timer interrupts permiten cambios de contexto  
+- **Manejo de E/S**: Respuesta eficiente a dispositivos  
+- **Gestión de memoria**: Page faults y gestión de memoria virtual  
+- **Comunicación inter-procesos**: Señales y sincronización  
+- **Detección de errores**: Excepciones y fallos de hardware  
+
+### Modos de Operación del Procesador
+
+**Modo Kernel (Supervisor/Privilegiado):**
+- Acceso completo a todas las instrucciones del procesador
+- Puede modificar registros críticos del sistema
+- Puede acceder directamente a hardware
+- Solo el SO ejecuta en este modo
+
+**Modo Usuario (User Mode):**
+- Subconjunto restringido de instrucciones
+- No puede acceder directamente a hardware
+- No puede modificar configuraciones críticas
+- Aplicaciones ejecutan en este modo
+
+
+\textcolor{blue!50!black}{\textbf{¿Por qué es importante?}\\
+Esta separación es la base de la seguridad y estabilidad del sistema. Sin ella, cualquier programa podría crashear la máquina o acceder a datos privados. Más adelante se verá como se las arreglan las aplicaciones de usuario para realizar tareas "privilegiadas".
+}
+
+### Cambio de Procesos
+Cuándo por algún motivo existe un cambio de proceso en ejecución (los motivos se verán en detalle mas adelante), se realizan varias tareas que son "transparentes" para el usuario final.  
+
 \begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap02-sieteEstadosProcesos.png}
+\begin{minipage}{0.45\linewidth}
+\textbf{Cambio de procesos en sistemas Unix} \\
+Cuando el sistema operativo interrumpe la ejecución de un proceso y decide continuar con otro, se produce un cambio de contexto. Este mecanismo implica la intervención tanto del hardware como del software (kernel). \\[2mm]
+
+\textbf{Rol del Hardware:} \\
+El hardware se encarga de detectar la interrupción (timer, E/S o syscall), cambiar automáticamente a modo kernel y guardar información mínima como el contador de programa y los flags. Luego transfiere el control al vector de interrupción correspondiente. \\[2mm]
+
+\textbf{Rol del Software (Kernel):} \\
+A partir de allí, el software del kernel toma el control: guarda el estado completo del proceso en su PCB, actualiza las estructuras del planificador y contabiliza uso de CPU y señales pendientes. El scheduler selecciona el nuevo proceso a ejecutar y el kernel restaura su estado desde el PCB.
+\end{minipage}%
+\hspace{0.05\linewidth}%
+\begin{minipage}{0.45\linewidth}
+    \includegraphics[width=\linewidth,keepaspectratio]{src/diagrams/cap01-cambioDeProcesos.png}
+\end{minipage}
 \end{center}
 
+\vspace{3mm}
 
-**Estados Adicionales:**  
-- **READY/SUSPENDED**: Proceso listo pero swappeado a disco  
-- **BLOCKED/SUSPENDED**: Proceso bloqueado y swappeado  
+\begin{center}
+\begin{minipage}{\linewidth}
+\textbf{Finalización del Proceso:} \\
+Antes de retornar al usuario, se actualiza el espacio de direcciones (MMU/TLB) y se realiza el cambio de modo kernel → usuario. \\[2mm]
 
-**Razones para Swapping:**  
-- **Memoria insuficiente**: Hacer espacio para otros procesos  
-- **Proceso inactivo**: No ha ejecutado por mucho tiempo  
-- **Decisión del SO**: Balancear carga del sistema  
-
-
-**Tres Niveles de Planificación:**
-
-1. **Long-Term Scheduler (Job Scheduler/ Admission):**
-   - Controla **grado de multiprogramación**
-   - Decide qué procesos **admitir** desde NEW
-   - Ejecuta **cada varios segundos**
-   - Balance entre procesos **CPU-bound y I/O-bound**
-
-2. **Medium-Term Scheduler (Swapper):**
-   - Decide qué procesos **swap in/out**
-   - Gestiona **memoria virtual activa**
-   - Ejecuta **cada varios segundos**
-   - **Suspende procesos** que no usan CPU
-
-3. **Short-Term Scheduler (CPU Scheduler/ Dispatcher):**
-   - Decide **qué proceso ejecutar** de la ready queue
-   - Ejecuta **cada 10-100 ms** (muy frecuente)
-   - **Algoritmos**: FIFO, SJF, RR, Priority, etc.
+\textbf{Consideraciones de Performance:} \\
+Este procedimiento asegura la correcta continuidad de los procesos, pero introduce un overhead inevitable: acceso a memoria para guardar/restaurar registros, invalidación de TLB y caches, y lógica extra del planificador. Por este motivo, sistemas I/O-bound suelen generar más cambios de contexto que los CPU-bound, y su rendimiento depende en gran medida de la eficiencia del scheduler y de las optimizaciones del hardware.
+\end{minipage}
+\end{center}  
 
 
-## Análisis Técnico
+\begin{center}
+\begin{minipage}{0.52\linewidth}
+\textbf{Fases del Context Switch en Sistemas Unix (detalle)} \\[2mm]
 
-### Creación de Procesos en Unix/Linux
-
-En Unix, los procesos se crean mediante la syscall `fork()`: **Características de fork():**  
-- Crea una **copia exacta** del proceso padre  
-- Ambos procesos continúan desde el punto del fork()  
-- **Valor de retorno diferente** permite distinguirlos  
-- **Copy-on-Write**: Optimización que copia páginas solo cuando se modifican  
-
-**Algoritmo simplificado de fork():**
-```
-1. Asignar nuevo PID al proceso hijo
-2. Copiar PCB del padre al hijo
-3. Copiar espacio de direcciones (CoW)
-4. Agregar hijo a la tabla de procesos
-5. Retornar:
-   - En el padre: PID del hijo (> 0)
-   - En el hijo: 0
-   - Error: -1
-```
-
-### Carga de Programas: exec()
-
-La familia `exec()` **reemplaza** la imagen del proceso actual:
-
-**Pasos de exec():**
-1. Verificar permisos del archivo ejecutable
-2. Leer headers (ELF en Linux)
-3. Liberar memoria anterior del proceso
-4. Cargar nuevos segmentos (text, data)
-5. Inicializar stack con argumentos
-6. Transferir control al punto de entrada
-
-**Importante**: `exec()` NO crea nuevo proceso, transforma el actual.
-
-### Terminación de Procesos
-
-**Terminación normal:**
-- `exit(status)`: Termina proceso con código de salida
-- `return` en main(): Equivale a `exit(return_value)`
-
-**Terminación anormal:**
-- Señales: SIGKILL, SIGSEGV, etc.
-- Abort: `abort()` envía SIGABRT
-
-**Estados post-mortem:**  
-- **Zombie**: Proceso terminado pero PCB mantenido hasta que padre lea exit status  
-- **Orphan (huérfano)**: Proceso cuyo padre murió (adoptado por init)  
-
-### Procesos Zombies y Huérfanos
-
-**Proceso Zombie:**  
-- **Definición**: Proceso que terminó pero su PCB permanece en el sistema  
-- **Causa**: Proceso padre no ha llamado `wait()` para leer el exit status  
-- **Estado**: "defunct" o "zombie" en `ps`  
-- **Problema**: Consumen entradas en la tabla de procesos  
-- **Solución**: Padre debe hacer `wait()` o configurar handler para SIGCHLD, ejecutar 'kill' no causa efecto  
-
-**Ejemplo de Zombie:**
-```c
-if (fork() == 0) {
-    // Hijo termina rápidamente
-    exit(42);
+\textcolor{blue!50!black}{\textbf{Fase Inicial - Ejecución Normal:}\\
+\textbf{0.} P₀ ejecuta en modo usuario → Estado normal usando su espacio de direcciones y time slice vigente.\\[2mm]
 }
-// Padre NO hace wait() y continúa ejecutando
-sleep(60);  // Hijo queda zombie por 1 minuto
-```
 
-**Proceso Huérfano:**  
-- **Definición**: Proceso cuyo padre murió antes que él  
-- **Adopción**: Automáticamente adoptado por el proceso `init` (PID 1)  
-- **Comportamiento**: Continúa ejecutándose normalmente  
-- **Cleanup**: `init` hace `wait()` automáticamente cuando terminan  
-
-**Ejemplo de Huérfano:**
-```c
-if (fork() == 0) {
-    // Hijo duerme por mucho tiempo
-    sleep(300);  
-    exit(0);
+\textcolor{orange!70!black}{\textbf{Detección del Evento [Hardware]:}\\
+\textbf{1.} Se dispara evento → Timer interrupt, IRQ de E/S o trap por syscall/exception\\
+\textbf{2.} Cambio automático a modo kernel → CPU guarda PC y PSW/EFLAGS, cambia a stack de kernel\\
+\textbf{3.} Búsqueda en vector/IDT → Hardware obtiene dirección del handler apropiado\\[2mm]
 }
-// Padre termina inmediatamente
-exit(0);
-// Hijo queda huérfano, adoptado por init
+
+\textcolor{violet!60!black}{\textbf{Guardar Estado [Software]:}\\
+\textbf{4.} Prólogo del handler → Kernel salva registros volátiles, arma frame de interrupción\\
+\textbf{5.} Decisión de reschedule → Marca need\_resched según tipo de evento\\
+\textbf{6.} Guardar contexto de P₀ → Registros GPR, SP, FP, TLS; FPU/SIMD en forma lazy\\
+\textbf{7.} Contabilidad y señales → Actualiza uso de CPU, entrega señales pendientes\\[2mm]
+}
+
+\textcolor{teal!60!black}{\textbf{Selección y Carga [Software]:}\\
+\textbf{8.} Actualizar colas y estado → Mueve P₀ de running → ready/blocked; ajusta prioridad\\
+\textbf{9.} Scheduler elige P₁ → Aplica política de planificación (CFS, prioridades, afinidad CPU)\\
+\textbf{10.} Preparar espacio de P₁ → Carga CR3/tablas de páginas; puede requerir TLB flush\\
+\textbf{11.} Recargar contexto de P₁ → Restaura registros, SP, FP, TLS, stack de usuario\\[2mm]
+}
+\end{minipage}%
+\hspace{0.04\linewidth}%
+\begin{minipage}{0.42\linewidth}
+    \includegraphics[width=\linewidth,keepaspectratio]{src/diagrams/cap01-cambioDeProcesosCompleto.jpeg}
+\end{minipage}
+\end{center}
+
+\vspace{2mm}
+
+\textcolor{green!40!black}{\textbf{\\Retorno a Ejecución [Hardware]:}\\
+\textbf{12.} Epílogo y retorno → Prepara iret/sysret, re-habilita interrupciones\\
+\textbf{13.} Kernel → modo usuario → CPU restaura PSW/EFLAGS y PC, salta a P₁\\
+\textbf{14.} P₁ ejecuta en modo usuario → Continúa hasta el próximo evento\\[2mm]
+}
+
+\textcolor{red!60!gray}{\textbf{Overhead inevitable:}\\
+Acceso a memoria para guardar/restaurar registros → Invalidación de TLB y caches → Lógica extra del planificador → Sistemas I/O-bound generan más context switches que CPU-bound.\\
+}
+
+
+### Introducción a los Sistemas Operativos
+
+Ahora que entendemos el hardware, podemos definir qué es realmente un sistema operativo.
+  
+\begin{definitionbox}
+\emph{Definición:}  
+
+
+Un Sistema Operativo es un conjunto de rutinas y procedimientos manuales y automáticos que permiten la operatoria en un sistema de computación, es un \textbf{programa de control.}
+\end{definitionbox}  
+
+
+Sus principales tareas son:  
+1. **IPL** Se encarga de lanzar el Init Program Loader  
+2. **Gestiona los recursos** del hardware de manera eficiente  
+3. **Proporciona servicios** a los programas de aplicación  
+4. **Actúa como intermediario** entre usuarios y hardware (gestión de usuarios)  
+5. **Mantiene la seguridad e integridad** del sistema  
+
+### Principales Tareas del Sistema Operativo
+
+**1. Gestión de Procesos**
+- Crear, planificar y terminar procesos
+- Proporcionar mecanismos de comunicación entre procesos
+- Manejar la sincronización y evitar deadlocks
+
+**2. Gestión de Memoria**
+- Asignar y liberar memoria a procesos
+- Implementar memoria virtual
+- Proteger espacios de memoria entre procesos
+
+**3. Gestión de Almacenamiento**
+- Organizar archivos en sistemas de archivos
+- Controlar acceso a dispositivos de almacenamiento
+- Implementar políticas de respaldo y recuperación
+
+**4. Gestión de E/S**
+- Controlar todos los dispositivos del sistema
+- Proporcionar interfaz uniforme para acceso a dispositivos
+- Buffering, caching y spooling
+
+**5. Seguridad y Protección**
+- Autenticación de usuarios
+- Control de acceso a recursos
+- Protección entre procesos y del sistema
+
+**6. Interfaz de Usuario**
+- Command Line Interface (CLI)
+- Graphical User Interface (GUI)
+- APIs para programadores
+
+### System Calls (Llamadas al Sistema)
+
+\begin{definitionbox}
+\emph{Definición:}  
+
+
+Las System Calls son un mecanismo mediante el cual los programas solicitan servicios al SO (acceso a hardware, creación de procesos, etc.)
+\end{definitionbox}
+
+**¿Por qué existen?**  
+- **Protección**: Impiden acceso directo no controlado al hardware  
+- **Abstracción**: Proporcionan interfaz uniforme independiente del hardware específico  
+- **Eficiencia**: Centralizan funciones comunes del sistema  
+- **Portabilidad**: La misma API funciona en diferentes hardware  
+
+**Mecanismo Tradicional:**
 ```
+1. Programa prepara parámetros
+2. Ejecuta instrucción INT (interrupt)
+3. CPU cambia a modo kernel
+4. Kernel identifica syscall solicitada
+5. Kernel ejecuta función correspondiente
+6. Kernel retorna resultado
+7. CPU vuelve a modo usuario
+```
+
+**Ejemplo en Linux (x86):**
+```assembly
+mov eax, 4          ; syscall number para sys_write
+mov ebx, 1          ; file descriptor (stdout)
+mov ecx, msg        ; puntero al mensaje
+mov edx, len        ; longitud del mensaje
+int 0x80            ; interrupción de software
+```
+
+### Fast System Calls
+
+**Problema con syscalls tradicionales:**
+Las interrupciones de software (INT) son relativamente lentas porque:
+- Deben guardar todo el contexto del procesador
+- Requieren consultar tabla de vectores de interrupción
+- Overhead de cambio de modo es considerable. *Overhead es es el conjunto de recursos (tiempo de CPU, memoria, etc.) que el sistema operativo utiliza realizando tareas que no son propias de los procesos.*
+
+**Solución: Fast System Calls**
+
+**SYSENTER/SYSEXIT (Intel):**
+```assembly
+; Preparar registros específicos
+mov eax, syscall_number
+mov edx, return_address
+mov ecx, user_stack
+sysenter            ; Entrada rápida al kernel
+; ... kernel ejecuta syscall ...
+sysexit             ; Retorno rápido a usuario
+```
+
+**SYSCALL/SYSRET (AMD/Intel x86-64):**
+```assembly
+mov rax, syscall_number
+mov rdi, arg1
+mov rsi, arg2
+syscall             ; Entrada directa al kernel
+; Resultado en RAX al retornar
+```
+
+**Ventajas de Fast Syscalls:**  
+- **50-70% más rápidas** que INT tradicional  
+- Menos overhead de cambio de contexto  
+- Registros específicos en lugar de stack  
+- Transición directa sin consultar vectores  
+
+**Uso en Linux Moderno:**  
+- **x86-32**: SYSENTER es el método preferido  
+- **x86-64**: SYSCALL es el estándar  
+- **ARM**: SVC (Supervisor Call) instruction  
+- Biblioteca glibc automáticamente elige el método más eficiente  
+
+### Arquitecturas de Kernel
+
+La organización interna del kernel afecta directamente el rendimiento, seguridad y mantenibilidad del SO.
+
+**Kernel Monolítico:**
+
+*Características:*  
+- **Todo el SO ejecuta en modo kernel**  
+- Drivers, filesystem, network stack en un solo espacio de direcciones  
+- Comunicación interna mediante llamadas a función directas  
+- Un solo binario grande del kernel  
+
+\textcolor{teal!60!black}{\textbf{Ventajas:}\\
+- Rendimiento superior: Sin overhead de comunicación entre componentes\\
+- Acceso directo: Todos los subsistemas pueden llamarse entre sí\\
+- Eficiencia: Menos cambios de contexto\\
+- Simplicidad de debugging: Todo está en un lugar\\
+}
+
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- Menor estabilidad: Un bug en cualquier driver puede crashear todo el sistema\\
+- Seguridad: Todo código tiene privilegios máximos\\
+- Tamaño: Kernel grande consume más memoria\\
+- Mantenimiento: Más difícil modificar sin afectar otros componentes\\
+}
+
+*Ejemplos:* Linux, Unix tradicional, Windows (parcialmente)
+
+**Microkernel:**
+
+*Características:*  
+- **Kernel mínimo** solo con funciones esenciales  
+- Drivers y servicios ejecutan como procesos separados en modo usuario  
+- Comunicación mediante paso de mensajes (IPC)  
+- Kernel solo maneja: scheduling, IPC, memoria básica  
+
+\textcolor{teal!60!black}{\textbf{Ventajas:}\\
+- Mayor estabilidad: Falla de driver no afecta al kernel\\
+- Seguridad mejorada: Servicios con privilegios mínimos necesarios\\
+- Modularidad: Fácil agregar/quitar componentes\\
+- Debugging: Aislamiento facilita encontrar problemas\\
+}
+
+\textcolor{red!60!gray}{\textbf{Desventajas:}\\
+- Rendimiento menor: Overhead de IPC entre componentes\\
+- Complejidad: Más difícil de diseñar y implementar\\
+- Latencia: Múltiples cambios de contexto para operaciones simples\\
+}
+
+*Ejemplos:* Minix, QNX, seL4, Hurd (GNU)
+
+**Comparación Práctica:**  
+
+![Comparacion distintos kernel](src/images/capitulo-01/02.png){ width=440px height=260px }  
+
+| Aspecto | Monolítico | Microkernel |
+|---------|------------|-------------|
+| Rendimiento | Excelente | Bueno |
+| Estabilidad | Regular | Excelente |
+| Seguridad | Regular | Excelente |
+| Simplicidad | Alta | Baja |
+| Tiempo de desarrollo | Menor | Mayor |
+
+**Enfoques Híbridos:**
+Muchos SO modernos combinan ambos enfoques:  
+- **Windows NT**: Microkernel modificado con algunos servicios en kernel  
+- **macOS**: Mach microkernel + BSD kernel monolítico  
+- **Linux**: Principalmente monolítico pero con módulos cargables  
+
+
+## Análisis Técnico (Leelo sólo por curiosidad...)
+
+### Proceso de Arranque (Bootstrap)
+
+**Secuencia de Arranque:**
+
+1. **Power-On Self Test (POST)**
+   - Verificación básica de hardware
+   - Ejecutado por firmware (BIOS/UEFI)
+
+2. **Carga del Bootloader**
+   - Programa pequeño que sabe cómo cargar el SO
+   - Ubicado en Master Boot Record (MBR) o partición EFI
+
+3. **Carga del Kernel**
+   - Bootloader lee el kernel del disco a memoria
+   - Transfiere control al kernel
+
+4. **Inicialización del Kernel**
+   - Detección e inicialización de hardware
+   - Configuración de estructuras de datos internas
+   - Arranque del primer proceso (init)
+
+### Manejo de Interrupciones
+
+**Vector de Interrupciones:**
+Tabla que mapea cada tipo de interrupción a su rutina de manejo correspondiente.
+
+**Proceso de Manejo:**  
+1. **Ocurre Interrupción** → Hardware detiene ejecución actual  
+2. **Guardar Contexto** → Estado actual se guarda en stack  
+3. **Identificar Tipo** → Consultar vector de interrupciones  
+4. **Ejecutar Handler** → Rutina específica en modo kernel  
+5. **Restaurar Contexto** → Volver al estado anterior  
+6. **Continuar Ejecución** → Resumir programa interrumpido  
+
+### Jerarquía de Memoria
+
+**Pirámide de Memoria (velocidad vs capacidad):**
+```
+Registros CPU (1 ciclo, bytes)
+    ↓
+Cache L1 (2-4 ciclos, KB)
+    ↓  
+Cache L2 (10-20 ciclos, MB)
+    ↓
+Memoria Principal RAM (100-300 ciclos, GB)
+    ↓
+Almacenamiento Secundario (millones de ciclos, TB)
+```
+
+**Implicaciones para el SO:**  
+- Gestión de cache es crítica para rendimiento  
+- Necesidad de memoria virtual cuando RAM es insuficiente  
+- Algoritmos de reemplazo para optimizar accesos  
 
 
 ## Código en C
 
-### Creación Básica de Procesos
+### Ejemplo: Información del Sistema
 
 ```c
 #include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
-#include <sys/wait.h>
+#include <sys/utsname.h>
 
 int main() {
-    pid_t pid;
-    int status;
+    struct utsname system_info;
     
-    printf("Antes del fork - PID: %d\n", getpid());
-    
-    // Crear proceso hijo
-    pid = fork();
-    
-    if (pid == -1) {
-        // Error en fork()
-        perror("fork failed");
-        exit(1);
-    }
-    else if (pid == 0) {
-        // Código del HIJO
-        printf("Soy el hijo - PID: %d, PPID: %d\n", 
-               getpid(), getppid());
-        
-        // Simular trabajo
-        sleep(2);
-        printf("Hijo terminando...\n");
-        exit(42);  // Código de salida
-    }
-    else {
-        // Código del PADRE
-        printf("Soy el padre - PID: %d, hijo PID: %d\n", 
-               getpid(), pid);
-        
-        // Esperar al hijo
-        wait(&status);
-        
-        // Analizar cómo terminó el hijo
-        if (WIFEXITED(status)) {
-            printf("Hijo terminó normalmente con código: %d\n", 
-                   WEXITSTATUS(status));
-        }
+    // Syscall para obtener información del sistema
+    if (uname(&system_info) == -1) {
+        perror("uname failed");
+        return 1;
     }
     
-    printf("Proceso %d terminando\n", getpid());
+    printf("Sistema Operativo: %s\n", system_info.sysname);
+    printf("Nombre del Host: %s\n", system_info.nodename);  
+    printf("Release: %s\n", system_info.release);
+    printf("Versión: %s\n", system_info.version);
+    printf("Arquitectura: %s\n", system_info.machine);
+    
+    // Otras syscalls útiles
+    printf("Process ID: %d\n", getpid());
+    printf("Parent Process ID: %d\n", getppid());
+    printf("User ID: %d\n", getuid());
+    
     return 0;
 }
 ```
 
-**Análisis línea por línea:**
+**Análisis línea por línea:**  
+- `#include <sys/utsname.h>`: Header para la estructura utsname  
+- `uname(&system_info)`: **Syscall** que obtiene info del sistema  
+- `getpid()`, `getppid()`, `getuid()`: **Syscalls** para IDs de proceso y usuario  
+- Cada función provoca una **transición modo usuario → modo kernel**
 
-- **Línea 10**: `getpid()` retorna el PID del proceso actual
-- **Línea 13**: `fork()` crea el proceso hijo
-- **Líneas 15-18**: Manejo de error (fork retorna -1)
-- **Líneas 19-26**: Código que SOLO ejecuta el hijo (pid == 0)
-- **Líneas 27-38**: Código que SOLO ejecuta el padre (pid > 0)
-- **Línea 32**: `wait()` bloquea al padre hasta que termine el hijo
-- **Líneas 35-37**: Macros para analizar el status de terminación
-
-### Usando exec() para cargar programas
+### Ejemplo: Manejo Básico de Señales
 
 ```c
 #include <stdio.h>
-#include <stdlib.h>
+#include <signal.h>
 #include <unistd.h>
-#include <sys/wait.h>
+
+// Handler para la señal SIGINT (Ctrl+C)
+void signal_handler(int sig) {
+    printf("\n¡Recibida señal %d! Pero no me voy a cerrar...\n", sig);
+    printf("Presiona Ctrl+\\ para terminar realmente.\n");
+}
 
 int main() {
-    pid_t pid;
+    // Registrar nuestro handler para SIGINT
+    signal(SIGINT, signal_handler);
     
-    pid = fork();
+    printf("Programa ejecutándose... Presiona Ctrl+C para probar.\n");
+    printf("PID: %d\n", getpid());
     
-    if (pid == -1) {
-        perror("fork");
-        exit(1);
-    }
-    else if (pid == 0) {
-        // HIJO: ejecutar comando "ls -l"
-        printf("Hijo antes de exec - PID: %d\n", getpid());
-        
-        // execl: último parámetro debe ser NULL
-        execl("/bin/ls", "ls", "-l", NULL);
-        
-        // Si llegamos aquí, exec falló
-        perror("exec failed");
-        exit(1);
-    }
-    else {
-        // PADRE: esperar al hijo
-        int status;
-        wait(&status);
-        
-        printf("Comando terminó con status: %d\n", 
-               WEXITSTATUS(status));
+    // Loop infinito para demostrar el manejo de señales
+    while(1) {
+        printf("Trabajando...\n");
+        sleep(2);  // Syscall que suspende ejecución por 2 segundos
     }
     
     return 0;
 }
 ```
 
-**Puntos clave:**
-- **Línea 18**: `execl()` reemplaza la imagen del proceso hijo
-- **Líneas 20-22**: Código que nunca se ejecuta si exec es exitoso
-- El PID del proceso hijo NO cambia después de exec
-- El padre puede esperar al hijo normalmente con `wait()`
-
-### Manejo de múltiples hijos
-
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
-
-#define NUM_HIJOS 3
-
-int main() {
-    pid_t hijos[NUM_HIJOS];
-    int i, status;
-    
-    // Crear múltiples hijos
-    for (i = 0; i < NUM_HIJOS; i++) {
-        hijos[i] = fork();
-        
-        if (hijos[i] == -1) {
-            perror("fork");
-            exit(1);
-        }
-        else if (hijos[i] == 0) {
-            // Código del hijo
-            printf("Hijo %d - PID: %d iniciando\n", i, getpid());
-            
-            // Simular trabajo variable
-            sleep(i + 1);
-            
-            printf("Hijo %d terminando\n", i);
-            exit(i);  // Cada hijo retorna su número
-        }
-        // El padre continúa el loop
-    }
-    
-    // Padre espera a TODOS los hijos
-    printf("Padre esperando a %d hijos...\n", NUM_HIJOS);
-    
-    for (i = 0; i < NUM_HIJOS; i++) {
-        pid_t pid_terminado = wait(&status);
-        
-        printf("Hijo PID %d terminó con código %d\n", 
-               pid_terminado, WEXITSTATUS(status));
-    }
-    
-    printf("Todos los hijos terminaron\n");
-    return 0;
-}
-```
-
-### Comunicación entre procesos: pipes
-
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <sys/wait.h>
-
-int main() {
-    int pipefd[2];  // pipefd[0] = read, pipefd[1] = write
-    pid_t pid;
-    char buffer[100];
-    
-    // Crear pipe antes del fork
-    if (pipe(pipefd) == -1) {
-        perror("pipe");
-        exit(1);
-    }
-    
-    pid = fork();
-    
-    if (pid == -1) {
-        perror("fork");
-        exit(1);
-    }
-    else if (pid == 0) {
-        // HIJO: escritor del pipe
-        close(pipefd[0]);  // Cerrar extremo de lectura
-        
-        char *mensaje = "Hola desde el hijo!";
-        write(pipefd[1], mensaje, strlen(mensaje) + 1);
-        
-        close(pipefd[1]);  // Cerrar extremo de escritura
-        exit(0);
-    }
-    else {
-        // PADRE: lector del pipe
-        close(pipefd[1]);  // Cerrar extremo de escritura
-        
-        // Leer mensaje del hijo
-        ssize_t bytes_leidos = read(pipefd[0], buffer, sizeof(buffer));
-        
-        if (bytes_leidos > 0) {
-            printf("Padre recibió: %s\n", buffer);
-        }
-        
-        close(pipefd[0]);  // Cerrar extremo de lectura
-        wait(NULL);        // Esperar al hijo
-    }
-    
-    return 0;
-}
-```
+**Conceptos demostrados:**  
+- **Señales**: Mecanismo de comunicación asincrónica  
+- **signal()**: Syscall para registrar manejadores  
+- **Interrupción de software**: Ctrl+C genera SIGINT  
+- **Context switching**: El SO interrumpe el programa para ejecutar el handler  
 
 
 ## Casos de Estudio
 
-### Caso de Estudio 1: Análisis de fork() múltiple
+### Caso 1: Análisis de una Syscall
 
-**Ejercicio típico de parcial:**
-¿Cuántos procesos crea el siguiente código y qué imprime?
+**Enunciado:** Analice qué sucede cuando un programa ejecuta `printf("Hola mundo\n");` desde las perspectivas de hardware y sistema operativo.
 
-```c
-#include <stdio.h>
-#include <unistd.h>
+**Resolución Paso a Paso:**
 
-int main() {
-    int x = 5;
-    
-    fork();
-    fork();
-    x++;
-    
-    printf("PID: %d, x = %d\n", getpid(), x);
-    return 0;
-}
-```
+1. **Análisis del Código:**
+   - `printf()` es una función de biblioteca (libc)
+   - Internamente llama a la syscall `write()`
+   - Debe escribir en stdout (file descriptor 1)
 
-**Resolución paso a paso:**
-
-1. **Estado inicial**: 1 proceso, x = 5
-
-2. **Primer fork()**: 
-   - Proceso padre (original)
-   - Proceso hijo A
-   - Total: 2 procesos
-
-3. **Segundo fork()**:
-   - El padre hace fork() → crea hijo B
-   - El hijo A hace fork() → crea hijo C
-   - Total: 4 procesos
-
-4. **Incremento x++**:
-   - Cada proceso incrementa su propia copia de x
-   - x pasa de 5 a 6 en todos los procesos
-
-5. **Salida**:
+2. **Secuencia de Ejecución:**
    ```
-   PID: 1234, x = 6
-   PID: 1235, x = 6  
-   PID: 1236, x = 6
-   PID: 1237, x = 6
+   Programa (modo usuario) 
+   → printf() 
+   → write(1, "Hola mundo\n", 11)
+   → Interrupción de software (trap)
+   → Modo kernel
+   → sys_write() en el kernel
+   → Driver de terminal
+   → Hardware de pantalla
+   → Retorno a modo usuario
    ```
-   (Los PIDs serán diferentes en cada ejecución)
 
-**Fórmula general**: Con n fork() secuenciales se crean 2^n procesos.
+3. **Cambios de Contexto:**
+   - **Usuario → Kernel**: Se guardan registros, se cambia stack
+   - **Kernel → Usuario**: Se restauran registros, se retorna valor
 
-### Caso de Estudio 2: Simulación de shell simple
+4. **Puntos Clave para Parcial:**
+   - printf() NO es una syscall directa
+   - Hay cambio de modo de operación
+   - El kernel valida permisos antes de escribir
+   - File descriptor 1 representa stdout por convención
 
-**Ejercicio de parcial:**
-Implementar un shell simple que ejecute comandos en procesos hijos.
-
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/wait.h>
-
-#define MAX_CMD 100
-
-// Función para parsear comando en argumentos
-void parse_command(char *cmd, char **args) {
-    int i = 0;
-    char *token = strtok(cmd, " \n");
-    
-    while (token != NULL && i < 10) {
-        args[i++] = token;
-        token = strtok(NULL, " \n");
-    }
-    args[i] = NULL;  // Terminar array con NULL
-}
-
-int main() {
-    char comando[MAX_CMD];
-    char *args[11];  // Máximo 10 argumentos + NULL
-    pid_t pid;
-    int status;
-    
-    while (1) {
-        printf("simple_shell> ");
-        fflush(stdout);
-        
-        // Leer comando
-        if (fgets(comando, sizeof(comando), stdin) == NULL) {
-            break;  // EOF (Ctrl+D)
-        }
-        
-        // Comando vacío
-        if (strlen(comando) <= 1) continue;
-        
-        // Comando "exit"
-        if (strncmp(comando, "exit", 4) == 0) {
-            break;
-        }
-        
-        // Parsear comando
-        parse_command(comando, args);
-        
-        // Crear proceso hijo para ejecutar comando
-        pid = fork();
-        
-        if (pid == -1) {
-            perror("fork");
-            continue;
-        }
-        else if (pid == 0) {
-            // HIJO: ejecutar comando
-            if (execvp(args[0], args) == -1) {
-                perror("exec");
-                exit(1);
-            }
-        }
-        else {
-            // PADRE: esperar al hijo
-            wait(&status);
-            
-            if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-                printf("Comando terminó con error: %d\n", 
-                       WEXITSTATUS(status));
-            }
-        }
-    }
-    
-    printf("Shell terminando...\n");
-    return 0;
-}
-```
-
-**Análisis del comportamiento:**  
-- **Shell en loop infinito** hasta comando "exit"  
-- **Cada comando se ejecuta en proceso hijo** (aislamiento)  
-- **execvp()** busca el ejecutable en PATH  
-- **Padre espera** a que termine cada comando antes de mostrar prompt  
-- **Manejo de errores** para comandos inexistentes  
-
-### Caso de Estudio 3: Problema de procesos zombie
-
-**Problema típico:**
-¿Qué sucede si el padre no hace wait() de sus hijos?
-
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-int main() {
-    int i;
-    
-    for (i = 0; i < 5; i++) {
-        if (fork() == 0) {
-            // Hijo termina rápidamente
-            printf("Hijo %d terminando\n", i);
-            exit(0);
-        }
-    }
-    
-    // Padre NO hace wait()
-    printf("Padre durmiendo 30 segundos...\n");
-    sleep(30);  // Mientras tanto, ejecutar: ps aux | grep Z
-    
-    return 0;
-}
-```
-
-**Problema**: Los 5 hijos se convierten en **zombies**
-- Terminan su ejecución pero sus PCBs permanecen
-- Consumen entradas en la tabla de procesos
-- Aparecen como `<defunct>` en ps
-
-**Solución 1**: wait() explícito
-```c
-// Después del bucle
-for (i = 0; i < 5; i++) {
-    wait(NULL);
-}
-```
-
-**Solución 2**: Ignorar SIGCHLD
-```c
-#include <signal.h>
-
-int main() {
-    signal(SIGCHLD, SIG_IGN);  // Auto-reaping de hijos
-    // ... resto del código
-}
-```
 
 
 ## Síntesis
 
-### Puntos Clave para Parcial
+### Puntos Clave del Capítulo
 
-**Definiciones esenciales:**  
-- **Proceso vs Programa**: Proceso = programa + contexto de ejecución  
-- **PCB**: Estructura que mantiene estado del proceso  
-- **Estados**: NEW, READY, RUNNING, BLOCKED, SUSPENDED BLOCKED, SUSPENDED READY, TERMINATED  
-- **fork()**: Retorna PID del hijo al padre, 0 al hijo, -1 en error  
-- **exec()**: Reemplaza imagen del proceso (mismo PID)  
-- **wait()**: Padre espera terminación de hijo, evita zombies  
+1. **La arquitectura hardware determina las capacidades del SO**
+   - Von Neumann establece el modelo básico
+   - Modos de operación permiten protección
+   - Interrupciones habilitan multitasking
 
-**Diferencias de Sistemas:**  
-- **Monoprogramación**: Un programa por vez, CPU idle en I/O  
-- **Multiprogramación**: Múltiples programas en memoria, maximiza CPU  
-- **Multitarea**: Multiprogramación + time-sharing preemptivo  
-- **Multiprocesamiento**: Múltiples CPUs físicos  
+2. **El SO es el intermediario entre software y hardware**
+   - Syscalls proporcionan servicios controlados
+   - Abstrae complejidades del hardware
+   - Mantiene seguridad y estabilidad
 
-**Estructuras del SO:**  
-- **Tablas**: Memoria, I/O, Archivos, Procesos (referencia cruzada)  
-- **Imagen del proceso**: Text, Data, BSS, Heap, Stack  
-- **PCB**: Contexto completo para context switching  
+3. **Rendimiento depende de entender la jerarquía de memoria**
+   - Localidad temporal y espacial
+   - Cache management es crítico
+   - Accesos a disco son el cuello de botella
 
-**Diagramas de Estado:**  
-- **3 estados**: Modelo básico para entender transiciones  
-- **5 estados**: Incluye swapping (suspended states)  
-- **7 estados**: Tres niveles de planificación  
+### Conexiones con Próximos Capítulos
 
-**Syscalls fundamentales:**
-```c
-pid_t fork(void);                    // Crear proceso
-int execl(path, arg0, arg1, ..., NULL); // Cargar programa  
-void exit(int status);               // Terminar proceso
-pid_t wait(int *status);            // Esperar hijo
-pid_t getpid(void);                 // Obtener PID propio
-pid_t getppid(void);                // Obtener PID del padre
-```
+- **Procesos (Cap. 2)**: Los modos de operación y syscalls son fundamentales para entender cómo el SO crea y gestiona procesos
+- **Planificación (Cap. 3)**: Las interrupciones de timer permiten al SO implementar multitasking preemptivo
+- **Memoria (Caps. 7-8)**: La jerarquía de memoria y la MMU (Memory Management Unit) son la base de la gestión de memoria
 
-### Errores Comunes y Tips
+### Errores Comunes en Parciales
 
-**Errores frecuentes:**
+**"printf() es una syscall"** 
+printf() usa la syscall write() internamente
 
-1. **No verificar retorno de fork()**
-   ```c
-   // MAL
-   fork();
-   if (...)  // ¿Quién ejecuta qué?
-   ```
+**"Las interrupciones solo vienen del hardware"**
+También existen interrupciones de software (syscalls, excepciones)
 
-2. **No cerrar extremos no usados de pipes**
-   ```c
-   // MAL: bloqueo indefinido
-   pipe(pipefd);
-   // No cerrar extremos innecesarios
-   ```
+**"El modo kernel es más rápido"**
+El modo kernel tiene más privilegios, no necesariamente más velocidad
 
-3. **No hacer wait() de los hijos**
-   ```c
-   // MAL: crea zombies
-   if (fork() == 0) {
-       exit(0);  // Hijo termina
-   }
-   // Padre continúa sin wait()
-   ```
-
-4. **Asumir orden de ejecución**
-   ```c
-   // MAL: padre e hijo pueden ejecutar en cualquier orden
-   if (fork() == 0) {
-       printf("Hijo\n");
-   } else {
-       printf("Padre\n");  // ¿Quién imprime primero?
-   }
-   ```
-
-5. **Confundir grado de multiprogramación con multiprocesamiento**
-   ```c
-   // MAL: "4 CPUs = grado 4"
-   // BIEN: Grado = procesos en memoria simultáneamente
-   ```
-
-6. **No distinguir entre estados suspended y blocked**
-   ```c
-   // BLOCKED: Esperando I/O, en memoria
-   // BLOCKED/SUSPENDED: Esperando I/O, swappeado a disco
-   ```
-
-
-### Conexión con Próximos Temas
-
-Los procesos son la base para entender:
-
-**Planificación (Capítulo 3):**
-- Los estados READY → RUNNING → READY son la base del scheduling
-- Los tres planificadores (long, medium, short-term) deciden flujo de procesos
-- Algoritmos de scheduling determinan qué proceso de READY queue ejecutar
-
-**Hilos (Capítulo 4):**
-- Múltiples flujos de ejecución **dentro de un proceso**
-- Comparten mismo espacio de direcciones pero tienen stacks separados
-- Permiten paralelismo real en sistemas multiprocesador
-
-**Sincronización (Capítulo 5):**
-- Procesos/hilos que comparten recursos necesitan coordinarse
-- Race conditions surgen cuando múltiples procesos acceden datos compartidos
-- Semáforos, mutexes, monitores resuelven problemas de sincronización
-
-**Interbloqueo (Capítulo 6):**
-- Procesos pueden bloquearse mutuamente esperando recursos
-- Condiciones necesarias y algoritmos de prevención/detección
-
-**Gestión de Memoria (Capítulos 7-8):**
-- Cada proceso tiene su espacio de direcciones virtual
-- PCB mantiene información de memory management (page tables, segments)
-- Swapping mueve procesos entre memoria y disco
-
-**Sistema de Archivos (Capítulo 9):**
-- Procesos acceden archivos mediante file descriptors
-- PCB mantiene tabla de archivos abiertos por proceso
-- Herencia de file descriptors en fork(), reemplazo en exec()
-
-### Preguntas de Reflexión
-
-1. **¿Por qué fork() + exec() en lugar de una sola syscall "create_process()"?**
-   - Flexibilidad: permite configurar hijo antes de exec()
-   - Filosofía Unix: separar funciones (crear vs cargar)
-   - Permite shells, redirección, pipes
-
-2. **¿Qué pasaría si no existieran los niveles de privilegio (modo kernel/usuario)?**
-   - Cualquier programa podría acceder a hardware directamente
-   - No habría aislamiento entre procesos
-   - Sistema vulnerable e inestable
-
-3. **¿Por qué el SO mantiene procesos zombie en lugar de eliminarlos inmediatamente?**
-   - Padre necesita poder leer exit status del hijo
-   - Información de accounting (tiempo de CPU usado, etc.)
-   - Consistencia del modelo padre-hijo
-
-4. **¿Cuál es la ventaja real de la multiprogramación si solo hay una CPU?**
-   - CPU puede trabajar mientras otros procesos hacen I/O
-   - Mejor tiempo de respuesta percibido por usuarios
-   - Utilización óptima de recursos del sistema
-
-**Pregunta de reflexión final**: Si entendiste este capítulo, deberías poder explicar por qué cuando terminas un programa con Ctrl+C en la terminal, no se "rompe" el resto del sistema. ¿Cuál es el mecanismo de aislamiento?
-
-**Respuesta**: Cada programa ejecuta en un proceso separado con su propio espacio de direcciones protegido. Ctrl+C envía SIGINT solo al proceso en foreground, no afecta otros procesos ni al kernel. El SO mantiene aislamiento mediante hardware (MMU) y software (PCBs separados).
 
 ---
 
-**Próximo capítulo**: Planificación de Procesos - ¿Cómo decide el SO cuál proceso ejecutar y por cuánto tiempo? Algoritmos, métricas de rendimiento y casos reales de scheduling.
+**Próximo Capítulo:** Procesos - donde veremos cómo el SO usa estos mecanismos fundamentales para crear la abstracción de "programa en ejecución".

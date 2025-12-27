@@ -1,2168 +1,1175 @@
-# Gestión de Memoria Real
+# Sincronización
 
 ## Objetivos de Aprendizaje
 
 Al finalizar este capítulo, el estudiante debe ser capaz de:
 
-- Distinguir entre direcciones lógicas, relativas y físicas
-- Explicar los momentos de binding de direcciones (compilación, carga, ejecución)
-- Identificar fragmentación interna vs externa y sus causas
-- Analizar ventajas y desventajas de particiones fijas y dinámicas
-- Aplicar algoritmos de asignación: First Fit, Best Fit, Worst Fit, Next Fit
-- Calcular direcciones físicas a partir de direcciones lógicas en paginación
-- Determinar el formato de dirección lógica (bits de página y offset)
-- Explicar el funcionamiento de MMU, TLB y registros base/límite
-- Comparar paginación simple, multinivel y segmentación
-- Resolver ejercicios de traducción de direcciones con tablas de páginas
-- Comprender el rol del Buddy System en asignación de memoria
-- Evaluar cuándo aplicar compactación y sus costos
+- Identificar problemas de concurrencia: race conditions, deadlock, starvation
+- Explicar qué son las operaciones atómicas y por qué son necesarias
+- Comprender las condiciones de Bernstein para la ejecución concurrente
+- Analizar soluciones de sincronización a nivel software y hardware
+- Implementar soluciones usando mutex, semáforos y variables de condición
+- Resolver problemas clásicos: Productor-Consumidor, Lectores-Escritores
+- Aplicar sincronización en escenarios reales usando analogías cotidianas
+- Analizar y prevenir deadlocks usando técnicas formales
+- Programar soluciones thread-safe en C usando pthreads
+- Evaluar el overhead de diferentes primitivas de sincronización
 
 ## Introducción y Contexto
 
-### ¿Por qué necesitamos gestionar la memoria?
+### ¿Por qué necesitamos sincronización?
 
-Imaginemos una biblioteca con espacio limitado para libros. Si cada estudiante llega y toma el espacio que necesita sin control alguno, pronto tendremos:
+Imaginemos un supermercado en hora pico:
 
-- Espacios desaprovechados entre libros
-- Imposibilidad de ubicar libros nuevos aunque haya espacio total suficiente
-- Estudiantes accediendo a libros que no les pertenecen
-- Caos al intentar encontrar un libro específico
+**Sin coordinación:**  
+**20 cajas** funcionando independientemente, **1 empleado** que debe ordenar las filas, pero puede estar en cualquier lugar. **1 sistema de promociones** que solo permite una aplicación a la vez, **Clientes** que llegan aleatoriamente y eligen cajas.  
 
-Lo mismo sucede con la memoria RAM en un sistema operativo multiprogramado. Con múltiples procesos ejecutándose simultáneamente, el SO debe:
+**¿Qué problemas pueden ocurrir?**
 
-1. Asignar memoria de manera eficiente
-2. Proteger la memoria de cada proceso
-3. Permitir compartir memoria cuando sea apropiado
-4. Traducir direcciones para que cada proceso "crea" que tiene toda la memoria
+1. **Race condition**: Dos cajeros intentan usar el sistema de promociones simultáneamente → se corrompe la base de datos
+2. **Starvation**: Una caja siempre tiene fila larga porque el empleado nunca la atiende
+3. **Deadlock**: El empleado espera que se libere una caja para ordenarla, pero el cajero espera que el empleado termine de ordenar para continuar
+4. **Inconsistencia**: El contador total de ventas se pierde cuando dos cajas lo actualizan al mismo tiempo
 
-### El problema fundamental
+### La analogía completa del supermercado
 
-En los primeros sistemas, un programa accedía directamente a direcciones físicas de memoria. Esto presentaba problemas críticos:
+```
+RECURSOS DEL SUPERMERCADO (Variables compartidas):
+- Cajas registradoras (20)     ← Array de recursos limitados
+- Sistema de promociones (1)    ← Recurso exclusivo mutuo
+- Empleado ordenador (1)       ← Recurso único móvil
+- Contador total de ventas     ← Variable compartida crítica
+- Cola de clientes por caja    ← Buffer productor-consumidor
 
-\textcolor{red!60!gray}{\textbf{Problemas de direccionamiento directo:}\\
-- Un proceso podía sobrescribir memoria del SO\\
-- Imposible reubicar un programa una vez cargado\\
-- No se podía ejecutar más de un programa simultáneamente\\
-- Errores de programación podían corromper todo el sistema\\
+PROCESOS/HILOS:
+- Cajeros (threads)            ← Acceden a recursos concurrentemente
+- Clientes (threads)           ← Productores de trabajo
+- Sistema de facturación       ← Consumidor de transacciones
+- Empleado (thread especial)   ← Administrador de recursos
+```
+
+## El Problema Fundamental: Race Conditions
+
+Una **race condition** ocurre cuando el resultado depende del orden de ejecución de operaciones concurrentes sobre datos compartidos.
+
+**Ejemplo concreto:**
+```c
+// Dos cajeros actualizando ventas totales
+int ventas_totales = 0;
+
+// Cajero 1                    // Cajero 2
+ventas_totales += 100;        ventas_totales += 200;
+```
+
+**En assembly:**
+```assembly
+; Cajero 1                    ; Cajero 2
+LOAD R1, [ventas_totales]     LOAD R2, [ventas_totales]
+ADD  R1, 100                  ADD  R2, 200
+STORE [ventas_totales], R1    STORE [ventas_totales], R2
+```
+
+**Posibles resultados:**
+- **Correcto**: ventas_totales = 300
+- **Incorrecto**: ventas_totales = 100 (se perdió la venta del cajero 2)
+- **Incorrecto**: ventas_totales = 200 (se perdió la venta del cajero 1)
+
+## Sección Crítica y Condiciones de Bernstein
+
+### Sección Crítica
+
+**Definición**: Porción de código que accede a recursos compartidos y debe ejecutarse atómicamente (sin interrupciones).
+
+**Estructura general:**
+```c
+do {
+    // Protocolo de entrada
+    entrada_seccion_critica();
+    
+    // SECCIÓN CRÍTICA
+    // Acceso a recursos compartidos
+    
+    // Protocolo de salida  
+    salida_seccion_critica();
+    
+    // Sección no crítica
+    hacer_trabajo_local();
+    
+} while (true);
+```
+
+**Requisitos para la solución:**
+
+1. **Exclusión Mutua**: Solo un proceso en sección crítica a la vez
+2. **Progreso**: Si nadie está en sección crítica, alguien debe poder entrar
+3. **Espera Acotada**: Un proceso no puede esperar indefinidamente
+4. **Sin Asumir Velocidades**: No depender de velocidades relativas de procesos
+
+### Condiciones de Bernstein
+
+Para que dos procesos puedan ejecutarse concurrentemente de manera segura, deben cumplirse las **Condiciones de Bernstein**:
+
+Sean P₁ y P₂ dos procesos con:  
+```
+- R₁, R₂: Conjuntos de variables que leen  
+- W₁, W₂: Conjuntos de variables que escriben  
+```
+
+**Condiciones necesarias:**  
+```
+1. R₁ ∩ W₂ = (vacío) (P₁ no lee lo que P₂ escribe)  
+2. W₁ ∩ R₂ = (vacío) (P₁ no escribe lo que P₂ lee)  
+3. W₁ ∩ W₂ = (vacío) (P₁ y P₂ no escriben las mismas variables)  
+```
+
+**Ejemplo de violación:**
+```c
+// Proceso 1: R₁ = {x}, W₁ = {y}
+y = x + 10;
+
+// Proceso 2: R₂ = {y}, W₂ = {x}
+x = y * 2;
+```
+
+**Violaciones:**
+- W₁ ∩ R₂ = {y} ≠ (vacío) (P₁ escribe y, P₂ lee y)
+- R₁ ∩ W₂ = {x} ≠ (vacío) (P₁ lee x, P₂ escribe x)
+
+Por tanto, **NO pueden ejecutarse concurrentemente** sin sincronización.
+
+\newpage
+## Soluciones a Nivel Software
+
+### Evolución Histórica de las Soluciones
+
+#### Primeras Aproximaciones: Variables de Control
+
+**Intento 1: Turno Simple**
+```c
+int turno = 1;
+
+// Proceso 1
+while (turno != 1);
+// Sección crítica
+turno = 2;
+
+// Proceso 2  
+while (turno != 2);
+// Sección crítica
+turno = 1;
+```
+
+**Problema**: Viola la condición de **progreso**. Si un proceso no quiere entrar, el otro queda bloqueado permanentemente.
+
+**Intento 2: Flags Independientes**
+```c
+bool flag[2] = {false, false};
+
+// Proceso i
+flag[i] = true;
+while (flag[j]);  // j = 1-i
+// Sección crítica
+flag[i] = false;
+```
+
+**Problema**: **Race condition** en el chequeo de flags. Ambos pueden ver flag[j] = false al mismo tiempo y entrar juntos.
+
+**Intento 3: Flags con Cortesía**
+```c
+bool flag[2] = {false, false};
+
+// Proceso i
+flag[i] = true;
+while (flag[j]) {
+    flag[i] = false;
+    // Esperar tiempo aleatorio
+    flag[i] = true;
 }
+// Sección crítica
+flag[i] = false;
+```
 
-La solución fue introducir una capa de abstracción: el concepto de **espacio de direcciones lógicas**.
+**Problema**: Posible **livelock** - ambos procesos pueden quedar cediendo indefinidamente.
 
-### Evolución histórica
+### Solución de Peterson (1981)
 
-La gestión de memoria ha evolucionado siguiendo un patrón de "problema -> solución -> nuevo problema":
-
-1. **Memoria compartida sin protección** -> Un programa podía destruir todo el sistema
-2. **Particiones fijas** -> Desperdicio de memoria (fragmentación interna)
-3. **Particiones dinámicas** -> Fragmentación externa severa
-4. **Paginación** -> Resuelve fragmentación externa pero agrega overhead
-5. **Segmentación** -> Mejor modelo lógico pero más complejo
-6. **Híbridos** -> Combinan ventajas pero aumentan complejidad
-
-Este capítulo recorre esta evolución para entender por qué los sistemas modernos usan las técnicas actuales.
-
-## Conceptos Fundamentales
-
-### Espacios de Direcciones
-
-\begin{definitionbox}
-\emph{Espacio de Direcciones:}
-Conjunto de direcciones que una entidad puede usar para referenciar memoria. Existen tres tipos fundamentales.
-\end{definitionbox}
-
-#### Dirección Lógica (Virtual)
-
-Generada por el CPU durante la ejecución de un programa. Es la dirección que "ve" el proceso. Por ejemplo, cuando un programa en C hace:
+**La primera solución correcta para 2 procesos:**
 
 ```c
-int x = 42;
-printf("Dirección de x: %p\n", &x);
+bool flag[2] = {false, false};
+int turn = 0;
+
+// Proceso i (donde j = 1-i)
+void peterson_enter(int i) {
+    flag[i] = true;      // Mostrar interés
+    turn = j;            // Ceder el turno al otro
+    while (flag[j] && turn == j);  // Esperar si el otro está interesado y tiene turno
+}
+
+void peterson_exit(int i) {
+    flag[i] = false;     // No tengo más interés
+}
+
+// Uso completo
+void proceso_i() {
+    while (true) {
+        peterson_enter(i);
+        
+        // SECCIÓN CRÍTICA
+        seccion_critica();
+        
+        peterson_exit(i);
+        
+        // Sección no crítica
+        seccion_no_critica();
+    }
+}
 ```
 
-La dirección mostrada es una **dirección lógica**. El proceso no sabe (ni le importa) dónde está físicamente en RAM.
+**¿Por qué funciona Peterson?**
 
-\textcolor{blue!50!black}{\textbf{Características:}\\
-- Independiente de la ubicación física\\
-- Permite reubicación del proceso\\
-- Cada proceso tiene su propio espacio lógico\\
-- Rango: 0 hasta límite del proceso\\
+1. **Exclusión Mutua**: Si ambos procesos están en while, uno tiene turn = i y el otro turn = j. Como turn es única, solo uno puede tener turn ≠ j.
+
+2. **Progreso**: Si nadie quiere entrar (flag[j] = false), el proceso entra inmediatamente.
+
+3. **Espera Acotada**: El proceso que llegó segundo pone turn = j, garantizando que el primero entre primero.
+
+**Limitaciones de Peterson:**
+- Solo funciona para **2 procesos**
+- Requiere **busy waiting** (uso intensivo de CPU)
+- Asume **orden secuencial de memoria** (problemas en CPUs modernas)
+
+## Soluciones a Nivel Hardware
+
+### Primitivos Atómicos
+
+**Operación Atómica**: Ejecución indivisible, sin interrupciones posibles.
+
+#### Test-and-Set (Hardware)
+```c
+// Implementada en hardware - ATÓMICA
+bool test_and_set(bool* target) {
+    bool old_value = *target;
+    *target = true;
+    return old_value;
 }
 
-#### Dirección Relativa
+// Uso para mutex
+bool lock = false;  // false = libre, true = ocupado
 
-Es una dirección expresada como desplazamiento desde un punto de referencia (típicamente el inicio del programa).
-
-**Ejemplo:** Si un programa se compila y la variable `x` está en el offset 100 desde el inicio del código, su dirección relativa es 100, sin importar dónde se cargue el programa en memoria.
-
-#### Dirección Física (Real)
-
-Es la dirección real en los módulos de RAM. El hardware usa estas direcciones para acceder a la memoria física.
-
-\textcolor{orange!70!black}{\textbf{Importante:}\\
-- El proceso NUNCA ve direcciones físicas\\
-- La traducción la hace el hardware (MMU)\\
-- El SO configura los parámetros de traducción\\
+void acquire_lock() {
+    while (test_and_set(&lock)) {
+        // Busy waiting (spin lock)
+        // Continuar intentando hasta obtener el lock
+    }
 }
 
-### Binding de Direcciones
+void release_lock() {
+    lock = false;
+}
+```
 
-El **binding** es el proceso de asignar direcciones de programa a direcciones reales de memoria. Puede ocurrir en tres momentos diferentes:
+**Ventajas:**
+- Simple de implementar
+- Funciona para N procesos
+- Garantiza exclusión mutua
 
-#### En Tiempo de Compilación
+**Desventajas:**
+- Busy waiting (desperdicia CPU)
+- No garantiza espera acotada
+- Puede causar starvation
 
-El compilador genera direcciones físicas absolutas.
+#### Compare-and-Swap (CAS)
 
 ```c
-// El compilador coloca 'x' en la dirección física 0x1000
-int x = 10;  // Compilado como: MOV [0x1000], 10
-```
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- El programa solo funciona en esa ubicación de memoria\\
-- Imposible ejecutar múltiples instancias\\
-- No hay protección entre procesos\\
-- Recompilar si se cambia ubicación\\
+// Más flexible que test-and-set
+bool compare_and_swap(int* ptr, int expected, int new_value) {
+    if (*ptr == expected) {
+        *ptr = new_value;
+        return true;
+    }
+    return false;
 }
 
-**Uso histórico:** Sistemas embebidos antiguos, programas únicos en memoria.
+// Implementar contador atómico
+void atomic_increment(int* counter) {
+    int old_value, new_value;
+    do {
+        old_value = *counter;
+        new_value = old_value + 1;
+    } while (!compare_and_swap(counter, old_value, new_value));
+}
+```
 
-#### En Tiempo de Carga
+#### Fetch-and-Add
+```c
+// Retorna valor anterior y suma atomicamente
+int fetch_and_add(int* ptr, int value) {
+    int old_value = *ptr;
+    *ptr += value;
+    return old_value;
+}
 
-El loader (cargador) ajusta las direcciones cuando carga el programa en memoria.
+// Implementar ticket lock (espera acotada)
+typedef struct {
+    int ticket;
+    int turn;
+} ticket_lock_t;
+
+void ticket_acquire(ticket_lock_t* lock) {
+    int my_ticket = fetch_and_add(&lock->ticket, 1);
+    while (lock->turn != my_ticket);  // Esperar mi turno
+}
+
+void ticket_release(ticket_lock_t* lock) {
+    lock->turn++;  // Dar turno al siguiente
+}
+```
+
+## Soluciones del Sistema Operativo: Semáforos
+
+### Definición y Operaciones
+
+**Semáforo**: Inventado por **Dijkstra (1965)**, es un contador entero no negativo con dos operaciones atómicas.
 
 ```c
-// El compilador genera código reubicable
-int x = 10;  // Compilado como: MOV [BASE+100], 10
-// El loader determina BASE al cargar
-```
+typedef struct {
+    int value;
+    queue_t waiting_queue;
+} semaphore_t;
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Una vez cargado, no se puede mover el proceso\\
-- El tiempo de carga aumenta (hay que ajustar todas las direcciones)\\
-- No permite compactación de memoria\\
+// P() o wait() - Decrementar y posiblemente bloquear
+void sem_wait(semaphore_t* sem) {
+    sem->value--;
+    if (sem->value < 0) {
+        // Bloquear proceso y agregarlo a la cola
+        add_to_queue(&sem->waiting_queue, current_process);
+        block_current_process();
+    }
 }
 
-**Uso histórico:** Sistemas batch, overlays.
+// V() o signal() - Incrementar y despertar
+void sem_post(semaphore_t* sem) {
+    sem->value++;
+    if (sem->value <= 0) {
+        // Hay procesos esperando, despertar uno
+        process_t* p = remove_from_queue(&sem->waiting_queue);
+        wakeup_process(p);
+    }
+}
+```
 
-#### En Tiempo de Ejecución
-Las direcciones se traducen dinámicamente durante la ejecución usando hardware especial (MMU).
+### Tipos de Semáforos
+
+#### Semáforo Binario (Mutex)
+
+**Valores posibles**: 0 o 1
+- **1**: Recurso disponible
+- **0**: Recurso ocupado
 
 ```c
-// El compilador genera direcciones lógicas
-int x = 10;  // Genera: MOV [100], 10 (dirección lógica)
-// La MMU traduce 100 -> dirección física en cada acceso
+semaphore_t mutex;
+sem_init(&mutex, 1);  // Inicializar en 1 (disponible)
+
+void critical_section() {
+    sem_wait(&mutex);   // P(mutex) - Obtener exclusión mutua
+    
+    // SECCIÓN CRÍTICA
+    // Solo un proceso puede estar aquí
+    
+    sem_post(&mutex);   // V(mutex) - Liberar exclusión mutua
+}
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- El proceso puede moverse en memoria (compactación)\\
-- Protección automática entre procesos\\
-- Soporte para memoria virtual\\
-- Permite compartir memoria entre procesos\\
+#### Semáforo Contador
+
+**Valores posibles**: 0 a N
+- **N**: Máximo número de recursos disponibles
+- **0**: Todos los recursos ocupados
+
+```c
+#define POOL_SIZE 5
+semaphore_t connection_pool;
+sem_init(&connection_pool, POOL_SIZE);
+
+void use_connection() {
+    sem_wait(&connection_pool);  // Obtener conexión
+    
+    // Usar conexión de base de datos
+    execute_query();
+    
+    sem_post(&connection_pool);  // Liberar conexión
+}
+```
+
+### Usos Principales de Semáforos
+
+#### Exclusión Mutua
+```c
+semaphore_t mutex = 1;
+
+void proceso() {
+    sem_wait(&mutex);    // Entrar a sección crítica
+    // Sección crítica
+    sem_post(&mutex);    // Salir de sección crítica
+}
+```
+
+#### Limitar Acceso a N Instancias
+```c
+semaphore_t recursos = N;
+
+void usar_recurso() {
+    sem_wait(&recursos);  // Obtener uno de N recursos
+    // Usar recurso
+    sem_post(&recursos);  // Liberar recurso
+}
+```
+
+#### Ordenar Ejecución (Sincronización)
+```c
+semaphore_t sincronizacion = 0;
+
+void proceso_A() {
+    // Hacer trabajo A
+    trabajo_A();
+    sem_post(&sincronizacion);  // Señalar que A terminó
 }
 
-\textcolor{orange!70!black}{\textbf{¿Por qué se usa en tiempo de ejecución en sistemas modernos?}\\
-Es la ÚNICA forma de soportar:\\
-- Multiprogramación con protección\\
-- Memoria virtual (swap)\\
-- Compactación dinámica\\
-- Espacios de direcciones independientes\\
-Sin binding dinámico, no existirían los SO modernos.\\
+void proceso_B() {
+    sem_wait(&sincronizacion);  // Esperar que A termine
+    // Hacer trabajo B (que depende de A)
+    trabajo_B();
+}
+```
+
+#### Problema Productor-Consumidor
+```c
+#define BUFFER_SIZE 10
+
+semaphore_t empty = BUFFER_SIZE;    // Espacios vacíos
+semaphore_t full = 0;               // Elementos llenos  
+semaphore_t mutex = 1;              // Exclusión mutua
+
+void productor() {
+    while (true) {
+        // Producir elemento
+        item = produce_item();
+        
+        sem_wait(&empty);    // Esperar espacio vacío
+        sem_wait(&mutex);    // Obtener acceso al buffer
+        
+        add_to_buffer(item); // Agregar al buffer
+        
+        sem_post(&mutex);    // Liberar acceso al buffer
+        sem_post(&full);     // Señalar elemento disponible
+    }
 }
 
-### Componentes Hardware
-
-#### Memory Management Unit (MMU)
-
-\begin{definitionbox}
-\emph{MMU (Memory Management Unit):}
-Circuito hardware que traduce direcciones lógicas a físicas en tiempo de ejecución. Opera a velocidad del CPU sin intervención del SO.
-\end{definitionbox}
-
-**Funcionamiento básico:**
-
-```
-CPU genera: Dirección Lógica (DL)
-    ↓
-MMU calcula: Dirección Física (DF) = f(DL, parámetros)
-    ↓
-RAM recibe: Dirección Física
-```
-
-El SO configura los **parámetros** (registros base/límite, tablas de páginas), pero la **traducción** es 100% hardware.
-
-\textcolor{blue!50!black}{\textbf{¿Por qué es hardware y no software?}\\
-- Se ejecuta en CADA acceso a memoria\\
-- Un programa hace millones de accesos por segundo\\
-- Si fuera software, el sistema sería inutilizable\\
-- El overhead debe ser menor a 10 ns por traducción\\
+void consumidor() {
+    while (true) {
+        sem_wait(&full);     // Esperar elemento disponible
+        sem_wait(&mutex);    // Obtener acceso al buffer
+        
+        item = remove_from_buffer();  // Quitar del buffer
+        
+        sem_post(&mutex);    // Liberar acceso al buffer
+        sem_post(&empty);    // Señalar espacio vacío
+        
+        consume_item(item);  // Consumir elemento
+    }
 }
-
-#### Translation Lookaside Buffer (TLB)
-
-La MMU necesita consultar tablas de páginas en RAM para traducir direcciones. Como esto es lento (100+ ns), existe una caché especial dentro del CPU:
-
-\begin{definitionbox}
-\emph{TLB (Translation Lookaside Buffer):}
-Caché hardware de alta velocidad que almacena traducciones recientes de páginas. Típicamente 64-512 entradas, tiempo de acceso < 1 ns.
-\end{definitionbox}
-
-**Proceso de traducción con TLB:**
-
-1. CPU genera dirección lógica
-2. MMU busca en TLB (< 1 ns)
-   - **TLB hit**: Usa traducción cacheada -> RAM (total: ~10 ns)
-   - **TLB miss**: Busca en tabla de páginas en RAM (total: ~100 ns)
-3. Si fue miss, la entrada se cachea en TLB para futuros accesos
-
-\textcolor{teal!60!black}{\textbf{Efectividad de TLB:}\\
-- Hit rate típico: 98-99 porciento\\
-- Localidad espacial: procesos acceden memoria cercana\\
-- Localidad temporal: mismas páginas repetidamente\\
-- Una aplicación bien escrita tiene hit rate mayor a 99 porciento\\
-}
-
-#### Registros Base y Límite
-
-En los esquemas más simples de gestión de memoria, la MMU usa dos registros:
-
-- **Registro Base**: Dirección física donde comienza el proceso
-- **Registro Límite**: Tamaño máximo del espacio del proceso
-
-**Traducción:**
-```
-Dirección Física = Dirección Lógica + Base
-
-Si (Dirección Lógica >= Límite):
-    Generar TRAP (Segmentation Fault)
-```
-
-\textcolor{orange!70!black}{\textbf{Verificación de límites:}\\
-- La verificación es en HARDWARE (circuito comparador)\\
-- El SO carga Base y Límite al hacer context switch\\
-- Si un proceso intenta acceder fuera de su espacio -> TRAP\\
-- El SO maneja el TRAP (típicamente: matar el proceso)\\
-}
-
-### Fragmentación
-
-La fragmentación es el desperdicio de memoria que no puede usarse eficientemente.
-
-#### Fragmentación Interna
-
-\begin{definitionbox}
-\emph{Fragmentación Interna:}
-Memoria desperdiciada DENTRO de una región asignada. Ocurre cuando se asigna más memoria de la necesitada.
-\end{definitionbox}
-
-**Ejemplo:** Un proceso necesita 19 KB pero el sistema asigna bloques de 4 KB. Se asignan 5 bloques (20 KB), desperdiciando 1 KB.
-
-```
-Bloque asignado: [===================·] 
-                  ← 19 KB usados ->  ← 1 KB desperdiciado
-                  ← 20 KB totales ->
-```
-
-\textcolor{red!60!gray}{\textbf{Causas:}\\
-- Asignación en bloques de tamaño fijo\\
-- Políticas de alineación de memoria\\
-- Overhead de estructuras administrativas\\
-}
-
-**Dónde ocurre:**
-- Particiones fijas
-- Paginación (desperdicio en última página)
-- Buddy System
-
-#### Fragmentación Externa
-
-\begin{definitionbox}
-\emph{Fragmentación Externa:}
-Memoria desperdiciada ENTRE regiones asignadas. Hay suficiente memoria libre total, pero no es contigua.
-\end{definitionbox}
-
-**Ejemplo:** Memoria total: 100 KB, Libres: 40 KB, pero en bloques de 10 KB cada uno. No se puede asignar un proceso de 30 KB.
-
-```
-Memoria: [P1][··][P2][····][P3][······][P4]
-          ← libre -> ← libre ->  ← libre ->
-         10 KB    15 KB      15 KB
-         Total libre: 40 KB, pero no contiguos
-         No se puede asignar proceso de 30 KB
-```
-
-\textcolor{red!60!gray}{\textbf{Causas:}\\
-- Asignación y liberación de bloques de tamaño variable\\
-- Procesos que terminan dejan huecos\\
-- Con el tiempo, la memoria se "perfora" (swiss cheese)\\
-}
-
-**Dónde ocurre:**
-- Particiones dinámicas
-- Segmentación
-- Cualquier esquema de asignación variable
-
-**Solución:** Compactación (mover procesos para consolidar memoria libre), pero es costosa.
-
-## Técnicas de Asignación Contigua
-
-Las primeras técnicas de gestión de memoria asignaban espacios **contiguos** a cada proceso.
-
-### Particiones Fijas
-
-En los primeros sistemas multiprogramados, la memoria se dividía en particiones de tamaño fijo al inicio del sistema.
-
-**Esquema de memoria con particiones fijas:**
-
-```
-Memoria física:
-┌─────────────────┐ 0 KB
-│   SO (64 KB)    │
-├─────────────────┤ 64 KB
-│ Partición 1     │
-│   (128 KB)      │
-├─────────────────┤ 192 KB
-│ Partición 2     │
-│   (256 KB)      │
-├─────────────────┤ 448 KB
-│ Partición 3     │
-│   (512 KB)      │
-├─────────────────┤ 960 KB
-│ Partición 4     │
-│   (64 KB)       │
-└─────────────────┘ 1024 KB
-```
-
-**Mecanismo de asignación:**
-
-1. Cuando llega un proceso, se busca una partición libre que lo contenga
-2. El proceso ocupa toda la partición (aunque no la use completamente)
-3. Al terminar, la partición queda libre para el próximo proceso
-
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Implementación extremadamente simple\\
-- Asignación y liberación en O(1)\\
-- Sin fragmentación externa\\
-- Protección fácil (cada partición tiene base y límite fijos)\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Fragmentación interna severa\\
-- Número limitado de procesos (fijado al inicio)\\
-- Procesos grandes pueden no caber\\
-- Memoria desaprovechada si hay particiones vacías\\
-}
-
-**Problema crítico:** Un proceso de 50 KB en una partición de 256 KB desperdicia 206 KB (80% de fragmentación interna).
-
-### Particiones Dinámicas
-
-Para resolver la fragmentación interna de las particiones fijas, se desarrollaron las **particiones dinámicas**: cada proceso recibe exactamente la cantidad de memoria que necesita.
-
-**Evolución de la memoria con particiones dinámicas:**
-
-```
-t=0: Sistema arranca
-┌──────────┐
-│    SO    │ 64 KB
-├──────────┤
-│  Libre   │ 960 KB
-└──────────┘
-
-t=1: Llega P1 (100 KB)
-┌──────────┐
-│    SO    │
-├──────────┤
-│    P1    │ 100 KB
-├──────────┤
-│  Libre   │ 860 KB
-└──────────┘
-
-t=2: Llegan P2 (200 KB) y P3 (150 KB)
-┌──────────┐
-│    SO    │
-├──────────┤
-│    P1    │
-├──────────┤
-│    P2    │ 200 KB
-├──────────┤
-│    P3    │ 150 KB
-├──────────┤
-│  Libre   │ 510 KB
-└──────────┘
-
-t=3: P1 termina
-┌──────────┐
-│    SO    │
-├──────────┤
-│  Libre   │ 100 KB (hueco)
-├──────────┤
-│    P2    │
-├──────────┤
-│    P3    │
-├──────────┤
-│  Libre   │ 510 KB
-└──────────┘
-
-t=4: P2 termina
-┌──────────┐
-│    SO    │
-├──────────┤
-│  Libre   │ 100 KB
-├──────────┤
-│  Libre   │ 200 KB (otro hueco)
-├──────────┤
-│    P3    │
-├──────────┤
-│  Libre   │ 510 KB
-└──────────┘
-
-Total libre: 810 KB, pero fragmentado en 3 bloques
-Un proceso de 400 KB no cabe (aunque hay 810 KB libres)
--> Fragmentación externa
-```
-
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Sin fragmentación interna\\
-- Número dinámico de procesos\\
-- Uso eficiente de memoria inicialmente\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Fragmentación externa severa con el tiempo\\
-- Algoritmo de asignación más complejo\\
-- Requiere compactación periódica (costosa)\\
-- Estructuras de datos para rastrear bloques libres\\
-}
-
-### Algoritmos de Asignación
-
-Cuando llega un proceso que necesita memoria, el SO debe decidir **en qué bloque libre ubicarlo**. Existen varios algoritmos:
-
-#### First Fit (Primer Ajuste)
-
-**Algoritmo:** Busca secuencialmente en la lista de bloques libres y asigna el **primer bloque** suficientemente grande.
-
-**Ejemplo:**
-```
-Bloques libres: [50 KB] [200 KB] [80 KB] [300 KB]
-Proceso necesita: 70 KB
-
-First Fit asigna: Bloque de 200 KB (primero que encontró >= 70 KB)
-Resultado: [50 KB] [70 KB usado|130 KB libre] [80 KB] [300 KB]
-```
-
-\textcolor{blue!50!black}{\textbf{Características:}\\
-- Complejidad: O(n) en el peor caso\\
-- Rápido en promedio\\
-- Tiende a dejar bloques pequeños al inicio de la lista\\
-}
-
-#### Best Fit (Mejor Ajuste)
-
-**Algoritmo:** Busca en **toda** la lista de bloques libres y asigna el **bloque más pequeño** que sea suficiente.
-
-**Ejemplo:**
-```
-Bloques libres: [50 KB] [200 KB] [80 KB] [300 KB]
-Proceso necesita: 70 KB
-
-Best Fit asigna: Bloque de 80 KB (el menor >= 70 KB)
-Resultado: [50 KB] [200 KB] [70 KB usado|10 KB libre] [300 KB]
-```
-
-\textcolor{blue!50!black}{\textbf{Características:}\\
-- Complejidad: O(n) siempre (debe recorrer toda la lista)\\
-- Minimiza desperdicio por asignación\\
-- Pero genera muchos bloques muy pequeños (inútiles)\\
-}
-
-#### Worst Fit (Peor Ajuste)
-
-**Algoritmo:** Busca en toda la lista y asigna el **bloque más grande** disponible.
-
-**Ejemplo:**
-```
-Bloques libres: [50 KB] [200 KB] [80 KB] [300 KB]
-Proceso necesita: 70 KB
-
-Worst Fit asigna: Bloque de 300 KB
-Resultado: [50 KB] [200 KB] [80 KB] [70 KB usado|230 KB libre]
-```
-
-\textcolor{blue!50!black}{\textbf{Características:}\\
-- Complejidad: O(n) siempre\\
-- Deja bloques grandes (más útiles que los pequeños)\\
-- Mejor rendimiento en simulaciones\\
-}
-
-#### Next Fit (Siguiente Ajuste)
-
-**Algoritmo:** Similar a First Fit, pero continúa la búsqueda desde donde terminó la última asignación (búsqueda circular).
-
-\textcolor{blue!50!black}{\textbf{Características:}\\
-- Complejidad: O(n) en el peor caso\\
-- Distribuye asignaciones más uniformemente\\
-- Evita concentración de bloques pequeños al inicio\\
-}
-
-#### Comparación y Análisis
-
-\textcolor{orange!70!black}{\textbf{Pregunta para reflexionar:}\\
-¿Cuál algoritmo elegirías para un sistema de tiempo real? ¿Y para un servidor de aplicaciones? ¿Por qué?\\
-}
-
-**Análisis de fragmentación:**
-
-En estudios de simulación, **Worst Fit** genera menos fragmentación severa que Best Fit, aunque suene contraintuitivo.
-
-\textcolor{teal!60!black}{\textbf{¿Por qué Worst Fit es más eficiente?}\\
-- Best Fit genera muchos bloques MUY pequeños (inútiles)\\
-- Worst Fit deja bloques grandes (más probabilidad de ser útiles)\\
-- Ejemplo: Best Fit deja 50 bloques de 1-5 KB (desperdicios)\\
-- Worst Fit deja 10 bloques de 30-50 KB (pueden usarse)\\
-}
-
-**En la práctica:** Sistemas modernos usan variantes de First Fit con optimizaciones (listas ordenadas, segregación por tamaño).
-
-## Paginación Simple
-
-La paginación fue un avance revolucionario que resolvió el problema de fragmentación externa.
-
-### Concepto y Motivación
-
-**Idea central:** Dividir el espacio de direcciones lógicas y la memoria física en bloques de **tamaño fijo** llamados páginas y marcos (frames).
-
-\begin{definitionbox}
-\emph{Paginación:}
-Técnica de gestión de memoria que divide el espacio lógico en páginas de tamaño fijo y la memoria física en marcos del mismo tamaño. Las páginas se mapean a marcos de forma no contigua.
-\end{definitionbox}
-
-**Conceptos clave:**
-
-- **Página**: Bloque de memoria lógica (típicamente 4 KB)
-- **Marco (Frame)**: Bloque de memoria física del mismo tamaño que una página
-- **Tabla de páginas**: Estructura que mapea páginas a marcos
-
-**Ventaja fundamental:** Las páginas de un proceso NO necesitan estar contiguas en memoria física.
-
-```
-Espacio lógico del proceso:    Memoria física:
-┌──────────┐                   ┌──────────┐ Marco 0
-│ Página 0 │ ────────────────-> │    P2    │
-├──────────┤                   ├──────────┤ Marco 1
-│ Página 1 │ ─────────┐        │    P0    │
-├──────────┤          │        ├──────────┤ Marco 2
-│ Página 2 │ ─┐       └──────-> │    P1    │
-├──────────┤  │                ├──────────┤ Marco 3
-│ Página 3 │  └──────────────-> │  Libre   │
-└──────────┘                   ├──────────┤ Marco 4
-                                │    P3    │
-                                └──────────┘
-```
-
-\textcolor{teal!60!black}{\textbf{Ventajas de paginación:}\\
-- Elimina fragmentación externa\\
-- Asignación y liberación simple\\
-- Permite compartir páginas entre procesos\\
-- Facilita implementación de memoria virtual\\
-- Protección a nivel de página\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Fragmentación interna en última página\\
-- Overhead de tabla de páginas\\
-- Acceso a memoria requiere traducción\\
-- Complejidad adicional en hardware\\
-}
-
-### Formato de Dirección Lógica
-
-Una dirección lógica en paginación se divide en dos campos:
-
-```
-┌─────────────────┬──────────────────┐
-│ Número de Página│     Offset       │
-│       (p)       │       (d)        │
-└─────────────────┴──────────────────┘
-```
-
-\begin{definitionbox}
-\emph{Formato de Dirección Lógica:}
-Si el tamaño de página es $2^d$ bytes y el espacio lógico es $2^m$ bytes, entonces una dirección lógica tiene m bits divididos en: p = m - d bits para número de página, d bits para offset dentro de la página.
-\end{definitionbox}
-
-**Ejemplo:** Espacio de 64 KB con páginas de 4 KB
-
-- Espacio lógico: $2^{16}$ bytes (64 KB) -> 16 bits de dirección
-- Tamaño de página: $2^{12}$ bytes (4 KB) -> 12 bits de offset
-- Bits para número de página: 16 - 12 = 4 bits
-- Número de páginas: $2^4$ = 16 páginas
-
-```
-Dirección lógica de 16 bits:
-┌────────┬────────────────────┐
-│ 4 bits │     12 bits        │
-│  (p)   │      (d)           │
-└────────┴────────────────────┘
-Rango páginas: 0-15
-Rango offset: 0-4095
-```
-
-### Traducción de Direcciones
-
-El proceso de traducción usa la **tabla de páginas** del proceso:
-
-**Algoritmo de traducción:**
-
-1. Extraer número de página `p` de los bits más significativos
-2. Extraer offset `d` de los bits menos significativos
-3. Buscar en tabla de páginas: `marco = tabla_paginas[p]`
-4. Calcular dirección física: `DF = marco * tamaño_pagina + d`
-
-**Ejemplo numérico:**
-
-```
-Configuración:
-- Tamaño de página: 1 KB (1024 bytes = 2^10)
-- Espacio lógico: 8 KB (8192 bytes = 2^13)
-- Bits de dirección: 13 bits
-- Bits de página: 13 - 10 = 3 bits (8 páginas)
-- Bits de offset: 10 bits (1024 posiciones)
-
-Tabla de páginas del proceso:
-┌────────┬────────┐
-│ Página │ Marco  │
-├────────┼────────┤
-│   0    │   5    │
-│   1    │   2    │
-│   2    │   7    │
-│   3    │   0    │
-└────────┴────────┘
-
-Traducir dirección lógica: 2500
-
-Paso 1: Convertir a binario
-2500₁₀ = 100111000100₂ (13 bits)
-
-Paso 2: Separar p y d
-┌───────┬──────────────┐
-│ 100   │ 111000100    │
-│ (p=4) │  (d=452)     │
-└───────┴──────────────┘
-Pero página 4 no existe en la tabla -> Segmentation Fault
-
-Corregimos: 1300
-1300₁₀ = 10100010100₂
-┌───────┬──────────────┐
-│ 001   │ 0100010100   │
-│ (p=1) │  (d=276)     │
-└───────┴──────────────┘
-
-Paso 3: Consultar tabla
-tabla[1] = marco 2
-
-Paso 4: Calcular dirección física
-DF = 2 * 1024 + 276 = 2048 + 276 = 2324
-```
-
-**Diagrama de traducción:**
-
-```
-CPU genera DL=1300
-       ↓
-┌──────────────┐
-│ p=1 │ d=276  │
-└──────────────┘
-       ↓
- [Tabla de Páginas]
-  p=1 -> marco=2
-       ↓
-DF = 2*1024 + 276 = 2324
-       ↓
-   Acceso a RAM[2324]
-```
-
-### Tabla de Páginas
-
-\begin{definitionbox}
-\emph{Tabla de Páginas:}
-Estructura de datos mantenida por el SO que mapea números de página lógica a números de marco físico. Cada proceso tiene su propia tabla de páginas.
-\end{definitionbox}
-
-**Contenido de una entrada de tabla de páginas (PTE):**
-
-```
-┌────────────┬─────┬─────┬─────┬─────┬──────────┐
-│ Marco (n)  │  V  │  R  │  W  │  X  │  Otros   │
-└────────────┴─────┴─────┴─────┴─────┴──────────┘
-    20 bits   1 bit 1 bit 1 bit 1 bit   8 bits
-```
-
-**Campos de la entrada:**
-
-- **Marco**: Número de marco físico donde está la página
-- **V (Valid)**: Indica si la página está en memoria (1) o en disco (0)
-- **R (Referenced)**: Bit de acceso, para algoritmos de reemplazo
-- **W (Written/Dirty)**: Indica si la página fue modificada
-- **X (Execute)**: Permiso de ejecución
-- **Otros**: Protección, compartición, etc.
-
-**Ubicación de la tabla de páginas:**
-
-La tabla de páginas está en **memoria RAM** (no en registros del CPU, son demasiadas entradas).
-
-- El SO mantiene un registro especial: **PTBR (Page Table Base Register)** que apunta al inicio de la tabla
-- En cada context switch, el SO actualiza el PTBR con la tabla del nuevo proceso
-
-\textcolor{orange!70!black}{\textbf{Problema de rendimiento:}\\
-- Cada acceso a memoria requiere 2 accesos reales:\\
-  1. Leer entrada de tabla de páginas (en RAM)\\
-  2. Leer dato solicitado (en RAM)\\
-- Se duplica el tiempo de acceso a memoria\\
-- Solución: TLB (caché de traducciones)\\
-}
-
-### Fragmentación Interna en Paginación
-
-Aunque paginación elimina fragmentación externa, tiene fragmentación interna en la **última página** de cada proceso.
-
-**Ejemplo:**
-
-```
-Proceso necesita: 13.5 KB
-Tamaño de página: 4 KB
-Páginas asignadas: 4 páginas (16 KB)
-Fragmentación interna: 16 - 13.5 = 2.5 KB (15.6%)
-
-┌──────────┐
-│ Página 0 │ 4 KB (completa)
-├──────────┤
-│ Página 1 │ 4 KB (completa)
-├──────────┤
-│ Página 2 │ 4 KB (completa)
-├──────────┤
-│ Página 3 │ 1.5 KB usado
-│  ········│ 2.5 KB desperdiciado
-└──────────┘
-```
-
-\textcolor{blue!50!black}{\textbf{Fragmentación promedio:}\\
-- En promedio: 0.5 páginas por proceso\\
-- Si página = 4 KB: desperdicio promedio = 2 KB por proceso\\
-- Con 100 procesos: 200 KB desperdiciados\\
-- Trade-off: páginas más pequeñas -> menos fragmentación pero más overhead\\
-}
-
-## Segmentación
-
-La paginación resuelve problemas técnicos pero no refleja la estructura lógica del programa. La segmentación aborda esto.
-
-### Concepto y Motivación
-
-**Perspectiva del programador:** Un programa NO es un arreglo lineal de bytes, sino una colección de unidades lógicas:
-
-- Segmento de código (instrucciones)
-- Segmento de datos globales
-- Segmento de heap (memoria dinámica)
-- Segmento de stack (variables locales)
-- Segmentos de librerías compartidas
-
-\begin{definitionbox}
-\emph{Segmentación:}
-Técnica de gestión de memoria que divide el espacio de direcciones en segmentos de tamaño variable, donde cada segmento representa una unidad lógica del programa.
-\end{definitionbox}
-
-**Diferencia clave con paginación:**
-
-| Aspecto | Paginación | Segmentación |
-|---------|-----------|--------------|
-| División | Tamaño fijo (4 KB) | Tamaño variable |
-| Criterio | Técnico (hardware) | Lógico (programador) |
-| Visible al programador | No | Sí |
-| Fragmentación | Interna | Externa |
-| Protección | Por página | Por segmento (más natural) |
-| Compartición | Complicada | Natural |
-
-**Ejemplo de espacio segmentado:**
-
-```
-Espacio lógico del proceso:
-┌──────────────────┐ Segmento 0
-│      Código      │ Base: 1000, Límite: 2000
-│   (2000 bytes)   │
-├──────────────────┤ Segmento 1
-│      Datos       │ Base: 5000, Límite: 500
-│   (500 bytes)    │
-├──────────────────┤ Segmento 2
-│      Stack       │ Base: 8000, Límite: 1000
-│   (1000 bytes)   │
-└──────────────────┘
-
-Dirección lógica: (segmento, offset)
-Ejemplo: (1, 250) -> segmento 1, offset 250
-```
-
-### Formato de Dirección Lógica en Segmentación
-
-Una dirección lógica es un par: `(s, d)` donde:
-- `s` = número de segmento
-- `d` = desplazamiento dentro del segmento
-
-**Traducción de dirección:**
-
-1. Extraer `s` y `d` de la dirección lógica
-2. Consultar tabla de segmentos: `entrada = tabla_segmentos[s]`
-3. Verificar: `si d >= entrada.limite -> Segmentation Fault`
-4. Calcular: `DF = entrada.base + d`
-
-**Ejemplo:**
-
-```
-Tabla de segmentos:
-┌─────────┬──────┬────────┐
-│ Segmento│ Base │ Límite │
-├─────────┼──────┼────────┤
-│    0    │ 1000 │  2000  │
-│    1    │ 5000 │   500  │
-│    2    │ 8000 │  1000  │
-└─────────┴──────┴────────┘
-
-Traducir: (1, 250)
-1. s=1, d=250
-2. Base=5000, Límite=500
-3. ¿250 < 500? Sí -> válido
-4. DF = 5000 + 250 = 5250
-
-Traducir: (1, 600)
-1. s=1, d=600
-2. Base=5000, Límite=500
-3. ¿600 < 500? No -> TRAP (Segmentation Fault)
-```
-
-### Ventajas de Segmentación
-
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Refleja estructura lógica del programa\\
-- Protección natural (cada segmento tiene permisos)\\
-- Compartición fácil (código compartido = mismo segmento)\\
-- Crecimiento dinámico de segmentos (heap, stack)\\
-- Facilita modularidad y librerías compartidas\\
-}
-
-**Ejemplo de compartición:**
-
-```
-Proceso A y B ejecutan el mismo programa:
-┌─────────────────┐
-│ Seg 0: Código   │ ← Ambos procesos apuntan aquí
-│   (compartido)  │    (read-only)
-└─────────────────┘
-
-Proceso A:                Proceso B:
-┌──────────────┐          ┌──────────────┐
-│ Seg 1: Datos │          │ Seg 1: Datos │
-│   (privado)  │          │   (privado)  │
-└──────────────┘          └──────────────┘
-```
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Fragmentación externa (como particiones dinámicas)\\
-- Complejidad de asignación (algoritmos First/Best/Worst Fit)\\
-- Requiere compactación eventualmente\\
-- Tabla de segmentos más compleja que tabla de páginas\\
-}
-
-### Segmentación con Paginación
-
-Los sistemas modernos combinan ambas técnicas para obtener ventajas de cada una:
-
-\begin{definitionbox}
-\emph{Segmentación Paginada:}
-Cada segmento se divide en páginas. El espacio lógico está segmentado, pero cada segmento se implementa con paginación.
-\end{definitionbox}
-
-**Proceso de traducción en dos niveles:**
-
-```
-Dirección lógica: (s, p, d)
-- s = número de segmento
-- p = número de página dentro del segmento
-- d = offset dentro de la página
-
-1. Consultar tabla de segmentos -> obtener tabla de páginas del segmento
-2. Consultar tabla de páginas del segmento -> obtener marco
-3. Calcular dirección física: marco * tamaño_página + d
-```
-
-**Ejemplo: Intel x86 (arquitectura IA-32):**
-
-```
-┌──────────────────────────────┐
-│  Selector de Segmento (16b)  │ Dirección lógica
-├─────────────┬────────────────┤
-│ Índice GDT  │    Offset      │
-└─────────────┴────────────────┘
-       ↓              ↓
-   [GDT/LDT]      ┌───────┬────┐
-   Descriptor  ->  │ Página│ Off│
-   de Segmento    └───────┴────┘
-       ↓              ↓
-   Base + Límite  [Tabla Páginas]
-       ↓              ↓
-   Dirección      Marco físico
-   lineal             ↓
-                  Dirección física
-```
-
-\textcolor{teal!60!black}{\textbf{Ventajas del esquema híbrido:}\\
-- Protección y compartición de segmentación\\
-- Sin fragmentación externa de paginación\\
-- Segmentos pueden crecer (agregando páginas)\\
-- Mejor uso de memoria que segmentación pura\\
-}
-
-## Técnicas Avanzadas
-
-### Buddy System
-
-El Buddy System es un algoritmo de asignación que busca balancear la velocidad de asignación con la fragmentación.
-
-\begin{definitionbox}
-\emph{Buddy System:}
-Algoritmo de asignación de memoria que divide bloques en potencias de 2. Cuando se libera un bloque, se intenta fusionar con su "buddy" (compañero) para formar bloques más grandes.
-\end{definitionbox}
-
-**Funcionamiento:**
-
-1. La memoria total es una potencia de 2 (ejemplo: 256 KB)
-2. Cuando se solicita memoria, se busca el bloque más pequeño (potencia de 2) que lo contenga
-3. Si no existe, se divide un bloque mayor recursivamente (splitting)
-4. Al liberar, se intenta fusionar con el buddy si también está libre (coalescing)
-
-**Regla del buddy:** Dos bloques de tamaño $2^k$ en direcciones `addr1` y `addr2` son buddies si:
-```
-addr1 XOR addr2 == 2^k
-```
-
-**Ejemplo de operación:**
-
-```
-Estado inicial: 256 KB libre
-┌─────────────────────────────────┐
-│           256 KB                │
-└─────────────────────────────────┘
-
-Solicitud: 40 KB
--> Necesita bloque de 64 KB (2^6)
--> Dividir 256 -> 128 + 128
--> Dividir 128 -> 64 + 64
--> Asignar primer 64 KB
-
-Estado después de asignar 40 KB:
-┌───────────┬───────────┬─────────────────┐
-│ 64 (usado)│ 64 (libre)│   128 (libre)   │
-└───────────┴───────────┴─────────────────┘
-
-Solicitud: 35 KB
--> Necesita bloque de 64 KB
--> Ya hay uno libre, asignar
-
-┌───────────┬───────────┬─────────────────┐
-│ 64 (usado)│ 64 (usado)│   128 (libre)   │
-└───────────┴───────────┴─────────────────┘
-
-Liberar primer bloque (64 KB):
--> Su buddy (segundo 64 KB) está ocupado
--> No se puede fusionar
-
-┌───────────┬───────────┬─────────────────┐
-│ 64 (libre)│ 64 (usado)│   128 (libre)   │
-└───────────┴───────────┴─────────────────┘
-
-Liberar segundo bloque (64 KB):
--> Su buddy (primer 64 KB) está libre
--> Fusionar en 128 KB
--> El nuevo 128 tiene buddy libre (otro 128)
--> Fusionar en 256 KB
-
-┌─────────────────────────────────┐
-│           256 KB (libre)        │
-└─────────────────────────────────┘
-```
-
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Asignación y liberación rápidas: O(log n)\\
-- Coalescing automático sin escanear toda la memoria\\
-- Reduce fragmentación externa comparado con particiones dinámicas\\
-- Implementación simple con listas por tamaño\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Fragmentación interna (siempre se asigna potencia de 2)\\
-- Un proceso de 65 KB recibe 128 KB (desperdicio 63 KB)\\
-- No tan eficiente como paginación pura\\
-}
-
-**Uso en sistemas reales:** Linux usa una variante del Buddy System para asignar páginas físicas en el kernel (hasta orden 11, o sea, bloques de hasta 2^11 páginas).
-
-### Paginación Multinivel
-
-Cuando el espacio de direcciones es muy grande, la tabla de páginas se vuelve enorme.
-
-**Problema:** En un sistema de 32 bits con páginas de 4 KB:
-- Direcciones posibles: $2^{32}$ = 4 GB
-- Páginas posibles: $2^{32} / 2^{12}$ = $2^{20}$ = 1 millón de páginas
-- Entrada de tabla: 4 bytes
-- **Tamaño de tabla: 4 MB por proceso**
-
-Si hay 100 procesos: 400 MB solo en tablas de páginas (inaceptable).
-
-**Solución:** Paginación multinivel, paginar la tabla de páginas misma.
-
-#### Paginación de Dos Niveles
-
-\begin{definitionbox}
-\emph{Paginación de Dos Niveles:}
-La tabla de páginas se divide en páginas. Se mantiene un directorio de páginas que apunta a las tablas de páginas de segundo nivel.
-\end{definitionbox}
-
-**Formato de dirección lógica:**
-
-```
-┌──────────────┬──────────────┬──────────────┐
-│  Directorio  │    Página    │    Offset    │
-│     (p1)     │     (p2)     │     (d)      │
-└──────────────┴──────────────┴──────────────┘
-```
-
-**Proceso de traducción:**
-
-1. Usar `p1` para indexar el **directorio de páginas** -> obtener tabla de nivel 2
-2. Usar `p2` para indexar la **tabla de nivel 2** -> obtener marco
-3. Usar `d` como offset dentro del marco
-
-**Ventaja:** Si un proceso no usa ciertas regiones de memoria, las tablas de nivel 2 correspondientes NO se crean (ahorro de memoria).
-
-**Ejemplo numérico (32 bits, página 4 KB):**
-
-```
-Dirección de 32 bits:
-┌────────┬────────┬──────────────┐
-│ 10 bits│ 10 bits│   12 bits    │
-│  (p1)  │  (p2)  │     (d)      │
-└────────┴────────┴──────────────┘
-
-Directorio: 2^10 = 1024 entradas
-Cada tabla nivel 2: 2^10 = 1024 entradas
-Offset: 2^12 = 4096 bytes (4 KB)
-
-Si proceso usa solo 4 MB:
-- Requiere 1 entrada en directorio
-- Requiere 1 tabla de nivel 2 (1024 entradas)
-- Total: (1024 + 1024) * 4 bytes = 8 KB
-- vs 4 MB en tabla plana
-```
-
-#### Paginación de Tres Niveles
-
-Para espacios de direcciones de 64 bits, se requieren más niveles.
-
-```
-┌────────┬────────┬────────┬──────────────┐
-│  (p1)  │  (p2)  │  (p3)  │     (d)      │
-└────────┴────────┴────────┴──────────────┘
-```
-
-**Ejemplo: x86-64 con páginas de 4 KB:**
-
-```
-Dirección de 48 bits (no se usan los 64 completos):
-┌────────┬────────┬────────┬────────┬──────────────┐
-│ 9 bits │ 9 bits │ 9 bits │ 9 bits │   12 bits    │
-│  PML4  │  PDPT  │   PD   │   PT   │   Offset     │
-└────────┴────────┴────────┴────────┴──────────────┘
-
-4 niveles de traducción:
-1. Page Map Level 4 (PML4)
-2. Page Directory Pointer Table (PDPT)
-3. Page Directory (PD)
-4. Page Table (PT)
-```
-
-\textcolor{orange!70!black}{\textbf{Costo de traducción:}\\
-- 3 niveles = 4 accesos a memoria (3 niveles + dato)\\
-- Sin TLB sería devastador para rendimiento\\
-- TLB es crítica: hit rate del 99 porciento es esencial\\
-}
-
-### Tabla de Páginas Invertida
-
-Un enfoque radicalmente diferente: en lugar de una tabla por proceso, **una tabla global** para todo el sistema.
-
-\begin{definitionbox}
-\emph{Tabla de Páginas Invertida:}
-Una tabla única que tiene una entrada por cada marco físico (no por página lógica). Cada entrada indica qué proceso y qué página está en ese marco.
-\end{definitionbox}
-
-**Estructura:**
-
-```
-Tabla Invertida (una para todo el sistema):
-┌───────┬──────────┬─────────┬──────────┐
-│ Marco │ PID      │ Página  │ Flags    │
-├───────┼──────────┼─────────┼──────────┤
-│   0   │   42     │   7     │ R-X      │
-│   1   │  103     │   2     │ RW-      │
-│   2   │   42     │   15    │ RW-      │
-│  ...  │  ...     │  ...    │ ...      │
-│   n   │  256     │   0     │ R--      │
-└───────┴──────────┴─────────┴──────────┘
-```
-
-**Traducción de dirección:**
-
-1. Extraer `p` (página) y `d` (offset) de dirección lógica
-2. Buscar en tabla invertida: entrada donde `(PID == actual) AND (Página == p)`
-3. El índice de esa entrada es el **marco**
-4. Calcular: `DF = marco * tamaño_página + d`
-
-\textcolor{red!60!gray}{\textbf{Problema crítico:}\\
-- La búsqueda es O(n) donde n = cantidad de marcos\\
-- Cada acceso a memoria requiere escanear toda la tabla\\
-- INACEPTABLE sin optimización\\
-}
-
-**Solución:** Usar una **tabla hash** para acelerar la búsqueda.
-
-```
-Hash(PID, página) -> índice en tabla hash -> cadena de colisiones -> entrada
-```
-
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Tamaño de tabla proporcional a memoria física (no a lógica)\\
-- Un sistema con 4 GB de RAM y páginas de 4 KB:\\
-  -> 1M marcos -> 1M entradas (vs millones por proceso)\\
-- Ahorro masivo en sistemas con muchos procesos\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Búsqueda más lenta (incluso con hash)\\
-- Compartición de páginas complicada\\
-- No compatible con memoria virtual tradicional\\
-}
-
-**Uso real:** PowerPC, IA-64 (Itanium), algunas versiones de AIX.
-
-## Compactación y Defragmentación
-
-La compactación es el proceso de mover procesos en memoria para consolidar los espacios libres.
-
-\begin{definitionbox}
-\emph{Compactación:}
-Técnica que reorganiza la memoria moviendo procesos activos para eliminar fragmentación externa, creando un único bloque contiguo de memoria libre.
-\end{definitionbox}
-
-**Proceso de compactación:**
-
-```
-Antes de compactación:
-┌──────┐ 0 KB
-│  SO  │
-├──────┤ 64 KB
-│  P1  │ (50 KB)
-├──────┤ 114 KB
-│ Libre│ (30 KB)
-├──────┤ 144 KB
-│  P2  │ (80 KB)
-├──────┤ 224 KB
-│ Libre│ (40 KB)
-├──────┤ 264 KB
-│  P3  │ (60 KB)
-├──────┤ 324 KB
-│ Libre│ (700 KB)
-└──────┘ 1024 KB
-
-Total libre: 770 KB (fragmentado)
-
-Después de compactación:
-┌──────┐ 0 KB
-│  SO  │
-├──────┤ 64 KB
-│  P1  │ (50 KB)
-├──────┤ 114 KB
-│  P2  │ (80 KB)
-├──────┤ 194 KB
-│  P3  │ (60 KB)
-├──────┤ 254 KB
-│ Libre│ (770 KB)
-└──────┘ 1024 KB
-
-Total libre: 770 KB (contiguo)
-```
-
-**Algoritmo de compactación:**
-
-1. Identificar todos los bloques libres
-2. Mover procesos hacia direcciones bajas
-3. Actualizar tablas de asignación
-4. **Actualizar todas las referencias** (registros, punteros, tablas de páginas)
-
-\textcolor{red!60!gray}{\textbf{Costos de compactación:}\\
-- Copiar todos los procesos en memoria (muy lento)\\
-- Detener ejecución durante compactación\\
-- Actualizar estructuras del SO\\
-- En un sistema con 1 GB ocupado: varios segundos\\
-}
-
-\textcolor{orange!70!black}{\textbf{¿Cuándo es factible la compactación?}\\
-SOLO si se usa binding en tiempo de ejecución.\\
-- Con binding en compilación/carga: imposible mover procesos\\
-- Con registros base/límite o paginación: solo actualizar registros\\
-- La MMU hace transparente el movimiento para el proceso\\
-}
-
-**Estrategias de compactación:**
-
-1. **Compactación completa:** Todos los procesos al inicio, todo el espacio libre al final
-2. **Compactación parcial:** Solo eliminar huecos más pequeños que cierto umbral
-3. **Compactación selectiva:** Solo mover procesos que no están ejecutando
-
-**En paginación:** No se necesita compactación tradicional, pero se puede hacer "defragmentación" moviendo páginas para mejorar localidad (raro en práctica).
-
-## Protección y Compartición
-
-### Mecanismos de Protección
-
-Los sistemas de gestión de memoria incluyen mecanismos de protección para:
-
-1. Evitar que un proceso acceda memoria de otro
-2. Evitar que un proceso acceda memoria del SO
-3. Controlar operaciones permitidas (lectura, escritura, ejecución)
-
-**Bits de protección en tabla de páginas:**
-
-```
-┌────────┬────┬────┬────┬────────┐
-│ Marco  │ R  │ W  │ X  │ Otros  │
-└────────┴────┴────┴────┴────────┘
-
-R (Read):    Página legible
-W (Write):   Página escribible
-X (Execute): Página ejecutable
-
-Combinaciones típicas:
-R--: Solo lectura (constantes, código compartido)
-RW-: Lectura/escritura (datos, heap, stack)
-R-X: Solo lectura y ejecución (código)
-RWX: Peligroso (permite data execution attacks)
-```
-
-**Verificación por hardware:**
-
-Cuando el CPU intenta acceder a una página, la MMU verifica automáticamente:
-
-```
-1. ¿La página es válida (bit V=1)?
-   NO -> Page Fault (TRAP al SO)
-   
-2. ¿El acceso es de lectura y bit R=1?
-   NO -> Protection Fault (TRAP al SO)
-   
-3. ¿El acceso es de escritura y bit W=1?
-   NO -> Protection Fault (TRAP al SO)
-   
-4. ¿El acceso es de ejecución y bit X=1?
-   NO -> Protection Fault (TRAP al SO)
-   
-5. Todo OK -> Permitir acceso
 ```
-
-\textcolor{teal!60!black}{\textbf{Importancia de NX (No-eXecute):}\\
-- Previene ataques de buffer overflow\\
-- Stack y heap NO deben ser ejecutables\\
-- Si un atacante inyecta código en stack, el CPU rechaza ejecutarlo\\
-- Mecanismo fundamental de seguridad moderna\\
-}
-
-### Compartición de Memoria
-
-Los sistemas modernos permiten que múltiples procesos compartan páginas de memoria.
-
-**Casos de uso:**
-
-1. **Código compartido:** Múltiples procesos ejecutando el mismo programa
-2. **Librerías compartidas:** libc.so, libpthread.so, etc.
-3. **Comunicación entre procesos:** Shared memory segments
-
-**Ejemplo de código compartido:**
-
-```
-Proceso A (PID=100):          Proceso B (PID=200):
-Tabla de páginas:             Tabla de páginas:
-┌────────┬────────┐           ┌────────┬────────┐
-│ Pág 0  │ Marco 5│ ← Código │ Pág 0  │ Marco 5│ Mismo marco
-│ Pág 1  │ Marco 8│ ← Datos  │ Pág 1  │ Marco 9│ Datos privados
-│ Pág 2  │ Marco 7│ ← Stack  │ Pág 2  │ Marco 6│ Stack privado
-└────────┴────────┘           └────────┴────────┘
-```
-
-\textcolor{blue!50!black}{\textbf{Ahorro de memoria:}\\
-- 100 procesos ejecutando bash (1 MB de código)\\
-- Sin compartición: 100 MB de código en RAM\\
-- Con compartición: 1 MB de código + 100 MB de datos privados\\
-- Ahorro: 99 MB\\
-}
 
-**Requisitos para compartir código:**
+## Ejemplo Práctico: Control de Cochera
 
-1. El código debe ser **reentrante** (no se modifica a sí mismo)
-2. Las páginas compartidas deben tener permisos **R-X** (no escribibles)
-3. Cada proceso tiene sus propios datos y stack
+### Planteamiento del Problema
 
-## Código en C
+Una cochera tiene:
+- **20 espacios** para autos **1 entrada** (con barrera), **2 salidas** (con barreras) y un **Sistema de control** que debe llevar cuenta de espacios ocupados
 
-### Conceptos Básicos de Memoria y Punteros (Bonus)
+**Requerimientos:**
+1. No permitir entrada si cochera está llena
+2. Controlar acceso exclusivo a entrada y salidas
+3. Mantener contador preciso de autos
+4. Evitar deadlock entre entrada y salidas
 
-Los punteros son la herramienta fundamental para trabajar con memoria en C.
+### Solución con Semáforos
 
 ```c
 #include <stdio.h>
+#include <semaphore.h>
+#include <pthread.h>
+
+#define CAPACIDAD_COCHERA 20
+#define NUM_AUTOS 100
+
+typedef struct {
+    // Semáforo contador para espacios disponibles
+    sem_t espacios_disponibles;
+    
+    // Mutex para acceso exclusivo a entrada
+    sem_t mutex_entrada;
+    
+    // Mutex para acceso exclusivo a cada salida
+    sem_t mutex_salida1;
+    sem_t mutex_salida2;
+    
+    // Mutex para el contador global
+    sem_t mutex_contador;
+    
+    // Estado de la cochera
+    int autos_dentro;
+    int total_entradas;
+    int total_salidas;
+    
+} cochera_t;
+
+cochera_t cochera;
+
+void inicializar_cochera() {
+    // Inicializar semáforos
+    sem_init(&cochera.espacios_disponibles, 0, CAPACIDAD_COCHERA);
+    sem_init(&cochera.mutex_entrada, 0, 1);
+    sem_init(&cochera.mutex_salida1, 0, 1);
+    sem_init(&cochera.mutex_salida2, 0, 1);
+    sem_init(&cochera.mutex_contador, 0, 1);
+    
+    // Inicializar estado
+    cochera.autos_dentro = 0;
+    cochera.total_entradas = 0;
+    cochera.total_salidas = 0;
+    
+    printf("Cochera inicializada: %d espacios disponibles\n", CAPACIDAD_COCHERA);
+}
+
+void* auto_entrando(void* arg) {
+    int auto_id = *(int*)arg;
+    
+    printf("Auto %d llegó a la cochera\n", auto_id);
+    
+    // 1. Verificar si hay espacio disponible
+    printf("Auto %d esperando espacio...\n", auto_id);
+    sem_wait(&cochera.espacios_disponibles);  // Bloquea si cochera llena
+    
+    // 2. Hay espacio garantizado, obtener acceso exclusivo a entrada
+    printf("Auto %d esperando acceso a entrada...\n", auto_id);
+    sem_wait(&cochera.mutex_entrada);
+    
+    // 3. SECCIÓN CRÍTICA: Procesar entrada
+    printf("Auto %d entrando a cochera\n", auto_id);
+    
+    // Simular tiempo de entrada (abrir barrera, validar ticket, etc.)
+    sleep(1);
+    
+    // Actualizar contador global de manera thread-safe
+    sem_wait(&cochera.mutex_contador);
+    cochera.autos_dentro++;
+    cochera.total_entradas++;
+    printf("Auto %d dentro. Total en cochera: %d/%d\n", 
+           auto_id, cochera.autos_dentro, CAPACIDAD_COCHERA);
+    sem_post(&cochera.mutex_contador);
+    
+    // 4. Liberar acceso a entrada
+    sem_post(&cochera.mutex_entrada);
+    
+    printf("Auto %d estacionado exitosamente\n", auto_id);
+    
+    // Simular tiempo estacionado
+    sleep(2 + (rand() % 5));  // 2-6 segundos estacionado
+    
+    // Ahora el auto quiere salir
+    return NULL;
+}
+
+void* auto_saliendo(void* arg) {
+    int auto_id = *(int*)arg;
+    
+    printf("Auto %d quiere salir\n", auto_id);
+    
+    // Elegir salida aleatoriamente (load balancing simple)
+    int salida = (rand() % 2) + 1;
+    sem_t* mutex_salida = (salida == 1) ? &cochera.mutex_salida1 : &cochera.mutex_salida2;
+    
+    // 1. Obtener acceso exclusivo a la salida elegida
+    printf("Auto %d esperando acceso a salida %d...\n", auto_id, salida);
+    sem_wait(mutex_salida);
+    
+    // 2. SECCIÓN CRÍTICA: Procesar salida
+    printf("Auto %d saliendo por salida %d\n", auto_id, salida);
+    
+    // Simular tiempo de salida (validar pago, abrir barrera, etc.)
+    sleep(1);
+    
+    // Actualizar contador global
+    sem_wait(&cochera.mutex_contador);
+    cochera.autos_dentro--;
+    cochera.total_salidas++;
+    printf("Auto %d salió. Total en cochera: %d/%d\n", 
+           auto_id, cochera.autos_dentro, CAPACIDAD_COCHERA);
+    sem_post(&cochera.mutex_contador);
+    
+    // 3. Liberar acceso a salida
+    sem_post(mutex_salida);
+    
+    // 4. IMPORTANTE: Señalar que hay un espacio más disponible
+    sem_post(&cochera.espacios_disponibles);
+    
+    printf("Auto %d salió exitosamente por salida %d\n", auto_id, salida);
+    
+    return NULL;
+}
+
+void mostrar_estadisticas() {
+    sem_wait(&cochera.mutex_contador);
+    
+    printf("\n📈 ESTADÍSTICAS DE LA COCHERA:\n");
+    printf("   - Autos dentro: %d/%d\n", cochera.autos_dentro, CAPACIDAD_COCHERA);
+    printf("   - Total entradas: %d\n", cochera.total_entradas);
+    printf("   - Total salidas: %d\n", cochera.total_salidas);
+    printf("   - Espacios libres: %d\n", CAPACIDAD_COCHERA - cochera.autos_dentro);
+    
+    sem_post(&cochera.mutex_contador);
+}
 
 int main() {
-    int x = 42;          // Variable en stack
-    int *ptr = &x;       // ptr apunta a x
+    pthread_t hilos_entrada[NUM_AUTOS];
+    pthread_t hilos_salida[NUM_AUTOS];
+    int auto_ids[NUM_AUTOS];
     
-    printf("Valor de x: %d\n", x);           // 42
-    printf("Dirección de x: %p\n", &x);      // Dirección lógica
-    printf("Valor de ptr: %p\n", ptr);       // Igual que &x
-    printf("Valor apuntado: %d\n", *ptr);    // 42
+    // Inicializar sistema
+    inicializar_cochera();
+    srand(time(NULL));
     
-    *ptr = 100;          // Modificar x a través del puntero
-    printf("Nuevo valor de x: %d\n", x);     // 100
+    printf("Iniciando simulación: %d autos intentarán usar la cochera\n\n", NUM_AUTOS);
+    
+    // Crear hilos de entrada
+    for (int i = 0; i < NUM_AUTOS; i++) {
+        auto_ids[i] = i + 1;
+        pthread_create(&hilos_entrada[i], NULL, auto_entrando, &auto_ids[i]);
+        
+        // Espaciar llegadas aleatoriamente
+        usleep(50000 + (rand() % 100000));  // 50-150ms entre llegadas
+    }
+    
+    // Crear hilos de salida con delay
+    sleep(3);  // Esperar que algunos autos entren primero
+    
+    for (int i = 0; i < NUM_AUTOS; i++) {
+        pthread_create(&hilos_salida[i], NULL, auto_saliendo, &auto_ids[i]);
+        usleep(100000 + (rand() % 200000));  // 100-300ms entre salidas
+    }
+    
+    // Mostrar estadísticas periódicamente
+    for (int i = 0; i < 10; i++) {
+        sleep(2);
+        mostrar_estadisticas();
+    }
+    
+    // Esperar que todos terminen
+    for (int i = 0; i < NUM_AUTOS; i++) {
+        pthread_join(hilos_entrada[i], NULL);
+        pthread_join(hilos_salida[i], NULL);
+    }
+    
+    printf("\nSimulación terminada\n");
+    mostrar_estadisticas();
+    
+    // Cleanup
+    sem_destroy(&cochera.espacios_disponibles);
+    sem_destroy(&cochera.mutex_entrada);
+    sem_destroy(&cochera.mutex_salida1);
+    sem_destroy(&cochera.mutex_salida2);
+    sem_destroy(&cochera.mutex_contador);
     
     return 0;
 }
 ```
 
-**Salida típica:**
-```
-Valor de x: 42
-Dirección de x: 0x7ffd8c5e3a9c
-Valor de ptr: 0x7ffd8c5e3a9c
-Valor apuntado: 42
-Nuevo valor de x: 100
-```
+## Uso de Arrays de Semáforos
 
-\textcolor{blue!50!black}{\textbf{Nota importante:}\\
-- La dirección mostrada (0x7ffd8c5e3a9c) es una dirección LÓGICA\\
-- La MMU la traduce a una dirección física que el programa nunca ve\\
-- El programa opera completamente en su espacio virtual\\
-}
+### Problema: Múltiples Recursos del Mismo Tipo
 
-### Aritmética de Punteros
+Consideremos un servidor web con **pool de workers**:
+- 10 threads worker disponibles
+- Cada request necesita exactamente 1 worker
+- Algunos requests requieren workers específicos (por expertise)
 
 ```c
-#include <stdio.h>
+#define NUM_WORKERS 10
+#define NUM_REQUESTS 50
 
-int main() {
-    int arr[] = {10, 20, 30, 40, 50};
-    int *ptr = arr;  // ptr apunta al primer elemento
+typedef enum {
+    WORKER_GENERAL = 0,
+    WORKER_DATABASE = 1,
+    WORKER_IMAGE = 2,
+    WORKER_API = 3
+} worker_type_t;
+
+typedef struct {
+    sem_t workers[4];          // Array de semáforos por tipo
+    pthread_mutex_t worker_mutex[NUM_WORKERS];  // Mutex individual por worker
+    worker_type_t worker_types[NUM_WORKERS];    // Tipo de cada worker
+    bool worker_busy[NUM_WORKERS];              // Estado de cada worker
+} server_pool_t;
+
+server_pool_t server;
+
+void inicializar_server() {
+    // Distribuir workers por tipo
+    int workers_por_tipo[] = {4, 3, 2, 1};  // General, DB, Image, API
     
-    printf("ptr apunta a: %p, valor: %d\n", ptr, *ptr);
-    // ptr = dirección base, *ptr = 10
+    for (int tipo = 0; tipo < 4; tipo++) {
+        sem_init(&server.workers[tipo], 0, workers_por_tipo[tipo]);
+    }
     
-    ptr++;  // Avanza sizeof(int) bytes
-    printf("Después de ptr++: %p, valor: %d\n", ptr, *ptr);
-    // ptr = base + 4, *ptr = 20
+    // Inicializar workers individuales
+    int worker_idx = 0;
+    for (int tipo = 0; tipo < 4; tipo++) {
+        for (int i = 0; i < workers_por_tipo[tipo]; i++) {
+            pthread_mutex_init(&server.worker_mutex[worker_idx], NULL);
+            server.worker_types[worker_idx] = tipo;
+            server.worker_busy[worker_idx] = false;
+            worker_idx++;
+        }
+    }
+}
+
+int obtener_worker(worker_type_t tipo_requerido) {
+    // 1. Esperar worker del tipo requerido
+    sem_wait(&server.workers[tipo_requerido]);
     
-    ptr += 2;  // Avanza 2 * sizeof(int) bytes
-    printf("Después de ptr+=2: %p, valor: %d\n", ptr, *ptr);
-    // ptr = base + 12, *ptr = 40
+    // 2. Encontrar worker específico de ese tipo
+    for (int i = 0; i < NUM_WORKERS; i++) {
+        if (server.worker_types[i] == tipo_requerido) {
+            if (pthread_mutex_trylock(&server.worker_mutex[i]) == 0) {
+                if (!server.worker_busy[i]) {
+                    server.worker_busy[i] = true;
+                    return i;  // Worker encontrado y reservado
+                }
+                pthread_mutex_unlock(&server.worker_mutex[i]);
+            }
+        }
+    }
     
-    // Acceso con índice (equivalente a aritmética)
-    int *base = arr;
-    printf("base[3] = %d\n", base[3]);  // 40
-    printf("*(base + 3) = %d\n", *(base + 3));  // 40 (equivalente)
+    // No debería llegar aquí si los semáforos están bien sincronizados
+    return -1;
+}
+
+void liberar_worker(int worker_id) {
+    pthread_mutex_lock(&server.worker_mutex[worker_id]);
     
-    return 0;
+    server.worker_busy[worker_id] = false;
+    worker_type_t tipo = server.worker_types[worker_id];
+    
+    pthread_mutex_unlock(&server.worker_mutex[worker_id]);
+    
+    // Señalar que hay un worker más de este tipo disponible
+    sem_post(&server.workers[tipo]);
+}
+
+void* procesar_request(void* arg) {
+    int request_id = *(int*)arg;
+    worker_type_t tipo_necesario = rand() % 4;  // Request aleatorio
+    
+    printf("Request %d necesita worker tipo %d\n", request_id, tipo_necesario);
+    
+    // Obtener worker
+    int worker_id = obtener_worker(tipo_necesario);
+    if (worker_id == -1) {
+        printf("Request %d: Error obteniendo worker\n", request_id);
+        return NULL;
+    }
+    
+    printf("Request %d asignado a worker %d (tipo %d)\n", 
+           request_id, worker_id, tipo_necesario);
+    
+    // Simular procesamiento
+    sleep(1 + (rand() % 3));
+    
+    // Liberar worker
+    liberar_worker(worker_id);
+    
+    printf("Request %d completado por worker %d\n", request_id, worker_id);
+    
+    return NULL;
 }
 ```
 
-\textcolor{orange!70!black}{\textbf{Cuidado:}\\
-- ptr++ avanza sizeof(tipo) bytes, no 1 byte\\
-- int* avanza 4 bytes, char* avanza 1 byte, double* avanza 8 bytes\\
-- El compilador maneja esto automáticamente\\
-}
 
-###  Asignación Dinámica con malloc
+### Problema Clásico: Productor-Consumidor
 
 ```c
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-
-int main() {
-    // Asignar memoria para 5 enteros
-    int *arr = (int *)malloc(5 * sizeof(int));
-    
-    if (arr == NULL) {
-        fprintf(stderr, "Error: malloc falló\n");
-        return 1;
-    }
-    
-    // Inicializar el arreglo
-    for (int i = 0; i < 5; i++) {
-        arr[i] = i * 10;
-    }
-    
-    // Imprimir valores
-    printf("Valores: ");
-    for (int i = 0; i < 5; i++) {
-        printf("%d ", arr[i]);
-    }
-    printf("\n");
-    
-    // Redimensionar con realloc
-    arr = (int *)realloc(arr, 10 * sizeof(int));
-    
-    if (arr == NULL) {
-        fprintf(stderr, "Error: realloc falló\n");
-        return 1;
-    }
-    
-    // Inicializar nuevos elementos
-    for (int i = 5; i < 10; i++) {
-        arr[i] = i * 10;
-    }
-    
-    // Liberar memoria
-    free(arr);
-    arr = NULL;  // Buena práctica: evitar dangling pointer
-    
-    return 0;
-}
-```
-
-\textcolor{orange!70!black}{\textbf{Errores comunes en malloc:}\\
-- No verificar si malloc devuelve NULL\\
-- Olvidar liberar memoria (memory leak)\\
-- Usar memoria después de free (use-after-free)\\
-- Doble free (undefined behavior)\\
-- Buffer overflow (escribir fuera del bloque asignado)\\
-}
-
-### Mapeo de Memoria con mmap
-
-`mmap()` es una syscall que mapea archivos o memoria directamente al espacio de direcciones del proceso.
-
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <fcntl.h>
+#include <pthread.h>
+#include <semaphore.h>
 #include <unistd.h>
-#include <string.h>
+
+#define BUFFER_SIZE 5
+#define NUM_ITEMS 20
+
+typedef struct {
+    int buffer[BUFFER_SIZE];     // Buffer circular
+    int in;                      // Índice de inserción
+    int out;                     // Índice de extracción
+    
+    sem_t empty;                 // Espacios vacíos disponibles
+    sem_t full;                  // Elementos disponibles para consumir
+    pthread_mutex_t mutex;       // Exclusión mutua para buffer
+    
+    int items_produced;          // Estadísticas
+    int items_consumed;
+} buffer_t;
+
+buffer_t shared_buffer;
+
+void init_buffer() {
+    shared_buffer.in = 0;
+    shared_buffer.out = 0;
+    shared_buffer.items_produced = 0;
+    shared_buffer.items_consumed = 0;
+    
+    // empty inicia con BUFFER_SIZE (todos los espacios están vacíos)
+    sem_init(&shared_buffer.empty, 0, BUFFER_SIZE);
+    
+    // full inicia con 0 (no hay elementos para consumir)
+    sem_init(&shared_buffer.full, 0, 0);
+    
+    pthread_mutex_init(&shared_buffer.mutex, NULL);
+    
+    printf("Buffer inicializado (tamaño: %d)\n", BUFFER_SIZE);
+}
+
+void* productor(void* arg) {
+    int prod_id = *(int*)arg;
+    
+    for (int i = 0; i < NUM_ITEMS; i++) {
+        // Producir elemento
+        int item = (prod_id * 100) + i;
+        
+        printf("Productor %d creó item %d\n", prod_id, item);
+        
+        // PASO 1: Esperar espacio vacío
+        printf("Productor %d esperando espacio...\n", prod_id);
+        sem_wait(&shared_buffer.empty);
+        
+        // PASO 2: Obtener exclusión mutua sobre buffer
+        pthread_mutex_lock(&shared_buffer.mutex);
+        
+        // PASO 3: SECCIÓN CRÍTICA - Insertar en buffer
+        shared_buffer.buffer[shared_buffer.in] = item;
+        printf("Item %d insertado en posición %d\n", 
+               item, shared_buffer.in);
+        
+        shared_buffer.in = (shared_buffer.in + 1) % BUFFER_SIZE;
+        shared_buffer.items_produced++;
+        
+        // PASO 4: Liberar exclusión mutua
+        pthread_mutex_unlock(&shared_buffer.mutex);
+        
+        // PASO 5: Señalar elemento disponible
+        sem_post(&shared_buffer.full);
+        
+        // Simular tiempo de producción
+        usleep(200000 + (rand() % 300000));  // 200-500ms
+    }
+    
+    printf("Productor %d terminó\n", prod_id);
+    return NULL;
+}
+
+void* consumidor(void* arg) {
+    int cons_id = *(int*)arg;
+    
+    for (int i = 0; i < NUM_ITEMS; i++) {
+        // PASO 1: Esperar elemento disponible
+        printf("Consumidor %d esperando elemento...\n", cons_id);
+        sem_wait(&shared_buffer.full);
+        
+        // PASO 2: Obtener exclusión mutua sobre buffer
+        pthread_mutex_lock(&shared_buffer.mutex);
+        
+        // PASO 3: SECCIÓN CRÍTICA - Extraer del buffer
+        int item = shared_buffer.buffer[shared_buffer.out];
+        printf("Item %d extraído de posición %d por consumidor %d\n", 
+               item, shared_buffer.out, cons_id);
+        
+        shared_buffer.out = (shared_buffer.out + 1) % BUFFER_SIZE;
+        shared_buffer.items_consumed++;
+        
+        // PASO 4: Liberar exclusión mutua
+        pthread_mutex_unlock(&shared_buffer.mutex);
+        
+        // PASO 5: Señalar espacio vacío
+        sem_post(&shared_buffer.empty);
+        
+        // Consumir elemento
+        printf("Consumidor %d procesando item %d\n", cons_id, item);
+        usleep(300000 + (rand() % 400000));  // 300-700ms
+    }
+    
+    printf("Consumidor %d terminó\n", cons_id);
+    return NULL;
+}
+
+void mostrar_estado_buffer() {
+    pthread_mutex_lock(&shared_buffer.mutex);
+    
+    printf("\nESTADO DEL BUFFER:\n");
+    printf("   Producidos: %d | Consumidos: %d\n",
+           shared_buffer.items_produced, shared_buffer.items_consumed);
+    
+    // Mostrar contenido actual
+    printf("   Buffer: [");
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        if (i >= shared_buffer.out && i < shared_buffer.in) {
+            printf("%d", shared_buffer.buffer[i]);
+        } else {
+            printf("_");
+        }
+        if (i < BUFFER_SIZE - 1) printf(", ");
+    }
+    printf("]\n");
+    printf("   IN=%d, OUT=%d\n", shared_buffer.in, shared_buffer.out);
+    
+    pthread_mutex_unlock(&shared_buffer.mutex);
+}
 
 int main() {
-    // Crear memoria anónima compartida
-    size_t size = 4096;  // 1 página
+    pthread_t prod_thread, cons_thread;
+    int prod_id = 1, cons_id = 1;
     
-    void *addr = mmap(
-        NULL,                   // Dirección (NULL = el SO elige)
-        size,                   // Tamaño
-        PROT_READ | PROT_WRITE, // Protección
-        MAP_ANONYMOUS | MAP_PRIVATE, // Flags
-        -1,                     // File descriptor (no hay archivo)
-        0                       // Offset
-    );
+    init_buffer();
+    srand(time(NULL));
     
-    if (addr == MAP_FAILED) {
-        perror("mmap");
-        return 1;
-    }
+    printf("Iniciando Productor-Consumidor\n\n");
     
-    printf("Memoria mapeada en: %p\n", addr);
+    // Crear threads
+    pthread_create(&prod_thread, NULL, productor, &prod_id);
+    pthread_create(&cons_thread, NULL, consumidor, &cons_id);
     
-    // Usar la memoria como un array
-    int *data = (int *)addr;
+    // Monitor periódico
     for (int i = 0; i < 10; i++) {
-        data[i] = i * i;
+        sleep(2);
+        mostrar_estado_buffer();
     }
     
-    // Verificar
-    printf("Valores: ");
-    for (int i = 0; i < 10; i++) {
-        printf("%d ", data[i]);
-    }
-    printf("\n");
+    // Esperar terminación
+    pthread_join(prod_thread, NULL);
+    pthread_join(cons_thread, NULL);
     
-    // Liberar memoria
-    if (munmap(addr, size) == -1) {
-        perror("munmap");
-        return 1;
-    }
+    printf("\nSimulación terminada\n");
+    mostrar_estado_buffer();
+    
+    // Cleanup
+    sem_destroy(&shared_buffer.empty);
+    sem_destroy(&shared_buffer.full);
+    pthread_mutex_destroy(&shared_buffer.mutex);
     
     return 0;
 }
 ```
 
-**Ventajas de mmap:**
-
-\textcolor{teal!60!black}{\textbf{Beneficios:}\\
-- Control fino de protecciones de memoria\\
-- Mapeo de archivos eficiente (I/O mapeado a memoria)\\
-- Memoria compartida entre procesos (MAP\_SHARED)\\
-- Asignación de grandes bloques sin fragmentar heap\\
-}
-
-### Ejemplo Integrador: Simulación de Tabla de Páginas
-
-Este ejemplo muestra cómo simular una tabla de páginas simple en C.
+### Problema Lectores-Escritores
 
 ```c
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
 
-#define PAGE_SIZE 1024      // 1 KB por página
-#define PAGE_BITS 10        // log2(1024) = 10 bits
-#define NUM_PAGES 16        // 16 páginas lógicas
-#define NUM_FRAMES 32       // 32 marcos físicos
-
-// Entrada de tabla de páginas
 typedef struct {
-    uint32_t frame;         // Número de marco físico
-    bool valid;             // ¿Página en memoria?
-    bool read;              // Permiso de lectura
-    bool write;             // Permiso de escritura
-    bool execute;           // Permiso de ejecución
-} PageTableEntry;
-
-// Tabla de páginas
-typedef struct {
-    PageTableEntry entries[NUM_PAGES];
-    uint32_t pid;           // ID del proceso
-} PageTable;
-
-// Memoria física simulada
-uint8_t physical_memory[NUM_FRAMES * PAGE_SIZE];
-
-// Crear tabla de páginas vacía
-PageTable* create_page_table(uint32_t pid) {
-    PageTable *pt = (PageTable *)malloc(sizeof(PageTable));
-    pt->pid = pid;
+    // Datos compartidos
+    int shared_data;
     
-    // Inicializar todas las entradas como inválidas
-    for (int i = 0; i < NUM_PAGES; i++) {
-        pt->entries[i].valid = false;
-        pt->entries[i].read = false;
-        pt->entries[i].write = false;
-        pt->entries[i].execute = false;
-        pt->entries[i].frame = 0;
-    }
+    // Control de acceso
+    pthread_mutex_t mutex;       // Proteger reader_count
+    sem_t write_lock;           // Escritores exclusivos
     
-    return pt;
+    // Estadísticas
+    int reader_count;           // Lectores activos
+    int total_reads;            // Total operaciones de lectura
+    int total_writes;           // Total operaciones de escritura
+    
+} shared_resource_t;
+
+shared_resource_t resource;
+
+void init_resource() {
+    resource.shared_data = 0;
+    resource.reader_count = 0;
+    resource.total_reads = 0;
+    resource.total_writes = 0;
+    
+    pthread_mutex_init(&resource.mutex, NULL);
+    sem_init(&resource.write_lock, 0, 1);  // Un escritor a la vez
+    
+    printf("Recurso compartido inicializado\n");
 }
 
-// Mapear una página a un marco
-void map_page(PageTable *pt, uint32_t page, uint32_t frame,
-              bool r, bool w, bool x) {
-    if (page >= NUM_PAGES || frame >= NUM_FRAMES) {
-        fprintf(stderr, "Error: página o marco fuera de rango\n");
-        return;
+void* lector(void* arg) {
+    int reader_id = *(int*)arg;
+    
+    for (int i = 0; i < 5; i++) {
+        printf("Lector %d quiere leer\n", reader_id);
+        
+        // PROTOCOLO DE ENTRADA - LECTORES
+        pthread_mutex_lock(&resource.mutex);
+        
+        resource.reader_count++;
+        
+        // El primer lector bloquea escritores
+        if (resource.reader_count == 1) {
+            printf("Primer lector %d bloqueando escritores\n", reader_id);
+            sem_wait(&resource.write_lock);
+        }
+        
+        pthread_mutex_unlock(&resource.mutex);
+        
+        // SECCIÓN CRÍTICA - LECTURA
+        printf("Lector %d leyendo: valor = %d\n", 
+               reader_id, resource.shared_data);
+        resource.total_reads++;
+        
+        // Simular tiempo de lectura
+        usleep(100000 + (rand() % 200000));  // 100-300ms
+        
+        // PROTOCOLO DE SALIDA - LECTORES
+        pthread_mutex_lock(&resource.mutex);
+        
+        resource.reader_count--;
+        
+        // El último lector desbloquea escritores
+        if (resource.reader_count == 0) {
+            printf("Último lector %d desbloqueando escritores\n", reader_id);
+            sem_post(&resource.write_lock);
+        }
+        
+        pthread_mutex_unlock(&resource.mutex);
+        
+        printf("Lector %d terminó lectura %d\n", reader_id, i + 1);
+        
+        // Tiempo entre lecturas
+        usleep(500000 + (rand() % 1000000));  // 0.5-1.5s
     }
     
-    pt->entries[page].frame = frame;
-    pt->entries[page].valid = true;
-    pt->entries[page].read = r;
-    pt->entries[page].write = w;
-    pt->entries[page].execute = x;
-    
-    printf("Mapeada página %u -> marco %u (R:%d W:%d X:%d)\n",
-           page, frame, r, w, x);
+    printf("Lector %d terminó todas las lecturas\n", reader_id);
+    return NULL;
 }
 
-// Traducir dirección lógica a física
-int translate_address(PageTable *pt, uint32_t logical_addr,
-                      uint32_t *physical_addr, bool is_write) {
-    // Extraer número de página y offset
-    uint32_t page = logical_addr >> PAGE_BITS;
-    uint32_t offset = logical_addr & ((1 << PAGE_BITS) - 1);
+void* escritor(void* arg) {
+    int writer_id = *(int*)arg;
     
-    printf("Dirección lógica: 0x%X\n", logical_addr);
-    printf("  -> Página: %u, Offset: %u\n", page, offset);
-    
-    // Verificar que la página existe
-    if (page >= NUM_PAGES) {
-        fprintf(stderr, "ERROR: Página %u fuera de rango\n", page);
-        return -1;
+    for (int i = 0; i < 3; i++) {
+        printf("Escritor %d quiere escribir\n", writer_id);
+        
+        // PROTOCOLO DE ENTRADA - ESCRITORES
+        // Esperar acceso exclusivo (bloquea otros escritores y lectores)
+        sem_wait(&resource.write_lock);
+        
+        // SECCIÓN CRÍTICA - ESCRITURA
+        int new_value = (writer_id * 1000) + i;
+        printf("Escritor %d escribiendo: %d → %d\n", 
+               writer_id, resource.shared_data, new_value);
+        
+        resource.shared_data = new_value;
+        resource.total_writes++;
+        
+        // Simular tiempo de escritura
+        usleep(300000 + (rand() % 400000));  // 300-700ms
+        
+        // PROTOCOLO DE SALIDA - ESCRITORES
+        sem_post(&resource.write_lock);
+        
+        printf("Escritor %d terminó escritura %d\n", writer_id, i + 1);
+        
+        // Tiempo entre escrituras
+        usleep(800000 + (rand() % 1200000));  // 0.8-2.0s
     }
     
-    // Verificar que la página es válida
-    if (!pt->entries[page].valid) {
-        fprintf(stderr, "ERROR: Page Fault - página %u no válida\n", page);
-        return -2;
-    }
-    
-    // Verificar permisos
-    if (is_write && !pt->entries[page].write) {
-        fprintf(stderr, "ERROR: Protection Fault - página %u no escribible\n",
-                page);
-        return -3;
-    }
-    
-    if (!is_write && !pt->entries[page].read) {
-        fprintf(stderr, "ERROR: Protection Fault - página %u no legible\n",
-                page);
-        return -4;
-    }
-    
-    // Calcular dirección física
-    uint32_t frame = pt->entries[page].frame;
-    *physical_addr = (frame << PAGE_BITS) | offset;
-    
-    printf("  -> Marco: %u\n", frame);
-    printf("  -> Dirección física: 0x%X\n", *physical_addr);
-    
-    return 0;  // Éxito
+    printf("Escritor %d terminó todas las escrituras\n", writer_id);
+    return NULL;
 }
 
-// Función principal de demostración
+void mostrar_estadisticas() {
+    pthread_mutex_lock(&resource.mutex);
+    
+    printf("\nESTADÍSTICAS:\n");
+    printf("   Valor actual: %d\n", resource.shared_data);
+    printf("   Lectores activos: %d\n", resource.reader_count);
+    printf("   Total lecturas: %d\n", resource.total_reads);
+    printf("   Total escrituras: %d\n", resource.total_writes);
+    
+    pthread_mutex_unlock(&resource.mutex);
+}
+
 int main() {
-    printf("=== Simulador de Tabla de Páginas ===\n");
-    printf("Tamaño de página: %d bytes\n", PAGE_SIZE);
-    printf("Número de páginas: %d\n", NUM_PAGES);
-    printf("Número de marcos: %d\n\n", NUM_FRAMES);
+    #define NUM_READERS 3
+    #define NUM_WRITERS 2
     
-    // Crear tabla de páginas para proceso 42
-    PageTable *pt = create_page_table(42);
+    pthread_t readers[NUM_READERS];
+    pthread_t writers[NUM_WRITERS];
+    int reader_ids[NUM_READERS];
+    int writer_ids[NUM_WRITERS];
     
-    // Mapear algunas páginas
-    printf("--- Configurando mapeos ---\n");
-    map_page(pt, 0, 5, true, false, true);   // Código: R-X
-    map_page(pt, 1, 8, true, true, false);   // Datos: RW-
-    map_page(pt, 2, 3, true, true, false);   // Stack: RW-
-    map_page(pt, 5, 12, true, false, false); // Constantes: R--
-    printf("\n");
+    init_resource();
+    srand(time(NULL));
     
-    // Probar traducciones
-    printf("--- Probando traducciones ---\n");
-    uint32_t phys_addr;
-    int result;
+    printf("Iniciando Lectores-Escritores\n\n");
     
-    // Traducción exitosa (lectura en página 0)
-    result = translate_address(pt, 0x0100, &phys_addr, false);
-    if (result == 0) {
-        printf("  ✓ Traducción exitosa\n");
+    // Crear lectores
+    for (int i = 0; i < NUM_READERS; i++) {
+        reader_ids[i] = i + 1;
+        pthread_create(&readers[i], NULL, lector, &reader_ids[i]);
     }
-    printf("\n");
     
-    // Traducción exitosa (escritura en página 1)
-    result = translate_address(pt, 0x0500, &phys_addr, true);
-    if (result == 0) {
-        printf("  ✓ Traducción exitosa\n");
+    // Crear escritores con pequeño delay
+    sleep(1);
+    for (int i = 0; i < NUM_WRITERS; i++) {
+        writer_ids[i] = i + 1;
+        pthread_create(&writers[i], NULL, escritor, &writer_ids[i]);
     }
-    printf("\n");
     
-    // Page Fault (página 3 no mapeada)
-    printf("Intentando acceder página no mapeada:\n");
-    result = translate_address(pt, 0x0C00, &phys_addr, false);
-    printf("\n");
+    // Monitor periódico
+    for (int i = 0; i < 8; i++) {
+        sleep(2);
+        mostrar_estadisticas();
+    }
     
-    // Protection Fault (intento de escritura en código)
-    printf("Intentando escribir en página de código:\n");
-    result = translate_address(pt, 0x0100, &phys_addr, true);
-    printf("\n");
+    // Esperar terminación
+    for (int i = 0; i < NUM_READERS; i++) {
+        pthread_join(readers[i], NULL);
+    }
+    for (int i = 0; i < NUM_WRITERS; i++) {
+        pthread_join(writers[i], NULL);
+    }
     
-    // Calcular fragmentación interna
-    printf("--- Análisis de fragmentación ---\n");
-    uint32_t logical_size = 3500;  // Proceso necesita 3.5 KB
-    uint32_t pages_needed = (logical_size + PAGE_SIZE - 1) / PAGE_SIZE;
-    uint32_t allocated = pages_needed * PAGE_SIZE;
-    uint32_t internal_frag = allocated - logical_size;
+    printf("\nSimulación terminada\n");
+    mostrar_estadisticas();
     
-    printf("Tamaño lógico del proceso: %u bytes\n", logical_size);
-    printf("Páginas necesarias: %u\n", pages_needed);
-    printf("Memoria asignada: %u bytes\n", allocated);
-    printf("Fragmentación interna: %u bytes (%.1f%%)\n",
-           internal_frag, (internal_frag * 100.0) / allocated);
-    
-    // Liberar memoria
-    free(pt);
+    // Cleanup
+    pthread_mutex_destroy(&resource.mutex);
+    sem_destroy(&resource.write_lock);
     
     return 0;
 }
-```
-
-**Compilación y ejecución:**
-```bash
-gcc -o page_table_sim page_table_sim.c -Wall
-./page_table_sim
-```
-
-**Salida esperada:**
-```
-=== Simulador de Tabla de Páginas ===
-Tamaño de página: 1024 bytes
-Número de páginas: 16
-Número de marcos: 32
-
---- Configurando mapeos ---
-Mapeada página 0 -> marco 5 (R:1 W:0 X:1)
-Mapeada página 1 -> marco 8 (R:1 W:1 X:0)
-Mapeada página 2 -> marco 3 (R:1 W:1 X:0)
-Mapeada página 5 -> marco 12 (R:1 W:0 X:0)
-
---- Probando traducciones ---
-Dirección lógica: 0x100
-  -> Página: 0, Offset: 256
-  -> Marco: 5
-  -> Dirección física: 0x1500
-  ✓ Traducción exitosa
-
-Dirección lógica: 0x500
-  -> Página: 1, Offset: 256
-  -> Marco: 8
-  -> Dirección física: 0x2100
-  ✓ Traducción exitosa
-
-Intentando acceder página no mapeada:
-Dirección lógica: 0xC00
-  -> Página: 3, Offset: 0
-ERROR: Page Fault - página 3 no válida
-
-Intentando escribir en página de código:
-Dirección lógica: 0x100
-  -> Página: 0, Offset: 256
-ERROR: Protection Fault - página 0 no escribible
-
---- Análisis de fragmentación ---
-Tamaño lógico del proceso: 3500 bytes
-Páginas necesarias: 4
-Memoria asignada: 4096 bytes
-Fragmentación interna: 596 bytes (14.6%)
-```
-
-\textcolor{blue!50!black}{\textbf{Conceptos demostrados:}\\
-- Estructura de tabla de páginas\\
-- Traducción de direcciones (extracción de página y offset)\\
-- Verificación de permisos (R/W/X)\\
-- Manejo de Page Fault y Protection Fault\\
-- Cálculo de fragmentación interna\\
-}
-
-## Casos de Estudio
-
-### Ejercicio Simple: Traducción de Dirección Lógica
-
-**Enunciado:**
-
-Un sistema usa paginación simple con las siguientes características:
-- Tamaño de memoria lógica: 32 KB
-- Tamaño de página: 2 KB
-
-Tabla de páginas del proceso:
-```
-Página 0 -> Marco 3
-Página 1 -> Marco 7
-Página 2 -> Marco 1
-Página 3 -> Marco 4
-```
-
-**Preguntas:**
-1. ¿Cuántos bits se usan para el número de página?
-2. ¿Cuántos bits se usan para el offset?
-3. Traducir la dirección lógica 5000 a dirección física
-
-**Solución:**
-
-**Parte 1: Bits para número de página**
-
-```
-Memoria lógica: 32 KB = 32 * 1024 = 32768 bytes = 2^15 bytes
--> Se necesitan 15 bits para direccionar toda la memoria lógica
-
-Tamaño de página: 2 KB = 2 * 1024 = 2048 bytes = 2^11 bytes
--> Se necesitan 11 bits para el offset
-
-Bits para página = Bits totales - Bits de offset
-                 = 15 - 11 = 4 bits
-
-Número de páginas = 2^4 = 16 páginas (0-15)
-```
-
-**Parte 2: Formato de dirección**
-
-```
-Dirección lógica de 15 bits:
-┌────────────┬───────────────────────┐
-│  4 bits    │       11 bits         │
-│  (página)  │      (offset)         │
-└────────────┴───────────────────────┘
-Rango página: 0-15
-Rango offset: 0-2047
-```
-
-**Parte 3: Traducción de 5000**
-
-```
-Paso 1: Convertir 5000 a binario
-5000₁₀ = 1001110001000₂ (necesitamos 15 bits)
-5000₁₀ = 001001110001000₂ (padding con ceros)
-
-Paso 2: Separar página y offset
-┌────────────┬───────────────────────┐
-│ 0010       │ 01110001000           │
-│ (p = 2)    │ (d = 904)             │
-└────────────┴───────────────────────┘
-
-Verificación:
-- Página: 0010₂ = 2₁₀ ✓
-- Offset: 01110001000₂ = 904₁₀ ✓
-- Total: 2 * 2048 + 904 = 4096 + 904 = 5000 ✓
-
-Paso 3: Consultar tabla de páginas
-tabla[2] = marco 1
-
-Paso 4: Calcular dirección física
-DF = marco * tamaño_página + offset
-DF = 1 * 2048 + 904
-DF = 2048 + 904
-DF = 2952 bytes
-```
-
-**Verificación adicional:**
-
-```
-Marco 1 ocupa direcciones físicas: [2048, 4095]
-Dirección calculada: 2952
-¿2048 ≤ 2952 ≤ 4095? SÍ ✓
-
-En binario:
-DF = 2952₁₀ = 101110001000₂
-┌────────────┬───────────────────────┐
-│ 00001      │ 01110001000           │
-│ (marco=1)  │ (offset=904)          │
-└────────────┴───────────────────────┘
-```
-
-**Respuestas finales:**
-1. Bits para página: **4 bits**
-2. Bits para offset: **11 bits**
-3. Dirección física: **2952 bytes**
-
-### Ejercicio Complejo: Deducción y Traducción
-
-**Enunciado:**
-
-Un sistema de paginación tiene las siguientes características:
-- Se sabe que la dirección lógica 12345 se traduce a la dirección física 28729
-- La tabla de páginas indica que la página donde está 12345 se mapea al marco 7
-
-**Preguntas:**
-1. ¿Cuál es el tamaño de página del sistema?
-2. ¿Cuántos bits se usan para el número de página si el espacio lógico es de 64 KB?
-3. ¿A qué dirección física se traduce la dirección lógica 15000 sabiendo que su página se mapea al marco 5?
-
-**Solución:**
-
-**Parte 1: Deducir tamaño de página**
-
-Sabemos que:
-- Dirección lógica (DL) = 12345
-- Dirección física (DF) = 28729
-- Marco = 7
-
-La fórmula de traducción es:
-```
-DF = marco * tamaño_página + offset
-```
-
-donde `offset` es el mismo en DL y DF (los bits menos significativos).
-
-Si dividimos DL por el tamaño de página:
-```
-DL = número_página * tamaño_página + offset
-```
-
-Probemos con diferentes tamaños de página (potencias de 2):
-
-```
-Hipótesis 1: tamaño_página = 1024 bytes (2^10)
-DL = 12345 = 12 * 1024 + 57
-    página = 12, offset = 57
-DF debería ser = 7 * 1024 + 57 = 7168 + 57 = 7225
-Pero DF real = 28729 ✗
-
-Hipótesis 2: tamaño_página = 2048 bytes (2^11)
-DL = 12345 = 6 * 2048 + 57
-    página = 6, offset = 57
-DF debería ser = 7 * 2048 + 57 = 14336 + 57 = 14393
-Pero DF real = 28729 ✗
-
-Hipótesis 3: tamaño_página = 4096 bytes (2^12)
-DL = 12345 = 3 * 4096 + 57
-    página = 3, offset = 57
-DF debería ser = 7 * 4096 + 57 = 28672 + 57 = 28729 ✓
-
-¡Coincide!
-```
-
-**Verificación:**
-```
-Tamaño de página = 4096 bytes = 4 KB = 2^12 bytes
-
-DL = 12345
-  = 12345 ÷ 4096 = 3 con resto 57
-  = página 3, offset 57
-
-DF = 7 * 4096 + 57 = 28672 + 57 = 28729 ✓
-```
-
-**Parte 2: Bits para número de página**
-
-```
-Espacio lógico: 64 KB = 65536 bytes = 2^16 bytes
--> Se necesitan 16 bits de dirección total
-
-Tamaño de página: 4096 bytes = 2^12 bytes
--> Se necesitan 12 bits para offset
-
-Bits para página = 16 - 12 = 4 bits
-Número de páginas = 2^4 = 16 páginas (0-15)
-
-Formato de dirección:
-┌────────────┬───────────────────────┐
-│  4 bits    │       12 bits         │
-│  (página)  │      (offset)         │
-└────────────┴───────────────────────┘
-```
-
-**Parte 3: Traducir dirección lógica 15000**
-
-```
-Paso 1: Extraer página y offset
-15000 ÷ 4096 = 3 con resto 2616
--> página = 3, offset = 2616
-
-Verificación: 3 * 4096 + 2616 = 12288 + 2616 = 14904
-Hay un error, recalculemos:
-
-15000 ÷ 4096 = 3.66...
-3 * 4096 = 12288
-15000 - 12288 = 2712 (este es el offset correcto)
-
--> página = 3, offset = 2712
-
-Paso 2: Consultar tabla de páginas
-Se nos dice que esta página se mapea al marco 5
-
-Paso 3: Calcular dirección física
-DF = marco * tamaño_página + offset
-DF = 5 * 4096 + 2712
-DF = 20480 + 2712
-DF = 23192 bytes
-```
-
-**Verificación en binario:**
-
-```
-DL = 15000₁₀ = 11101010011000₂ (necesitamos 16 bits)
-DL = 0011101010011000₂
-
-┌────────────┬───────────────────────┐
-│ 0011       │ 101010011000          │
-│ (p = 3)    │ (d = 2712)            │
-└────────────┴───────────────────────┘
-
-Página: 0011₂ = 3₁₀ ✓
-Offset: 101010011000₂ = 2712₁₀ ✓
-
-DF = 23192₁₀ = 101101010011000₂
-
-┌─────────────┬───────────────────────┐
-│ 0101        │ 101010011000          │
-│ (marco = 5) │ (offset = 2712)       │
-└─────────────┴───────────────────────┘
-```
-
-**Respuestas finales:**
-1. Tamaño de página: **4096 bytes (4 KB)**
-2. Bits para número de página: **4 bits** (permite 16 páginas)
-3. Dirección física de 15000: **23192 bytes**
-
-**Diagrama resumen del ejercicio:**
-
-```
-Sistema con páginas de 4 KB:
-
-Espacio Lógico (64 KB):        Memoria Física:
-┌──────────────┐ Página 0      ┌──────────────┐ Marco 0
-│              │                │              │
-├──────────────┤ Página 1      ├──────────────┤ Marco 1
-│              │                │              │
-├──────────────┤ Página 2      ├──────────────┤ Marco 2
-│              │                │              │
-├──────────────┤ Página 3      ├──────────────┤ Marco 3
-│ DL=12345     │ ──────────┐   │              │
-│ offset=57    │           │   ├──────────────┤ Marco 4
-├──────────────┤ Página 4  │   │              │
-│              │           │   ├──────────────┤ Marco 5
-├──────────────┤ Página 5  │   │ DL=15000     │ ← traduce aquí
-│              │           │   │ offset=2712  │
-├──────────────┤ ...       │   ├──────────────┤ Marco 6
-│              │           │   │              │
-├──────────────┤ Página 15 │   ├──────────────┤ Marco 7
-│              │           └──->│ DF=28729     │ ← traduce aquí
-└──────────────┘               │ offset=57    │
-                                └──────────────┘
 ```
 
 ## Síntesis
 
-### Puntos Clave del Capítulo
+### Puntos Clave
 
-**Evolución de las técnicas de gestión de memoria:**
-
-1. **Particiones Fijas** -> Simple pero con fragmentación interna severa
-2. **Particiones Dinámicas** -> Eliminó fragmentación interna, creó fragmentación externa
-3. **Paginación** -> Eliminó fragmentación externa, overhead de traducción
-4. **Segmentación** -> Mejor modelo lógico, vuelve fragmentación externa
-5. **Paginación + Segmentación** -> Combina ventajas de ambos
-
-**Conceptos fundamentales que debes dominar:**
-
-\textcolor{blue!50!black}{\textbf{Para el parcial:}\\
-- Diferencia entre dirección lógica, relativa y física\\
-- Por qué el binding en tiempo de ejecución es esencial\\
-- Cómo calcular bits de página y offset dado tamaño de página\\
-- Proceso de traducción: página -> tabla -> marco -> dirección física\\
-- Fragmentación interna vs externa (cuándo ocurre cada una)\\
-- Ventajas y desventajas de cada técnica\\
-- Rol de MMU, TLB y registros base/límite\\
-}
-
-**Tabla comparativa de técnicas:**
-
-| Técnica | Fragm. Interna | Fragm. Externa | Overhead | Complejidad |
-|---------|----------------|----------------|----------|-------------|
-| Particiones Fijas | Alta | No | Mínimo | Baja |
-| Particiones Dinámicas | No | Alta | Medio | Media |
-| Paginación Simple | Baja | No | Medio | Media |
-| Segmentación | No | Alta | Medio | Alta |
-| Seg. + Paginación | Baja | No | Alto | Alta |
-| Buddy System | Media | Media | Medio | Media |
-
-**Algoritmos de asignación:**
-
-```
-First Fit:  Rápido, genera pequeños bloques al inicio
-Best Fit:   Minimiza desperdicio, genera bloques muy pequeños
-Worst Fit:  Deja bloques grandes utilizables (mejor en simulaciones)
-Next Fit:   Distribuye asignaciones uniformemente
-```
+1. **Race Conditions** son la causa fundamental de bugs en programas concurrentes
+2. **Sección Crítica** debe protegerse con primitivas de sincronización
+3. **Semáforos** son la herramienta más versátil para sincronización
+5. **Overhead** de sincronización debe balancearse con necesidades de concurrencia
 
 ### Conexiones con Otros Temas
 
-**Relación con Procesos (Capítulo 2):**
-- El PCB contiene puntero a tabla de páginas del proceso
-- En context switch, se actualiza PTBR con tabla del nuevo proceso
-- La memoria de un proceso incluye: código, datos, heap, stack
-
-**Relación con Planificación (Capítulo 4):**
-- Un proceso puede bloquearse por Page Fault (carga desde disco)
-- El scheduler debe considerar procesos bloqueados por I/O de paginación
-- Algoritmos NUMA-aware consideran localidad de memoria
-
-**Preparación para Memoria Virtual (Capítulo 8):**
-- Todo lo visto aquí es base para memoria virtual
-- Memoria virtual = paginación + disco como extensión de RAM
-- El bit V (válido) indica si página está en RAM o en disco
-- Page Fault manejado por SO para traer página desde disco
-
-**Preparación para Sistema de Archivos (Capítulo 9):**
-- mmap() permite mapear archivos a memoria
-- I/O mapeado a memoria usa las mismas técnicas
-- Cache de bloques del FS usa páginas de memoria
-
-### Errores Comunes en Parciales
-
-\textcolor{red!60!gray}{\textbf{Errores frecuentes:}\\
-- Confundir bits de página con número de páginas\\
-- Olvidar que offset se mantiene igual en traducción\\
-- Sumar mal: DF ≠ página * tamaño + offset (es marco, no página)\\
-- No verificar que dirección calculada sea válida\\
-- Confundir fragmentación interna con externa\\
-- Decir que paginación tiene fragmentación externa\\
-- No considerar que tabla de páginas está en RAM (no en CPU)\\
-}
-
-**Checklist para ejercicios de traducción:**
-
-```
-□ Identificar tamaño de página (dato o deducir)
-□ Calcular bits de offset: log2(tamaño_página)
-□ Calcular bits de página: bits_totales - bits_offset
-□ Extraer página de dirección lógica: DL >> bits_offset
-□ Extraer offset: DL & ((1 << bits_offset) - 1)
-□ Buscar marco en tabla de páginas
-□ Calcular DF: marco * tamaño_página + offset
-□ Verificar que DF esté en rango válido
-```
-
-### Preguntas de Reflexión
-
-1. ¿Por qué los sistemas modernos NO usan particiones dinámicas a pesar de no tener fragmentación interna?
-
-2. Si paginación elimina fragmentación externa, ¿por qué no se usa siempre páginas de 256 bytes para minimizar fragmentación interna?
-
-3. ¿Cómo afecta el tamaño de página al rendimiento del TLB?
-
-4. ¿Por qué la tabla de páginas invertida no se popularizó a pesar de ahorrar memoria?
-
-5. En un sistema con 100 procesos, ¿cuál es más eficiente: 100 tablas de páginas o una tabla invertida con hash?
-
-### Ejercicios Propuestos
-
-**Ejercicio 1:** Un sistema tiene páginas de 8 KB y espacio lógico de 256 KB. Si la dirección lógica 50000 se traduce a la dirección física 90000, ¿en qué marco está mapeada la página correspondiente?
-
-**Ejercicio 2:** Calcular la fragmentación interna promedio en un sistema con páginas de 4 KB si los procesos tienen tamaños aleatorios uniformemente distribuidos entre 1 KB y 100 KB.
-
-**Ejercicio 3:** Comparar el overhead de memoria para tablas de páginas en:
-- Paginación simple de 1 nivel
-- Paginación de 2 niveles
-- Tabla invertida
-Asume espacio lógico de 4 GB, páginas de 4 KB, entrada de tabla de 4 bytes.
-
-**Ejercicio 4:** Diseñar la estructura de una tabla de páginas que soporte:
-- Protección R/W/X
-- Páginas compartidas entre procesos
-- Copy-on-write
-- Páginas en disco (memoria virtual)
-
-### Material para Profundizar
-
-**Lecturas recomendadas:**
-- Silberschatz, Capítulo 8: "Memory Management"
-- Stallings, Capítulo 7: "Memory Management"
-- Tanenbaum, Capítulo 3: "Memory Management"
-
-**Papers clásicos:**
-- Denning, P. J. (1970). "Virtual Memory". ACM Computing Surveys
-- Corbató, F. J. et al. (1962). "An Experimental Time-Sharing System" (primer sistema con memoria virtual)
-
-**Documentación de sistemas reales:**
-- Linux: `Documentation/vm/` en el kernel source tree
-- Intel: "Intel 64 and IA-32 Architectures Software Developer's Manual, Volume 3A" (paginación en x86)
-- ARM: "ARM Architecture Reference Manual" (paginación en ARM)
-
-**Herramientas para experimentar:**
-- `pmap` - Ver mapeo de memoria de un proceso
-- `valgrind` - Detectar errores de memoria
-- `/proc/[pid]/maps` - Ver regiones de memoria de un proceso
-- `gdb` con comandos `info proc mappings`
-
----
-
-**Este capítulo ha cubierto los fundamentos de la gestión de memoria real. El próximo paso es entender cómo estos mecanismos se extienden para soportar memoria virtual, permitiendo ejecutar programas más grandes que la RAM física disponible.**
+- **Scheduling**: Los procesos bloqueados en semáforos van a cola de espera
+- **Deadlock** puede prevenirse con diseño cuidadoso del orden de recursos
+- **Memory Management**: Variables compartidas requieren coherencia de cache
+- **File Systems**: Control de concurrencia en acceso a archivos
+- **Networks**: Sincronización en sistemas distribuidos

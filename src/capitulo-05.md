@@ -1,1175 +1,981 @@
-# Sincronización
+# Hilos (Threads)
 
 ## Objetivos de Aprendizaje
 
 Al finalizar este capítulo, el estudiante debe ser capaz de:
 
-- Identificar problemas de concurrencia: race conditions, deadlock, starvation
-- Explicar qué son las operaciones atómicas y por qué son necesarias
-- Comprender las condiciones de Bernstein para la ejecución concurrente
-- Analizar soluciones de sincronización a nivel software y hardware
-- Implementar soluciones usando mutex, semáforos y variables de condición
-- Resolver problemas clásicos: Productor-Consumidor, Lectores-Escritores
-- Aplicar sincronización en escenarios reales usando analogías cotidianas
-- Analizar y prevenir deadlocks usando técnicas formales
-- Programar soluciones thread-safe en C usando pthreads
-- Evaluar el overhead de diferentes primitivas de sincronización
+- Explicar qué son los hilos y por qué son necesarios en sistemas modernos
+- Distinguir entre User-Level Threads (ULT) y Kernel-Level Threads (KLT)
+- Analizar los modelos de mapeo entre hilos de usuario y kernel
+- Implementar programas multihilo usando pthreads en C
+- Resolver ejercicios de planificación combinando procesos e hilos
+- Identificar problemas de concurrencia y sus soluciones básicas
+- Evaluar cuándo usar hilos vs procesos según el contexto
 
-## Introducción y Contexto
+## Introducción y Motivación
 
-### ¿Por qué necesitamos sincronización?
+### El problema de los procesos pesados
 
-Imaginemos un supermercado en hora pico:
+Los procesos tradicionales resuelven la multiprogramación, pero presentan limitaciones importantes en aplicaciones modernas:
 
-**Sin coordinación:**  
-**20 cajas** funcionando independientemente, **1 empleado** que debe ordenar las filas, pero puede estar en cualquier lugar. **1 sistema de promociones** que solo permite una aplicación a la vez, **Clientes** que llegan aleatoriamente y eligen cajas.  
+\textcolor{red!60!gray}{\textbf{Limitaciones de los procesos:}\\
+- Creación costosa: fork() copia todo el espacio de direcciones\\
+- Context switch lento: cambio de mapa de memoria, flush de caches y TLB\\
+- Comunicación compleja: requiere IPC, pipes o memoria compartida\\
+- Recursos aislados: dificultad para compartir datos eficientemente
+}
 
-**¿Qué problemas pueden ocurrir?**
+Consideremos un navegador web moderno. Durante la carga de una página se ejecutan simultáneamente múltiples tareas: descarga de HTML, procesamiento y renderizado, descarga de imágenes, ejecución de JavaScript y manejo de eventos del usuario. Si estas tareas fueran procesos separados, el overhead de comunicación y context switching sería prohibitivo.
 
-1. **Race condition**: Dos cajeros intentan usar el sistema de promociones simultáneamente → se corrompe la base de datos
-2. **Starvation**: Una caja siempre tiene fila larga porque el empleado nunca la atiende
-3. **Deadlock**: El empleado espera que se libere una caja para ordenarla, pero el cajero espera que el empleado termine de ordenar para continuar
-4. **Inconsistencia**: El contador total de ventas se pierde cuando dos cajas lo actualizan al mismo tiempo
+### La solución: hilos como procesos livianos
 
-### La analogía completa del supermercado
+\begin{definitionbox}
+\emph{Hilo (Thread):} Unidad básica de utilización del CPU dentro de un proceso, caracterizada por tener su propio flujo de ejecución independiente pero compartiendo el espacio de direcciones con otros hilos del mismo proceso.
+\end{definitionbox}
 
-```
-RECURSOS DEL SUPERMERCADO (Variables compartidas):
-- Cajas registradoras (20)     ← Array de recursos limitados
-- Sistema de promociones (1)    ← Recurso exclusivo mutuo
-- Empleado ordenador (1)       ← Recurso único móvil
-- Contador total de ventas     ← Variable compartida crítica
-- Cola de clientes por caja    ← Buffer productor-consumidor
+Los hilos comparten recursos del proceso padre pero mantienen elementos privados:
 
-PROCESOS/HILOS:
-- Cajeros (threads)            ← Acceden a recursos concurrentemente
-- Clientes (threads)           ← Productores de trabajo
-- Sistema de facturación       ← Consumidor de transacciones
-- Empleado (thread especial)   ← Administrador de recursos
-```
+**Recursos compartidos entre hilos:**
+- Espacio de direcciones (código, datos, heap)
+- Archivos abiertos y descriptores
+- Señales y handlers
+- PID y PPID
+- Working directory
 
-## El Problema Fundamental: Race Conditions
+**Recursos privados de cada hilo:**
+- Thread ID (TID)
+- Registros del procesador (PC, SP, registros generales)
+- Stack privado para variables locales
+- Estado de planificación individual
 
-Una **race condition** ocurre cuando el resultado depende del orden de ejecución de operaciones concurrentes sobre datos compartidos.
+## Estructura y Definiciones Fundamentales
 
-**Ejemplo concreto:**
+### Anatomía de un hilo
+
+Cada hilo mantiene la siguiente información de control:
+
 ```c
-// Dos cajeros actualizando ventas totales
-int ventas_totales = 0;
-
-// Cajero 1                    // Cajero 2
-ventas_totales += 100;        ventas_totales += 200;
+typedef struct thread_control_block {
+    int tid;                    // Thread ID único dentro del proceso
+    int state;                  // READY, RUNNING, BLOCKED, TERMINATED
+    void* stack_pointer;        // Puntero al tope del stack privado
+    void* program_counter;      // Próxima instrucción a ejecutar
+    register_set_t registers;   // Estado completo de registros
+    void* stack_base;          // Base del stack (para cleanup)
+    size_t stack_size;         // Tamaño del stack
+    int priority;              // Prioridad de planificación
+    struct thread_control_block* next;  // Lista enlazada de hilos
+} tcb_t;
 ```
 
-**En assembly:**
-```assembly
-; Cajero 1                    ; Cajero 2
-LOAD R1, [ventas_totales]     LOAD R2, [ventas_totales]
-ADD  R1, 100                  ADD  R2, 200
-STORE [ventas_totales], R1    STORE [ventas_totales], R2
-```
+### Modelo de memoria con hilos
 
-**Posibles resultados:**
-- **Correcto**: ventas_totales = 300
-- **Incorrecto**: ventas_totales = 100 (se perdió la venta del cajero 2)
-- **Incorrecto**: ventas_totales = 200 (se perdió la venta del cajero 1)
+El espacio de direcciones de un proceso multihilo se organiza de la siguiente manera:
 
-## Sección Crítica y Condiciones de Bernstein
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/01.png}
 
-### Sección Crítica
+\textcolor{orange!70!black}{\textbf{Advertencia:}\\
+Las variables globales y el heap son compartidos entre hilos, lo que requiere sincronización para evitar race conditions. Las variables locales (en el stack) son automáticamente privadas de cada hilo.\\
+}
 
-**Definición**: Porción de código que accede a recursos compartidos y debe ejecutarse atómicamente (sin interrupciones).
+## User-Level Threads vs Kernel-Level Threads
 
-**Estructura general:**
+### User-Level Threads (ULT)
+
+\begin{definitionbox}
+\emph{User-Level Threads (ULT):} Hilos implementados completamente en espacio de usuario mediante bibliotecas especializadas, donde el kernel del sistema operativo no tiene conocimiento de los hilos individuales.
+\end{definitionbox}
+
+En el modelo ULT, el kernel ve únicamente un proceso con un solo hilo de ejecución. La biblioteca de hilos en espacio de usuario maneja toda la gestión:
+
+**Características técnicas:**
+- Gestión completa por biblioteca (GNU Portable Threads, Fiber libraries)
+- Context switch sin syscalls (solo cambio de registros)
+- Planificación cooperativa o por timer de usuario
+- Mapeo N:1 (muchos ULT a un solo KLT)
+
+**Implementación del context switch ULT:**
+
 ```c
-do {
-    // Protocolo de entrada
-    entrada_seccion_critica();
-    
-    // SECCIÓN CRÍTICA
-    // Acceso a recursos compartidos
-    
-    // Protocolo de salida  
-    salida_seccion_critica();
-    
-    // Sección no crítica
-    hacer_trabajo_local();
-    
-} while (true);
+// Pseudocódigo simplificado de context switch ULT
+void ult_context_switch(ult_t *from, ult_t *to) {
+    // 1. Guardar estado de registros en TCB
+    if (setjmp(from->context) == 0) {
+        // 2. Cambiar hilo actual en scheduler
+        current_ult = to;
+        
+        // 3. Restaurar estado del nuevo hilo
+        longjmp(to->context, 1);
+    }
+    // Ejecución continúa aquí cuando este hilo vuelva a ejecutar
+}
 ```
 
-**Requisitos para la solución:**
+\textcolor{teal!60!black}{\textbf{Ventajas ULT:}\\
+- Context switch extremadamente rápido (20-50 instrucciones)\\
+- Sin overhead de syscalls\\
+- Planificación especializada por aplicación\\
+- Soporte en SO que no implementan KLT nativamente\\
+}
 
-1. **Exclusión Mutua**: Solo un proceso en sección crítica a la vez
-2. **Progreso**: Si nadie está en sección crítica, alguien debe poder entrar
-3. **Espera Acotada**: Un proceso no puede esperar indefinidamente
-4. **Sin Asumir Velocidades**: No depender de velocidades relativas de procesos
+\textcolor{red!60!gray}{\textbf{Desventajas ULT:}\\
+- No hay paralelismo real en sistemas multicore\\
+- Si un hilo hace I/O, bloquea todo el proceso\\
+- No aprovecha planificación preventiva del SO\\
+- Scheduling starvation si hilos no cooperan\\
+}
 
-### Condiciones de Bernstein
+### Kernel-Level Threads (KLT)
 
-Para que dos procesos puedan ejecutarse concurrentemente de manera segura, deben cumplirse las **Condiciones de Bernstein**:
+\begin{definitionbox}
+\emph{Kernel-Level Threads (KLT):} Hilos implementados y gestionados directamente por el kernel del sistema operativo, donde cada hilo es una entidad de planificación independiente conocida por el SO.
+\end{definitionbox}
 
-Sean P₁ y P₂ dos procesos con:  
-```
-- R₁, R₂: Conjuntos de variables que leen  
-- W₁, W₂: Conjuntos de variables que escriben  
-```
+En el modelo KLT, cada hilo tiene entrada propia en las tablas del kernel y es planificado independientemente:
 
-**Condiciones necesarias:**  
-```
-1. R₁ ∩ W₂ = (vacío) (P₁ no lee lo que P₂ escribe)  
-2. W₁ ∩ R₂ = (vacío) (P₁ no escribe lo que P₂ lee)  
-3. W₁ ∩ W₂ = (vacío) (P₁ y P₂ no escriben las mismas variables)  
-```
+**Características técnicas:**
+- Cada hilo tiene PCB (Process Control Block) o TCB en kernel
+- Context switch requiere syscall y cambio de modo
+- Planificación preventiva por el SO
+- Mapeo 1:1 (un ULT por cada KLT)
 
-**Ejemplo de violación:**
+**Estructura del context switch KLT:**
+
 ```c
-// Proceso 1: R₁ = {x}, W₁ = {y}
-y = x + 10;
-
-// Proceso 2: R₂ = {y}, W₂ = {x}
-x = y * 2;
+// Context switch KLT (ejecutado por kernel)
+void klt_context_switch(tcb_t *from, tcb_t *to) {
+    // 1. Guardar estado completo en kernel
+    save_processor_state(&from->cpu_state);
+    save_fpu_state(&from->fpu_state);
+    
+    // 2. Actualizar planificador
+    update_scheduler_queues(from, to);
+    
+    // 3. Cambiar contexto de memoria si es necesario
+    if (from->process_id != to->process_id) {
+        switch_address_space(to->process_id);
+        flush_tlb();
+    }
+    
+    // 4. Restaurar estado del nuevo hilo
+    restore_processor_state(&to->cpu_state);
+    restore_fpu_state(&to->fpu_state);
+    
+    // 5. Continuar ejecución
+    jump_to_thread(to);
+}
 ```
 
-**Violaciones:**
-- W₁ ∩ R₂ = {y} ≠ (vacío) (P₁ escribe y, P₂ lee y)
-- R₁ ∩ W₂ = {x} ≠ (vacío) (P₁ lee x, P₂ escribe x)
+\textcolor{teal!60!black}{\textbf{Ventajas KLT:}\\
+- Paralelismo real en sistemas SMP/multicore\\
+- Si un hilo se bloquea, otros continúan ejecutando\\
+- Planificación justa y preventiva por el SO\\
+- Mejor integración con servicios del kernel\\
+}
 
-Por tanto, **NO pueden ejecutarse concurrentemente** sin sincronización.
+\textcolor{red!60!gray}{\textbf{Desventajas KLT:}\\
+- Context switch más lento (500-2000 instrucciones)\\
+- Overhead de syscalls para gestión de hilos\\
+- Limitado por recursos del kernel (max threads)\\
+- Mayor consumo de memoria kernel\\
+}
+
+### Modelos de mapeo
+
+#### Modelo Many-to-One (N:1)
+Múltiples hilos de usuario mapean a un solo hilo kernel:
+
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/02.png}  
+
+Este modelo maximiza la eficiencia del context switch pero sacrifica paralelismo.
+
+#### Modelo One-to-One (1:1)
+Cada hilo de usuario mapea a un hilo kernel dedicado:
+
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/03.png}  
+
+Este modelo maximiza paralelismo pero incrementa overhead.
+
+#### Modelo Many-to-Many (M:N)
+M hilos de usuario mapean a N hilos kernel (donde M > N):
+
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/04.png}  
+
+\textcolor{blue!50!black}{\textbf{Información técnica:}\\
+El modelo M:N requiere scheduler de dos niveles: uno en espacio de usuario (ULT) y otro en kernel (KLT). La biblioteca de hilos debe coordinar con el kernel para optimizar el mapeo dinámico.\\
+}
 
 \newpage
-## Soluciones a Nivel Software
+## Implementación en C con pthreads
 
-### Evolución Histórica de las Soluciones
-
-#### Primeras Aproximaciones: Variables de Control
-
-**Intento 1: Turno Simple**
-```c
-int turno = 1;
-
-// Proceso 1
-while (turno != 1);
-// Sección crítica
-turno = 2;
-
-// Proceso 2  
-while (turno != 2);
-// Sección crítica
-turno = 1;
-```
-
-**Problema**: Viola la condición de **progreso**. Si un proceso no quiere entrar, el otro queda bloqueado permanentemente.
-
-**Intento 2: Flags Independientes**
-```c
-bool flag[2] = {false, false};
-
-// Proceso i
-flag[i] = true;
-while (flag[j]);  // j = 1-i
-// Sección crítica
-flag[i] = false;
-```
-
-**Problema**: **Race condition** en el chequeo de flags. Ambos pueden ver flag[j] = false al mismo tiempo y entrar juntos.
-
-**Intento 3: Flags con Cortesía**
-```c
-bool flag[2] = {false, false};
-
-// Proceso i
-flag[i] = true;
-while (flag[j]) {
-    flag[i] = false;
-    // Esperar tiempo aleatorio
-    flag[i] = true;
-}
-// Sección crítica
-flag[i] = false;
-```
-
-**Problema**: Posible **livelock** - ambos procesos pueden quedar cediendo indefinidamente.
-
-### Solución de Peterson (1981)
-
-**La primera solución correcta para 2 procesos:**
+### Creación básica de hilos
 
 ```c
-bool flag[2] = {false, false};
-int turn = 0;
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
 
-// Proceso i (donde j = 1-i)
-void peterson_enter(int i) {
-    flag[i] = true;      // Mostrar interés
-    turn = j;            // Ceder el turno al otro
-    while (flag[j] && turn == j);  // Esperar si el otro está interesado y tiene turno
-}
-
-void peterson_exit(int i) {
-    flag[i] = false;     // No tengo más interés
-}
-
-// Uso completo
-void proceso_i() {
-    while (true) {
-        peterson_enter(i);
-        
-        // SECCIÓN CRÍTICA
-        seccion_critica();
-        
-        peterson_exit(i);
-        
-        // Sección no crítica
-        seccion_no_critica();
-    }
-}
-```
-
-**¿Por qué funciona Peterson?**
-
-1. **Exclusión Mutua**: Si ambos procesos están en while, uno tiene turn = i y el otro turn = j. Como turn es única, solo uno puede tener turn ≠ j.
-
-2. **Progreso**: Si nadie quiere entrar (flag[j] = false), el proceso entra inmediatamente.
-
-3. **Espera Acotada**: El proceso que llegó segundo pone turn = j, garantizando que el primero entre primero.
-
-**Limitaciones de Peterson:**
-- Solo funciona para **2 procesos**
-- Requiere **busy waiting** (uso intensivo de CPU)
-- Asume **orden secuencial de memoria** (problemas en CPUs modernas)
-
-## Soluciones a Nivel Hardware
-
-### Primitivos Atómicos
-
-**Operación Atómica**: Ejecución indivisible, sin interrupciones posibles.
-
-#### Test-and-Set (Hardware)
-```c
-// Implementada en hardware - ATÓMICA
-bool test_and_set(bool* target) {
-    bool old_value = *target;
-    *target = true;
-    return old_value;
-}
-
-// Uso para mutex
-bool lock = false;  // false = libre, true = ocupado
-
-void acquire_lock() {
-    while (test_and_set(&lock)) {
-        // Busy waiting (spin lock)
-        // Continuar intentando hasta obtener el lock
-    }
-}
-
-void release_lock() {
-    lock = false;
-}
-```
-
-**Ventajas:**
-- Simple de implementar
-- Funciona para N procesos
-- Garantiza exclusión mutua
-
-**Desventajas:**
-- Busy waiting (desperdicia CPU)
-- No garantiza espera acotada
-- Puede causar starvation
-
-#### Compare-and-Swap (CAS)
-
-```c
-// Más flexible que test-and-set
-bool compare_and_swap(int* ptr, int expected, int new_value) {
-    if (*ptr == expected) {
-        *ptr = new_value;
-        return true;
-    }
-    return false;
-}
-
-// Implementar contador atómico
-void atomic_increment(int* counter) {
-    int old_value, new_value;
-    do {
-        old_value = *counter;
-        new_value = old_value + 1;
-    } while (!compare_and_swap(counter, old_value, new_value));
-}
-```
-
-#### Fetch-and-Add
-```c
-// Retorna valor anterior y suma atomicamente
-int fetch_and_add(int* ptr, int value) {
-    int old_value = *ptr;
-    *ptr += value;
-    return old_value;
-}
-
-// Implementar ticket lock (espera acotada)
+// Estructura para pasar múltiples argumentos al hilo
 typedef struct {
-    int ticket;
-    int turn;
-} ticket_lock_t;
+    int thread_id;
+    int iterations;
+    char* message;
+} thread_args_t;
 
-void ticket_acquire(ticket_lock_t* lock) {
-    int my_ticket = fetch_and_add(&lock->ticket, 1);
-    while (lock->turn != my_ticket);  // Esperar mi turno
+// Función que ejecutará cada hilo
+void* thread_function(void* arg) {
+    thread_args_t* args = (thread_args_t*)arg;
+    
+    printf("Hilo %d iniciado - TID: %lu, PID: %d\n", 
+           args->thread_id, pthread_self(), getpid());
+    
+    // Trabajo del hilo
+    for (int i = 0; i < args->iterations; i++) {
+        printf("Hilo %d: %s - iteración %d\n", 
+               args->thread_id, args->message, i + 1);
+        sleep(1);
+    }
+    
+    // Preparar valor de retorno
+    int* result = malloc(sizeof(int));
+    *result = args->iterations * args->thread_id;
+    
+    printf("Hilo %d terminando con resultado %d\n", args->thread_id, *result);
+    return result;
 }
 
-void ticket_release(ticket_lock_t* lock) {
-    lock->turn++;  // Dar turno al siguiente
+int main() {
+    const int NUM_THREADS = 3;
+    pthread_t threads[NUM_THREADS];
+    thread_args_t thread_args[NUM_THREADS];
+    
+    printf("Proceso principal - PID: %d\n", getpid());
+    
+    // Configurar argumentos y crear hilos
+    for (int i = 0; i < NUM_THREADS; i++) {
+        thread_args[i].thread_id = i + 1;
+        thread_args[i].iterations = 3 + i;  // 3, 4, 5 iteraciones
+        thread_args[i].message = "Trabajando";
+        
+        int result = pthread_create(&threads[i], NULL, 
+                                   thread_function, &thread_args[i]);
+        
+        if (result != 0) {
+            fprintf(stderr, "Error creando hilo %d\n", i + 1);
+            exit(1);
+        }
+    }
+    
+    // Esperar terminación y recolectar resultados
+    printf("\nEsperando que terminen todos los hilos...\n");
+    
+    for (int i = 0; i < NUM_THREADS; i++) {
+        void* thread_result;
+        pthread_join(threads[i], &thread_result);
+        
+        int* result_value = (int*)thread_result;
+        printf("Hilo %d retornó: %d\n", i + 1, *result_value);
+        
+        free(result_value);  // Importante: liberar memoria
+    }
+    
+    printf("Proceso principal terminando\n");
+    return 0;
 }
 ```
 
-## Soluciones del Sistema Operativo: Semáforos
+**Compilación:**
+```bash
+gcc -o hilos_basico hilos_basico.c -lpthread
+```
 
-### Definición y Operaciones
+### Diferencias clave respecto a procesos
 
-**Semáforo**: Inventado por **Dijkstra (1965)**, es un contador entero no negativo con dos operaciones atómicas.
+| Aspecto | Procesos | Hilos |
+|---------|----------|-------|
+| **Creación** | fork() copia memoria completa | pthread_create() solo crea stack |
+| **Memoria** | Espacios separados | Espacio compartido |
+| **Comunicación** | IPC, pipes, señales | Variables globales, heap |
+| **Context Switch** | Cambio completo de MM | Solo registros y stack |
+| **Overhead** | Alto (1-10ms) | Bajo (10-100μs) |
+| **Aislamiento** | Total | Ninguno |
+
+\textcolor{teal!60!black}{\textbf{Ventajas de hilos sobre procesos:}\\
+- Creación y destrucción 10-100x más rápida\\
+- Context switch 10-50x más rápido\\
+- Comunicación directa a través de memoria compartida\\
+- Menor consumo de memoria del sistema\\
+}
+
+\textcolor{red!60!gray}{\textbf{Desventajas de hilos vs procesos:}\\
+- Error en un hilo puede afectar todo el proceso\\
+- Sin aislamiento de memoria (problemas de seguridad)\\
+- Debugging más complejo\\
+- Requiere sincronización explícita\\
+}
+
+## Gestión avanzada de hilos
+
+### Workers y pool de hilos
+
+Un patrón común en aplicaciones de alto rendimiento es el pool de hilos trabajadores:
 
 ```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+
+#define POOL_SIZE 4
+#define QUEUE_SIZE 100
+
+// Estructura para tareas en cola
+typedef struct task {
+    void (*function)(void*);
+    void* argument;
+    struct task* next;
+} task_t;
+
+// Pool de hilos
 typedef struct {
-    int value;
-    queue_t waiting_queue;
-} semaphore_t;
+    pthread_t workers[POOL_SIZE];
+    task_t* task_queue;
+    task_t* queue_tail;
+    pthread_mutex_t queue_mutex;
+    pthread_cond_t queue_condition;
+    int shutdown;
+} thread_pool_t;
 
-// P() o wait() - Decrementar y posiblemente bloquear
-void sem_wait(semaphore_t* sem) {
-    sem->value--;
-    if (sem->value < 0) {
-        // Bloquear proceso y agregarlo a la cola
-        add_to_queue(&sem->waiting_queue, current_process);
-        block_current_process();
+thread_pool_t pool;
+
+// Función del hilo trabajador
+void* worker_thread(void* arg) {
+    printf("Worker iniciado - TID: %lu\n", pthread_self());
+    
+    while (1) {
+        pthread_mutex_lock(&pool.queue_mutex);
+        
+        // Esperar hasta que haya tareas o shutdown
+        while (pool.task_queue == NULL && !pool.shutdown) {
+            pthread_cond_wait(&pool.queue_condition, &pool.queue_mutex);
+        }
+        
+        // Verificar shutdown
+        if (pool.shutdown) {
+            pthread_mutex_unlock(&pool.queue_mutex);
+            break;
+        }
+        
+        // Tomar tarea de la cola
+        task_t* task = pool.task_queue;
+        pool.task_queue = task->next;
+        if (pool.task_queue == NULL) {
+            pool.queue_tail = NULL;
+        }
+        
+        pthread_mutex_unlock(&pool.queue_mutex);
+        
+        // Ejecutar tarea
+        printf("Worker %lu ejecutando tarea\n", pthread_self() % 10000);
+        task->function(task->argument);
+        free(task);
+    }
+    
+    printf("Worker %lu terminando\n", pthread_self() % 10000);
+    return NULL;
+}
+
+// Agregar tarea al pool
+void pool_add_task(void (*function)(void*), void* argument) {
+    task_t* new_task = malloc(sizeof(task_t));
+    new_task->function = function;
+    new_task->argument = argument;
+    new_task->next = NULL;
+    
+    pthread_mutex_lock(&pool.queue_mutex);
+    
+    if (pool.queue_tail == NULL) {
+        pool.task_queue = pool.queue_tail = new_task;
+    } else {
+        pool.queue_tail->next = new_task;
+        pool.queue_tail = new_task;
+    }
+    
+    pthread_cond_signal(&pool.queue_condition);
+    pthread_mutex_unlock(&pool.queue_mutex);
+}
+
+// Inicializar pool
+void pool_init() {
+    pool.task_queue = NULL;
+    pool.queue_tail = NULL;
+    pool.shutdown = 0;
+    
+    pthread_mutex_init(&pool.queue_mutex, NULL);
+    pthread_cond_init(&pool.queue_condition, NULL);
+    
+    // Crear workers
+    for (int i = 0; i < POOL_SIZE; i++) {
+        pthread_create(&pool.workers[i], NULL, worker_thread, NULL);
+    }
+    
+    printf("Pool de %d workers inicializado\n", POOL_SIZE);
+}
+
+// Tarea de ejemplo
+void example_task(void* arg) {
+    int task_id = *(int*)arg;
+    printf("  Ejecutando tarea %d...\n", task_id);
+    sleep(2);  // Simular trabajo
+    printf("  Tarea %d completada\n", task_id);
+}
+
+int main() {
+    pool_init();
+    
+    // Agregar tareas al pool
+    int task_ids[10];
+    for (int i = 0; i < 10; i++) {
+        task_ids[i] = i + 1;
+        pool_add_task(example_task, &task_ids[i]);
+        printf("Tarea %d agregada al pool\n", i + 1);
+    }
+    
+    // Esperar que se procesen todas las tareas
+    sleep(8);
+    
+    // Shutdown del pool
+    pthread_mutex_lock(&pool.queue_mutex);
+    pool.shutdown = 1;
+    pthread_cond_broadcast(&pool.queue_condition);
+    pthread_mutex_unlock(&pool.queue_mutex);
+    
+    // Esperar workers
+    for (int i = 0; i < POOL_SIZE; i++) {
+        pthread_join(pool.workers[i], NULL);
+    }
+    
+    printf("Pool terminado\n");
+    return 0;
+}
+```
+
+\textcolor{blue!50!black}{\textbf{Información técnica:}\\
+Los pools de hilos eliminan el overhead de creación/destrucción y controlan la concurrencia. Son fundamentales en servidores web (Apache Worker MPM) y bases de datos (connection pooling).\\
+}
+
+## Planificación de hilos
+
+### Planificación de ULT
+
+La biblioteca de hilos implementa su propio scheduler, típicamente cooperativo:
+
+```c
+// Scheduler Round Robin para ULT
+void ult_scheduler() {
+    static int current = 0;
+    static int quantum_remaining = QUANTUM;
+    
+    quantum_remaining--;
+    
+    if (quantum_remaining <= 0 || threads[current].state != ULT_RUNNING) {
+        // Buscar próximo hilo READY
+        int next = current;
+        do {
+            next = (next + 1) % MAX_THREADS;
+        } while (threads[next].state != ULT_READY && next != current);
+        
+        if (threads[next].state == ULT_READY) {
+            // Context switch
+            threads[current].state = ULT_READY;
+            threads[next].state = ULT_RUNNING;
+            ult_context_switch(&threads[current], &threads[next]);
+            current = next;
+            quantum_remaining = QUANTUM;
+        }
     }
 }
+```
 
-// V() o signal() - Incrementar y despertar
-void sem_post(semaphore_t* sem) {
-    sem->value++;
-    if (sem->value <= 0) {
-        // Hay procesos esperando, despertar uno
-        process_t* p = remove_from_queue(&sem->waiting_queue);
-        wakeup_process(p);
+### Planificación de KLT
+
+El kernel planifica hilos como entidades independientes, sin considerar que pertenecen al mismo proceso:
+
+\textcolor{orange!70!black}{\textbf{Advertencia:}\\
+En planificación fair entre hilos individuales, un proceso con muchos hilos puede monopolizar el CPU. Por ejemplo: Proceso A (10 hilos) vs Proceso B (1 hilo) resulta en 91\% vs 9\% de tiempo de CPU.\\
+}
+
+**Solución: Planificación consciente de procesos**
+Algunos SO implementan planificación jerárquica:
+1. Distribuir tiempo entre procesos
+2. Cada proceso distribuye su tiempo entre sus hilos
+
+## Ejercicio práctico completo
+
+### Enunciado del problema
+
+Un sistema con planificador Round Robin (Q=4ms) debe ejecutar:
+
+- **Proceso P1**: 1 hilo KLT
+  - P1-T1: Llegada=0ms, CPU=14ms, I/O en t=6ms por 3ms
+- **Proceso P2**: 2 hilos KLT  
+  - P2-T1: Llegada=1ms, CPU=10ms
+  - P2-T2: Llegada=3ms, CPU=8ms, I/O en t=5ms por 2ms
+- **Proceso P3**: 1 KLT + 2 ULT (planificador interno FIFO)
+  - P3-T1 (KLT): Llegada=2ms, CPU=12ms
+  - P3-T2 (ULT): Llegada=4ms, CPU=6ms  
+  - P3-T3 (ULT): Llegada=5ms, CPU=4ms
+
+**Nota**: Los ULT de P3 son planificados internamente por FIFO cuando P3-T1 tiene el CPU.
+
+### Resolución paso a paso
+
+**Estado inicial del sistema:**
+```
+t=0: P1-T1 llega (READY)
+t=1: P2-T1 llega (READY)  
+t=2: P3-T1 llega (READY)
+t=3: P2-T2 llega (READY)
+t=4: P3-T2 llega (cola interna ULT de P3)
+t=5: P3-T3 llega (cola interna ULT de P3)
+```
+
+**Timeline de ejecución:**
+
+```
+t=0-4ms: P1-T1 ejecuta (quantum completo)
+         Remaining: P1-T1=10ms
+         Ready queue: [P2-T1, P3-T1, P2-T2]
+
+t=4-6ms: P2-T1 ejecuta (2ms de 4ms quantum)
+         I/O de P1-T1 termina en t=6ms → P1-T1 vuelve a READY
+         Ready queue: [P3-T1, P2-T2, P1-T1]
+
+t=6-8ms: P2-T1 continúa (completa quantum)
+         Remaining: P2-T1=8ms
+         Ready queue: [P3-T1, P2-T2, P1-T1, P2-T1]
+
+t=8-10ms: P3-T1 ejecuta (2ms de 4ms quantum)
+          ULT scheduler interno: P3-T2 comienza (FIFO)
+          Ready queue: [P2-T2, P1-T1, P2-T1]
+
+t=10-12ms: P3-T1 continúa ejecutando P3-T2 (ULT)
+           Remaining: P3-T2=4ms
+           Ready queue: [P2-T2, P1-T1, P2-T1, P3-T1]
+
+t=12-14ms: P2-T2 ejecuta (2ms de 4ms quantum)
+           
+t=14-15ms: P2-T2 hace I/O (1ms ejecutado)
+           P2-T2 se bloquea
+           Ready queue: [P1-T1, P2-T1, P3-T1]
+
+t=14-16ms: P1-T1 ejecuta (2ms de quantum)
+
+t=16-18ms: P1-T1 continúa (completa quantum)
+           Remaining: P1-T1=6ms
+           Ready queue: [P2-T1, P3-T1, P1-T1]
+
+t=17ms: I/O de P2-T2 termina → P2-T2 vuelve a READY
+
+t=18-22ms: P2-T1 ejecuta (quantum completo)
+           Remaining: P2-T1=4ms
+           Ready queue: [P3-T1, P1-T1, P2-T2, P2-T1]
+
+t=22-26ms: P3-T1 ejecuta P3-T2 (ULT, remaining 4ms)
+           P3-T2 termina, ULT scheduler activa P3-T3
+           Ready queue: [P1-T1, P2-T2, P2-T1, P3-T1]
+
+t=26-30ms: P1-T1 ejecuta (quantum completo)
+           Remaining: P1-T1=2ms
+           Ready queue: [P2-T2, P2-T1, P3-T1, P1-T1]
+
+t=30-34ms: P2-T2 ejecuta (quantum completo)
+           Remaining: P2-T2=3ms
+           Ready queue: [P2-T1, P3-T1, P1-T1, P2-T2]
+
+t=34-38ms: P2-T1 ejecuta (remaining 4ms, termina)
+           Ready queue: [P3-T1, P1-T1, P2-T2]
+
+t=38-42ms: P3-T1 ejecuta P3-T3 (ULT, 4ms termina)
+           Remaining: P3-T1=4ms
+           Ready queue: [P1-T1, P2-T2, P3-T1]
+
+t=42-44ms: P1-T1 ejecuta (remaining 2ms, termina)
+           Ready queue: [P2-T2, P3-T1]
+
+t=44-47ms: P2-T2 ejecuta (remaining 3ms, termina)
+           Ready queue: [P3-T1]
+
+t=47-51ms: P3-T1 ejecuta (remaining 4ms, termina)
+           Ready queue: []
+```
+
+### Diagrama de Gantt
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap04-gantt-hilos-mixto-1.png}
+\end{center}
+\begin{center}
+\includegraphics[width=0.9\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap04-gantt-hilos-mixto-2.png}
+\end{center}
+\begin{center}
+\includegraphics[width=0.9\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap04-gantt-hilos-mixto-3.png}
+\end{center}
+
+
+### Cálculos de métricas
+
+**Tiempos de terminación:**
+- P1-T1: 44ms
+- P2-T1: 38ms  
+- P2-T2: 47ms
+- P3-T1: 51ms
+- P3-T2: 26ms (ULT, termina cuando P3-T1 lo ejecuta)
+- P3-T3: 42ms (ULT, termina cuando P3-T1 lo ejecuta)
+
+**Tiempo promedio de retorno:**
+```
+Tiempo de retorno = Tiempo de terminación - Tiempo de llegada
+
+P1-T1: 44 - 0 = 44ms
+P2-T1: 38 - 1 = 37ms
+P2-T2: 47 - 3 = 44ms
+P3-T1: 51 - 2 = 49ms
+P3-T2: 26 - 4 = 22ms
+P3-T3: 42 - 5 = 37ms
+
+Promedio: (44 + 37 + 44 + 49 + 22 + 37) / 6 = 38.8ms
+```
+
+\textcolor{blue!50!black}{\textbf{Información técnica:}\\
+Los ULT de P3 solo pueden ejecutar cuando P3-T1 tiene asignado el CPU. Su planificación interna FIFO significa que P3-T2 debe terminar completamente antes de que P3-T3 pueda comenzar.\\
+}
+
+## Análisis comparativo y casos de uso
+
+### Overhead de implementaciones
+
+**Métricas de rendimiento típicas:**
+
+| Operación | ULT | KLT | Proceso |
+|-----------|-----|-----|---------|
+| **Creación** | 1-10 μs | 50-200 μs | 1-10 ms |
+| **Context Switch** | 0.1-1 μs | 5-50 μs | 100-1000 μs |
+| **Memoria por entidad** | 2-8 KB | 8-16 KB | 4-8 MB |
+| **Sincronización** | Variables | Mutex/Sem | IPC |
+
+### Casos de uso recomendados
+
+#### Usar ULT cuando:
+- **Aplicaciones cooperativas** con many short tasks
+- **I/O intensivo** con muchas operaciones asíncronas  
+- **Context switching frecuente** entre tareas relacionadas
+- **Control fino** sobre scheduling policy
+- **Sistemas embebidos** con recursos limitados
+
+**Ejemplo: Servidor de juegos en tiempo real**
+```c
+// ULT para manejar múltiples conexiones de jugadores
+void* game_connection_handler(void* player_data) {
+    while (player_connected) {
+        process_player_input();     // CPU burst corto
+        update_game_state();        // CPU burst corto  
+        ult_yield();               // Cooperativo
+        send_updates_to_player();   // I/O burst
+        ult_yield();               // Dar oportunidad a otros
     }
 }
 ```
 
-### Tipos de Semáforos
+#### Usar KLT cuando:
+- **Aplicaciones paralelas** en sistemas multicore
+- **CPU-intensive tasks** que se benefician de paralelismo real
+- **Aplicaciones críticas** donde el bloqueo de un hilo no debe afectar otros
+- **Integración** con servicios del SO (signals, timers)
 
-#### Semáforo Binario (Mutex)
-
-**Valores posibles**: 0 o 1
-- **1**: Recurso disponible
-- **0**: Recurso ocupado
-
+**Ejemplo: Procesamiento de imágenes paralelo**
 ```c
-semaphore_t mutex;
-sem_init(&mutex, 1);  // Inicializar en 1 (disponible)
-
-void critical_section() {
-    sem_wait(&mutex);   // P(mutex) - Obtener exclusión mutua
+// KLT para aprovechar múltiples cores
+void* image_processor_thread(void* args) {
+    image_region_t* region = (image_region_t*)args;
     
-    // SECCIÓN CRÍTICA
-    // Solo un proceso puede estar aquí
+    // Cada hilo procesa una región diferente de la imagen
+    for (int y = region->start_y; y < region->end_y; y++) {
+        for (int x = region->start_x; x < region->end_x; x++) {
+            apply_filter(image, x, y);  // CPU intensivo
+        }
+    }
+    return NULL;
+}
+```
+
+#### Usar pool de hilos cuando:
+- **Servidores web/aplicaciones** con carga variable
+- **Procesamiento batch** de tareas independientes
+- **Control de recursos** para evitar oversubscription
+- **Latencia predecible** vs throughput máximo
+
+## Problemas comunes y debugging
+
+### Race conditions y datos compartidos
+
+**Problema típico:**
+```c
+// Variable global compartida entre hilos
+int account_balance = 1000;
+
+void* withdraw_money(void* amount_ptr) {
+    int amount = *(int*)amount_ptr;
     
-    sem_post(&mutex);   // V(mutex) - Liberar exclusión mutua
-}
-```
-
-#### Semáforo Contador
-
-**Valores posibles**: 0 a N
-- **N**: Máximo número de recursos disponibles
-- **0**: Todos los recursos ocupados
-
-```c
-#define POOL_SIZE 5
-semaphore_t connection_pool;
-sem_init(&connection_pool, POOL_SIZE);
-
-void use_connection() {
-    sem_wait(&connection_pool);  // Obtener conexión
+    // PROBLEMA: Esta secuencia NO es atómica
+    int current_balance = account_balance;    // LOAD
+    if (current_balance >= amount) {          // CHECK
+        sleep(1);  // Simular procesamiento
+        account_balance = current_balance - amount;  // STORE
+        printf("Retiro exitoso: $%d\n", amount);
+    } else {
+        printf("Fondos insuficientes\n");
+    }
     
-    // Usar conexión de base de datos
-    execute_query();
+    return NULL;
+}
+```
+
+**Escenario de race condition:**
+```
+Estado inicial: account_balance = 1000
+
+Hilo 1 (retira $800):        Hilo 2 (retira $600):
+current = 1000               current = 1000
+if (1000 >= 800) ✓          if (1000 >= 600) ✓
+  sleep(1)                    sleep(1)
+  balance = 1000 - 800 = 200  balance = 1000 - 600 = 400
+
+Resultado final: balance = 400 (¡el último en escribir gana!)
+Correcto sería: balance = -400 (fondos insuficientes)
+```
+
+**Solución con sincronización:**
+```c
+pthread_mutex_t balance_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void* withdraw_money_safe(void* amount_ptr) {
+    int amount = *(int*)amount_ptr;
     
-    sem_post(&connection_pool);  // Liberar conexión
+    pthread_mutex_lock(&balance_mutex);  // Sección crítica
+    
+    int current_balance = account_balance;
+    if (current_balance >= amount) {
+        account_balance = current_balance - amount;
+        printf("Retiro exitoso: $%d, balance: $%d\n", amount, account_balance);
+    } else {
+        printf("Fondos insuficientes para $%d\n", amount);
+    }
+    
+    pthread_mutex_unlock(&balance_mutex);
+    
+    return NULL;
 }
 ```
 
-### Usos Principales de Semáforos
+### Herramientas de debugging
 
-#### Exclusión Mutua
-```c
-semaphore_t mutex = 1;
+**Detectar race conditions con ThreadSanitizer:**
+```bash
+# Compilar con ThreadSanitizer
+gcc -g -fsanitize=thread -o programa programa.c -lpthread
 
-void proceso() {
-    sem_wait(&mutex);    // Entrar a sección crítica
-    // Sección crítica
-    sem_post(&mutex);    // Salir de sección crítica
-}
+# Ejecutar
+./programa
+
+# Salida típica:
+# WARNING: ThreadSanitizer: data race
+# Write of size 4 at 0x7fff8b2c4020 by thread T2:
+#   #0 withdraw_money programa.c:15
+# Previous write of size 4 at 0x7fff8b2c4020 by thread T1:
+#   #0 withdraw_money programa.c:15
 ```
 
-#### Limitar Acceso a N Instancias
-```c
-semaphore_t recursos = N;
+**Debugging con GDB multihilo:**
+```bash
+gdb ./programa
 
-void usar_recurso() {
-    sem_wait(&recursos);  // Obtener uno de N recursos
-    // Usar recurso
-    sem_post(&recursos);  // Liberar recurso
-}
+(gdb) run
+(gdb) info threads         # Listar todos los hilos
+(gdb) thread 2             # Cambiar al hilo 2
+(gdb) bt                   # Backtrace del hilo actual
+(gdb) thread apply all bt  # Backtrace de todos los hilos
 ```
 
-#### Ordenar Ejecución (Sincronización)
+### Patterns de sincronización básicos
+
+#### Producer-Consumer con hilos
 ```c
-semaphore_t sincronizacion = 0;
+#include <pthread.h>
+#include <semaphore.h>
 
-void proceso_A() {
-    // Hacer trabajo A
-    trabajo_A();
-    sem_post(&sincronizacion);  // Señalar que A terminó
-}
-
-void proceso_B() {
-    sem_wait(&sincronizacion);  // Esperar que A termine
-    // Hacer trabajo B (que depende de A)
-    trabajo_B();
-}
-```
-
-#### Problema Productor-Consumidor
-```c
 #define BUFFER_SIZE 10
 
-semaphore_t empty = BUFFER_SIZE;    // Espacios vacíos
-semaphore_t full = 0;               // Elementos llenos  
-semaphore_t mutex = 1;              // Exclusión mutua
+int buffer[BUFFER_SIZE];
+int in = 0, out = 0;
 
-void productor() {
-    while (true) {
-        // Producir elemento
-        item = produce_item();
+sem_t empty, full;
+pthread_mutex_t buffer_mutex;
+
+void* producer(void* arg) {
+    int item = 1;
+    
+    while (1) {
+        sem_wait(&empty);                    // Esperar espacio libre
+        pthread_mutex_lock(&buffer_mutex);   // Acceso exclusivo al buffer
         
-        sem_wait(&empty);    // Esperar espacio vacío
-        sem_wait(&mutex);    // Obtener acceso al buffer
+        buffer[in] = item++;
+        printf("Producido: %d en posición %d\n", buffer[in], in);
+        in = (in + 1) % BUFFER_SIZE;
         
-        add_to_buffer(item); // Agregar al buffer
+        pthread_mutex_unlock(&buffer_mutex);
+        sem_post(&full);                     // Señalar item disponible
         
-        sem_post(&mutex);    // Liberar acceso al buffer
-        sem_post(&full);     // Señalar elemento disponible
+        sleep(rand() % 3);  // Simular tiempo de producción variable
     }
 }
 
-void consumidor() {
-    while (true) {
-        sem_wait(&full);     // Esperar elemento disponible
-        sem_wait(&mutex);    // Obtener acceso al buffer
+void* consumer(void* arg) {
+    int consumer_id = *(int*)arg;
+    
+    while (1) {
+        sem_wait(&full);                     // Esperar item disponible
+        pthread_mutex_lock(&buffer_mutex);   // Acceso exclusivo al buffer
         
-        item = remove_from_buffer();  // Quitar del buffer
+        int item = buffer[out];
+        printf("Consumidor %d tomó: %d de posición %d\n", 
+               consumer_id, item, out);
+        out = (out + 1) % BUFFER_SIZE;
         
-        sem_post(&mutex);    // Liberar acceso al buffer
-        sem_post(&empty);    // Señalar espacio vacío
+        pthread_mutex_unlock(&buffer_mutex);
+        sem_post(&empty);                    // Señalar espacio libre
         
-        consume_item(item);  // Consumir elemento
+        sleep(rand() % 2);  // Simular tiempo de consumo
     }
 }
 ```
 
-## Ejemplo Práctico: Control de Cochera
+## Tendencias y tecnologías modernas
 
-### Planteamiento del Problema
+### Green threads y corrutinas
 
-Una cochera tiene:
-- **20 espacios** para autos **1 entrada** (con barrera), **2 salidas** (con barreras) y un **Sistema de control** que debe llevar cuenta de espacios ocupados
+**Go language (goroutines):**
+- Modelo M:N optimizado con work-stealing scheduler
+- Stack segmentado que crece dinámicamente (inicia con 2KB)
+- Multiplexing de miles de goroutines sobre pocos threads OS
 
-**Requerimientos:**
-1. No permitir entrada si cochera está llena
-2. Controlar acceso exclusivo a entrada y salidas
-3. Mantener contador preciso de autos
-4. Evitar deadlock entre entrada y salidas
+**Rust (async/await):**
+- Concurrencia sin threads mediante futures y async runtime
+- Zero-cost abstractions para I/O asíncrono
+- Ownership model previene race conditions en tiempo de compilación
 
-### Solución con Semáforos
+### Thread affinity y NUMA
+
+En sistemas modernos con múltiples cores y arquitectura NUMA:
 
 ```c
-#include <stdio.h>
-#include <semaphore.h>
-#include <pthread.h>
+#include <sched.h>
 
-#define CAPACIDAD_COCHERA 20
-#define NUM_AUTOS 100
-
-typedef struct {
-    // Semáforo contador para espacios disponibles
-    sem_t espacios_disponibles;
+// Configurar affinity de CPU para un hilo
+void set_thread_affinity(pthread_t thread, int cpu_core) {
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(cpu_core, &cpuset);
     
-    // Mutex para acceso exclusivo a entrada
-    sem_t mutex_entrada;
-    
-    // Mutex para acceso exclusivo a cada salida
-    sem_t mutex_salida1;
-    sem_t mutex_salida2;
-    
-    // Mutex para el contador global
-    sem_t mutex_contador;
-    
-    // Estado de la cochera
-    int autos_dentro;
-    int total_entradas;
-    int total_salidas;
-    
-} cochera_t;
-
-cochera_t cochera;
-
-void inicializar_cochera() {
-    // Inicializar semáforos
-    sem_init(&cochera.espacios_disponibles, 0, CAPACIDAD_COCHERA);
-    sem_init(&cochera.mutex_entrada, 0, 1);
-    sem_init(&cochera.mutex_salida1, 0, 1);
-    sem_init(&cochera.mutex_salida2, 0, 1);
-    sem_init(&cochera.mutex_contador, 0, 1);
-    
-    // Inicializar estado
-    cochera.autos_dentro = 0;
-    cochera.total_entradas = 0;
-    cochera.total_salidas = 0;
-    
-    printf("Cochera inicializada: %d espacios disponibles\n", CAPACIDAD_COCHERA);
+    int result = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
+    if (result != 0) {
+        perror("pthread_setaffinity_np");
+    }
 }
 
-void* auto_entrando(void* arg) {
-    int auto_id = *(int*)arg;
+// Ejemplo de uso para optimizar cache locality
+void create_affine_threads() {
+    pthread_t threads[4];
     
-    printf("Auto %d llegó a la cochera\n", auto_id);
-    
-    // 1. Verificar si hay espacio disponible
-    printf("Auto %d esperando espacio...\n", auto_id);
-    sem_wait(&cochera.espacios_disponibles);  // Bloquea si cochera llena
-    
-    // 2. Hay espacio garantizado, obtener acceso exclusivo a entrada
-    printf("Auto %d esperando acceso a entrada...\n", auto_id);
-    sem_wait(&cochera.mutex_entrada);
-    
-    // 3. SECCIÓN CRÍTICA: Procesar entrada
-    printf("Auto %d entrando a cochera\n", auto_id);
-    
-    // Simular tiempo de entrada (abrir barrera, validar ticket, etc.)
-    sleep(1);
-    
-    // Actualizar contador global de manera thread-safe
-    sem_wait(&cochera.mutex_contador);
-    cochera.autos_dentro++;
-    cochera.total_entradas++;
-    printf("Auto %d dentro. Total en cochera: %d/%d\n", 
-           auto_id, cochera.autos_dentro, CAPACIDAD_COCHERA);
-    sem_post(&cochera.mutex_contador);
-    
-    // 4. Liberar acceso a entrada
-    sem_post(&cochera.mutex_entrada);
-    
-    printf("Auto %d estacionado exitosamente\n", auto_id);
-    
-    // Simular tiempo estacionado
-    sleep(2 + (rand() % 5));  // 2-6 segundos estacionado
-    
-    // Ahora el auto quiere salir
-    return NULL;
-}
-
-void* auto_saliendo(void* arg) {
-    int auto_id = *(int*)arg;
-    
-    printf("Auto %d quiere salir\n", auto_id);
-    
-    // Elegir salida aleatoriamente (load balancing simple)
-    int salida = (rand() % 2) + 1;
-    sem_t* mutex_salida = (salida == 1) ? &cochera.mutex_salida1 : &cochera.mutex_salida2;
-    
-    // 1. Obtener acceso exclusivo a la salida elegida
-    printf("Auto %d esperando acceso a salida %d...\n", auto_id, salida);
-    sem_wait(mutex_salida);
-    
-    // 2. SECCIÓN CRÍTICA: Procesar salida
-    printf("Auto %d saliendo por salida %d\n", auto_id, salida);
-    
-    // Simular tiempo de salida (validar pago, abrir barrera, etc.)
-    sleep(1);
-    
-    // Actualizar contador global
-    sem_wait(&cochera.mutex_contador);
-    cochera.autos_dentro--;
-    cochera.total_salidas++;
-    printf("Auto %d salió. Total en cochera: %d/%d\n", 
-           auto_id, cochera.autos_dentro, CAPACIDAD_COCHERA);
-    sem_post(&cochera.mutex_contador);
-    
-    // 3. Liberar acceso a salida
-    sem_post(mutex_salida);
-    
-    // 4. IMPORTANTE: Señalar que hay un espacio más disponible
-    sem_post(&cochera.espacios_disponibles);
-    
-    printf("Auto %d salió exitosamente por salida %d\n", auto_id, salida);
-    
-    return NULL;
-}
-
-void mostrar_estadisticas() {
-    sem_wait(&cochera.mutex_contador);
-    
-    printf("\n📈 ESTADÍSTICAS DE LA COCHERA:\n");
-    printf("   - Autos dentro: %d/%d\n", cochera.autos_dentro, CAPACIDAD_COCHERA);
-    printf("   - Total entradas: %d\n", cochera.total_entradas);
-    printf("   - Total salidas: %d\n", cochera.total_salidas);
-    printf("   - Espacios libres: %d\n", CAPACIDAD_COCHERA - cochera.autos_dentro);
-    
-    sem_post(&cochera.mutex_contador);
-}
-
-int main() {
-    pthread_t hilos_entrada[NUM_AUTOS];
-    pthread_t hilos_salida[NUM_AUTOS];
-    int auto_ids[NUM_AUTOS];
-    
-    // Inicializar sistema
-    inicializar_cochera();
-    srand(time(NULL));
-    
-    printf("Iniciando simulación: %d autos intentarán usar la cochera\n\n", NUM_AUTOS);
-    
-    // Crear hilos de entrada
-    for (int i = 0; i < NUM_AUTOS; i++) {
-        auto_ids[i] = i + 1;
-        pthread_create(&hilos_entrada[i], NULL, auto_entrando, &auto_ids[i]);
-        
-        // Espaciar llegadas aleatoriamente
-        usleep(50000 + (rand() % 100000));  // 50-150ms entre llegadas
+    for (int i = 0; i < 4; i++) {
+        pthread_create(&threads[i], NULL, worker_function, &i);
+        set_thread_affinity(threads[i], i);  // Cada hilo en core específico
     }
-    
-    // Crear hilos de salida con delay
-    sleep(3);  // Esperar que algunos autos entren primero
-    
-    for (int i = 0; i < NUM_AUTOS; i++) {
-        pthread_create(&hilos_salida[i], NULL, auto_saliendo, &auto_ids[i]);
-        usleep(100000 + (rand() % 200000));  // 100-300ms entre salidas
-    }
-    
-    // Mostrar estadísticas periódicamente
-    for (int i = 0; i < 10; i++) {
-        sleep(2);
-        mostrar_estadisticas();
-    }
-    
-    // Esperar que todos terminen
-    for (int i = 0; i < NUM_AUTOS; i++) {
-        pthread_join(hilos_entrada[i], NULL);
-        pthread_join(hilos_salida[i], NULL);
-    }
-    
-    printf("\nSimulación terminada\n");
-    mostrar_estadisticas();
-    
-    // Cleanup
-    sem_destroy(&cochera.espacios_disponibles);
-    sem_destroy(&cochera.mutex_entrada);
-    sem_destroy(&cochera.mutex_salida1);
-    sem_destroy(&cochera.mutex_salida2);
-    sem_destroy(&cochera.mutex_contador);
-    
-    return 0;
 }
 ```
 
-## Uso de Arrays de Semáforos
+\textcolor{blue!50!black}{\textbf{Información técnica:}\\
+Thread affinity mejora rendimiento manteniendo datos en cache L1/L2 del core específico. En sistemas NUMA, también reduce latencia de acceso a memoria local del nodo.\\
+}
 
-### Problema: Múltiples Recursos del Mismo Tipo
+## Síntesis y conexiones
 
-Consideremos un servidor web con **pool de workers**:
-- 10 threads worker disponibles
-- Cada request necesita exactamente 1 worker
-- Algunos requests requieren workers específicos (por expertise)
+### Puntos clave para evaluación
 
+**Conceptos fundamentales para dominar:**
+
+1. **Diferencias estructurales ULT vs KLT**
+   - ULT: N hilos usuario → 1 hilo kernel (biblioteca gestiona)
+   - KLT: 1 hilo usuario → 1 hilo kernel (SO gestiona)
+
+2. **Implicaciones de performance**
+   - ULT: Context switch ~100x más rápido, sin paralelismo real
+   - KLT: Context switch más lento, paralelismo completo
+
+3. **Problemática de planificación mixta**
+   - ULT dependen del quantum asignado a su KLT contenedor
+   - Scheduler interno vs scheduler del SO
+
+4. **APIs críticas de pthreads**
+   - Ciclo completo: create → join/detach
+   - Sincronización básica: mutex lock/unlock
+   - Gestión de memoria en valores de retorno
+
+### Errores conceptuales frecuentes
+
+\textcolor{red!60!gray}{\textbf{Misconcepciones comunes:}\\
+- "ULT son más simples": Requieren biblioteca de scheduling compleja\\
+- "KLT siempre son mejores": Overhead prohibitivo para muchas aplicaciones\\
+- "Más hilos = mejor rendimiento": Contention y overhead pueden degradar performance\\
+- "Variables locales son thread-safe": Solo en el stack, no en el heap\\
+}
+
+### Preparación para próximos capítulos
+
+Los hilos introducen la necesidad crítica de **sincronización y coordinación**. En el siguiente capítulo exploraremos:
+
+**Mecanismos de sincronización:**
+- Mutex y semáforos para exclusión mutua
+- Condition variables para coordinación
+- Read-write locks para optimizar lectores múltiples
+
+**Problemas clásicos:**
+- Productor-consumidor con buffer limitado
+- Lectores-escritores con prioridades
+- Filósofos comensales y prevención de deadlock
+
+**Ejemplo de transición:**
 ```c
-#define NUM_WORKERS 10
-#define NUM_REQUESTS 50
+// Problema que veremos en el próximo capítulo
+pthread_mutex_t resource_mutex;
+pthread_cond_t resource_available;
+int shared_resource_count = 0;
 
-typedef enum {
-    WORKER_GENERAL = 0,
-    WORKER_DATABASE = 1,
-    WORKER_IMAGE = 2,
-    WORKER_API = 3
-} worker_type_t;
-
-typedef struct {
-    sem_t workers[4];          // Array de semáforos por tipo
-    pthread_mutex_t worker_mutex[NUM_WORKERS];  // Mutex individual por worker
-    worker_type_t worker_types[NUM_WORKERS];    // Tipo de cada worker
-    bool worker_busy[NUM_WORKERS];              // Estado de cada worker
-} server_pool_t;
-
-server_pool_t server;
-
-void inicializar_server() {
-    // Distribuir workers por tipo
-    int workers_por_tipo[] = {4, 3, 2, 1};  // General, DB, Image, API
-    
-    for (int tipo = 0; tipo < 4; tipo++) {
-        sem_init(&server.workers[tipo], 0, workers_por_tipo[tipo]);
-    }
-    
-    // Inicializar workers individuales
-    int worker_idx = 0;
-    for (int tipo = 0; tipo < 4; tipo++) {
-        for (int i = 0; i < workers_por_tipo[tipo]; i++) {
-            pthread_mutex_init(&server.worker_mutex[worker_idx], NULL);
-            server.worker_types[worker_idx] = tipo;
-            server.worker_busy[worker_idx] = false;
-            worker_idx++;
-        }
-    }
-}
-
-int obtener_worker(worker_type_t tipo_requerido) {
-    // 1. Esperar worker del tipo requerido
-    sem_wait(&server.workers[tipo_requerido]);
-    
-    // 2. Encontrar worker específico de ese tipo
-    for (int i = 0; i < NUM_WORKERS; i++) {
-        if (server.worker_types[i] == tipo_requerido) {
-            if (pthread_mutex_trylock(&server.worker_mutex[i]) == 0) {
-                if (!server.worker_busy[i]) {
-                    server.worker_busy[i] = true;
-                    return i;  // Worker encontrado y reservado
-                }
-                pthread_mutex_unlock(&server.worker_mutex[i]);
-            }
-        }
-    }
-    
-    // No debería llegar aquí si los semáforos están bien sincronizados
-    return -1;
-}
-
-void liberar_worker(int worker_id) {
-    pthread_mutex_lock(&server.worker_mutex[worker_id]);
-    
-    server.worker_busy[worker_id] = false;
-    worker_type_t tipo = server.worker_types[worker_id];
-    
-    pthread_mutex_unlock(&server.worker_mutex[worker_id]);
-    
-    // Señalar que hay un worker más de este tipo disponible
-    sem_post(&server.workers[tipo]);
-}
-
-void* procesar_request(void* arg) {
-    int request_id = *(int*)arg;
-    worker_type_t tipo_necesario = rand() % 4;  // Request aleatorio
-    
-    printf("Request %d necesita worker tipo %d\n", request_id, tipo_necesario);
-    
-    // Obtener worker
-    int worker_id = obtener_worker(tipo_necesario);
-    if (worker_id == -1) {
-        printf("Request %d: Error obteniendo worker\n", request_id);
-        return NULL;
-    }
-    
-    printf("Request %d asignado a worker %d (tipo %d)\n", 
-           request_id, worker_id, tipo_necesario);
-    
-    // Simular procesamiento
-    sleep(1 + (rand() % 3));
-    
-    // Liberar worker
-    liberar_worker(worker_id);
-    
-    printf("Request %d completado por worker %d\n", request_id, worker_id);
-    
-    return NULL;
-}
+// ¿Cómo coordinamos múltiples hilos que compiten por recursos limitados?
+// ¿Cómo evitamos deadlock cuando un hilo necesita múltiples recursos?
+// ¿Cómo implementamos fairness entre hilos productores y consumidores?
 ```
 
+### Laboratorio propuesto
 
-### Problema Clásico: Productor-Consumidor
+**Práctica 1: Benchmark ULT vs KLT**
+Implementar un programa que compare el overhead de context switches entre una simulación de ULT y pthreads reales, midiendo switches por segundo.
 
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <unistd.h>
+**Práctica 2: Pool de hilos configurable**
+Desarrollar un pool de threads con tamaño variable que pueda manejar diferentes tipos de tareas y medir su rendimiento bajo diferentes cargas.
 
-#define BUFFER_SIZE 5
-#define NUM_ITEMS 20
+**Práctica 3: Análisis de planificación mixta**
+Implementar un simulador que reproduzca el ejercicio del Gantt chart, permitiendo modificar parámetros (quantum, número de hilos, duración de I/O) y visualizar el impacto en las métricas de rendimiento.
 
-typedef struct {
-    int buffer[BUFFER_SIZE];     // Buffer circular
-    int in;                      // Índice de inserción
-    int out;                     // Índice de extracción
-    
-    sem_t empty;                 // Espacios vacíos disponibles
-    sem_t full;                  // Elementos disponibles para consumir
-    pthread_mutex_t mutex;       // Exclusión mutua para buffer
-    
-    int items_produced;          // Estadísticas
-    int items_consumed;
-} buffer_t;
-
-buffer_t shared_buffer;
-
-void init_buffer() {
-    shared_buffer.in = 0;
-    shared_buffer.out = 0;
-    shared_buffer.items_produced = 0;
-    shared_buffer.items_consumed = 0;
-    
-    // empty inicia con BUFFER_SIZE (todos los espacios están vacíos)
-    sem_init(&shared_buffer.empty, 0, BUFFER_SIZE);
-    
-    // full inicia con 0 (no hay elementos para consumir)
-    sem_init(&shared_buffer.full, 0, 0);
-    
-    pthread_mutex_init(&shared_buffer.mutex, NULL);
-    
-    printf("Buffer inicializado (tamaño: %d)\n", BUFFER_SIZE);
-}
-
-void* productor(void* arg) {
-    int prod_id = *(int*)arg;
-    
-    for (int i = 0; i < NUM_ITEMS; i++) {
-        // Producir elemento
-        int item = (prod_id * 100) + i;
-        
-        printf("Productor %d creó item %d\n", prod_id, item);
-        
-        // PASO 1: Esperar espacio vacío
-        printf("Productor %d esperando espacio...\n", prod_id);
-        sem_wait(&shared_buffer.empty);
-        
-        // PASO 2: Obtener exclusión mutua sobre buffer
-        pthread_mutex_lock(&shared_buffer.mutex);
-        
-        // PASO 3: SECCIÓN CRÍTICA - Insertar en buffer
-        shared_buffer.buffer[shared_buffer.in] = item;
-        printf("Item %d insertado en posición %d\n", 
-               item, shared_buffer.in);
-        
-        shared_buffer.in = (shared_buffer.in + 1) % BUFFER_SIZE;
-        shared_buffer.items_produced++;
-        
-        // PASO 4: Liberar exclusión mutua
-        pthread_mutex_unlock(&shared_buffer.mutex);
-        
-        // PASO 5: Señalar elemento disponible
-        sem_post(&shared_buffer.full);
-        
-        // Simular tiempo de producción
-        usleep(200000 + (rand() % 300000));  // 200-500ms
-    }
-    
-    printf("Productor %d terminó\n", prod_id);
-    return NULL;
-}
-
-void* consumidor(void* arg) {
-    int cons_id = *(int*)arg;
-    
-    for (int i = 0; i < NUM_ITEMS; i++) {
-        // PASO 1: Esperar elemento disponible
-        printf("Consumidor %d esperando elemento...\n", cons_id);
-        sem_wait(&shared_buffer.full);
-        
-        // PASO 2: Obtener exclusión mutua sobre buffer
-        pthread_mutex_lock(&shared_buffer.mutex);
-        
-        // PASO 3: SECCIÓN CRÍTICA - Extraer del buffer
-        int item = shared_buffer.buffer[shared_buffer.out];
-        printf("Item %d extraído de posición %d por consumidor %d\n", 
-               item, shared_buffer.out, cons_id);
-        
-        shared_buffer.out = (shared_buffer.out + 1) % BUFFER_SIZE;
-        shared_buffer.items_consumed++;
-        
-        // PASO 4: Liberar exclusión mutua
-        pthread_mutex_unlock(&shared_buffer.mutex);
-        
-        // PASO 5: Señalar espacio vacío
-        sem_post(&shared_buffer.empty);
-        
-        // Consumir elemento
-        printf("Consumidor %d procesando item %d\n", cons_id, item);
-        usleep(300000 + (rand() % 400000));  // 300-700ms
-    }
-    
-    printf("Consumidor %d terminó\n", cons_id);
-    return NULL;
-}
-
-void mostrar_estado_buffer() {
-    pthread_mutex_lock(&shared_buffer.mutex);
-    
-    printf("\nESTADO DEL BUFFER:\n");
-    printf("   Producidos: %d | Consumidos: %d\n",
-           shared_buffer.items_produced, shared_buffer.items_consumed);
-    
-    // Mostrar contenido actual
-    printf("   Buffer: [");
-    for (int i = 0; i < BUFFER_SIZE; i++) {
-        if (i >= shared_buffer.out && i < shared_buffer.in) {
-            printf("%d", shared_buffer.buffer[i]);
-        } else {
-            printf("_");
-        }
-        if (i < BUFFER_SIZE - 1) printf(", ");
-    }
-    printf("]\n");
-    printf("   IN=%d, OUT=%d\n", shared_buffer.in, shared_buffer.out);
-    
-    pthread_mutex_unlock(&shared_buffer.mutex);
-}
-
-int main() {
-    pthread_t prod_thread, cons_thread;
-    int prod_id = 1, cons_id = 1;
-    
-    init_buffer();
-    srand(time(NULL));
-    
-    printf("Iniciando Productor-Consumidor\n\n");
-    
-    // Crear threads
-    pthread_create(&prod_thread, NULL, productor, &prod_id);
-    pthread_create(&cons_thread, NULL, consumidor, &cons_id);
-    
-    // Monitor periódico
-    for (int i = 0; i < 10; i++) {
-        sleep(2);
-        mostrar_estado_buffer();
-    }
-    
-    // Esperar terminación
-    pthread_join(prod_thread, NULL);
-    pthread_join(cons_thread, NULL);
-    
-    printf("\nSimulación terminada\n");
-    mostrar_estado_buffer();
-    
-    // Cleanup
-    sem_destroy(&shared_buffer.empty);
-    sem_destroy(&shared_buffer.full);
-    pthread_mutex_destroy(&shared_buffer.mutex);
-    
-    return 0;
-}
-```
-
-### Problema Lectores-Escritores
-
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <unistd.h>
-
-typedef struct {
-    // Datos compartidos
-    int shared_data;
-    
-    // Control de acceso
-    pthread_mutex_t mutex;       // Proteger reader_count
-    sem_t write_lock;           // Escritores exclusivos
-    
-    // Estadísticas
-    int reader_count;           // Lectores activos
-    int total_reads;            // Total operaciones de lectura
-    int total_writes;           // Total operaciones de escritura
-    
-} shared_resource_t;
-
-shared_resource_t resource;
-
-void init_resource() {
-    resource.shared_data = 0;
-    resource.reader_count = 0;
-    resource.total_reads = 0;
-    resource.total_writes = 0;
-    
-    pthread_mutex_init(&resource.mutex, NULL);
-    sem_init(&resource.write_lock, 0, 1);  // Un escritor a la vez
-    
-    printf("Recurso compartido inicializado\n");
-}
-
-void* lector(void* arg) {
-    int reader_id = *(int*)arg;
-    
-    for (int i = 0; i < 5; i++) {
-        printf("Lector %d quiere leer\n", reader_id);
-        
-        // PROTOCOLO DE ENTRADA - LECTORES
-        pthread_mutex_lock(&resource.mutex);
-        
-        resource.reader_count++;
-        
-        // El primer lector bloquea escritores
-        if (resource.reader_count == 1) {
-            printf("Primer lector %d bloqueando escritores\n", reader_id);
-            sem_wait(&resource.write_lock);
-        }
-        
-        pthread_mutex_unlock(&resource.mutex);
-        
-        // SECCIÓN CRÍTICA - LECTURA
-        printf("Lector %d leyendo: valor = %d\n", 
-               reader_id, resource.shared_data);
-        resource.total_reads++;
-        
-        // Simular tiempo de lectura
-        usleep(100000 + (rand() % 200000));  // 100-300ms
-        
-        // PROTOCOLO DE SALIDA - LECTORES
-        pthread_mutex_lock(&resource.mutex);
-        
-        resource.reader_count--;
-        
-        // El último lector desbloquea escritores
-        if (resource.reader_count == 0) {
-            printf("Último lector %d desbloqueando escritores\n", reader_id);
-            sem_post(&resource.write_lock);
-        }
-        
-        pthread_mutex_unlock(&resource.mutex);
-        
-        printf("Lector %d terminó lectura %d\n", reader_id, i + 1);
-        
-        // Tiempo entre lecturas
-        usleep(500000 + (rand() % 1000000));  // 0.5-1.5s
-    }
-    
-    printf("Lector %d terminó todas las lecturas\n", reader_id);
-    return NULL;
-}
-
-void* escritor(void* arg) {
-    int writer_id = *(int*)arg;
-    
-    for (int i = 0; i < 3; i++) {
-        printf("Escritor %d quiere escribir\n", writer_id);
-        
-        // PROTOCOLO DE ENTRADA - ESCRITORES
-        // Esperar acceso exclusivo (bloquea otros escritores y lectores)
-        sem_wait(&resource.write_lock);
-        
-        // SECCIÓN CRÍTICA - ESCRITURA
-        int new_value = (writer_id * 1000) + i;
-        printf("Escritor %d escribiendo: %d → %d\n", 
-               writer_id, resource.shared_data, new_value);
-        
-        resource.shared_data = new_value;
-        resource.total_writes++;
-        
-        // Simular tiempo de escritura
-        usleep(300000 + (rand() % 400000));  // 300-700ms
-        
-        // PROTOCOLO DE SALIDA - ESCRITORES
-        sem_post(&resource.write_lock);
-        
-        printf("Escritor %d terminó escritura %d\n", writer_id, i + 1);
-        
-        // Tiempo entre escrituras
-        usleep(800000 + (rand() % 1200000));  // 0.8-2.0s
-    }
-    
-    printf("Escritor %d terminó todas las escrituras\n", writer_id);
-    return NULL;
-}
-
-void mostrar_estadisticas() {
-    pthread_mutex_lock(&resource.mutex);
-    
-    printf("\nESTADÍSTICAS:\n");
-    printf("   Valor actual: %d\n", resource.shared_data);
-    printf("   Lectores activos: %d\n", resource.reader_count);
-    printf("   Total lecturas: %d\n", resource.total_reads);
-    printf("   Total escrituras: %d\n", resource.total_writes);
-    
-    pthread_mutex_unlock(&resource.mutex);
-}
-
-int main() {
-    #define NUM_READERS 3
-    #define NUM_WRITERS 2
-    
-    pthread_t readers[NUM_READERS];
-    pthread_t writers[NUM_WRITERS];
-    int reader_ids[NUM_READERS];
-    int writer_ids[NUM_WRITERS];
-    
-    init_resource();
-    srand(time(NULL));
-    
-    printf("Iniciando Lectores-Escritores\n\n");
-    
-    // Crear lectores
-    for (int i = 0; i < NUM_READERS; i++) {
-        reader_ids[i] = i + 1;
-        pthread_create(&readers[i], NULL, lector, &reader_ids[i]);
-    }
-    
-    // Crear escritores con pequeño delay
-    sleep(1);
-    for (int i = 0; i < NUM_WRITERS; i++) {
-        writer_ids[i] = i + 1;
-        pthread_create(&writers[i], NULL, escritor, &writer_ids[i]);
-    }
-    
-    // Monitor periódico
-    for (int i = 0; i < 8; i++) {
-        sleep(2);
-        mostrar_estadisticas();
-    }
-    
-    // Esperar terminación
-    for (int i = 0; i < NUM_READERS; i++) {
-        pthread_join(readers[i], NULL);
-    }
-    for (int i = 0; i < NUM_WRITERS; i++) {
-        pthread_join(writers[i], NULL);
-    }
-    
-    printf("\nSimulación terminada\n");
-    mostrar_estadisticas();
-    
-    // Cleanup
-    pthread_mutex_destroy(&resource.mutex);
-    sem_destroy(&resource.write_lock);
-    
-    return 0;
-}
-```
-
-## Síntesis
-
-### Puntos Clave
-
-1. **Race Conditions** son la causa fundamental de bugs en programas concurrentes
-2. **Sección Crítica** debe protegerse con primitivas de sincronización
-3. **Semáforos** son la herramienta más versátil para sincronización
-5. **Overhead** de sincronización debe balancearse con necesidades de concurrencia
-
-### Conexiones con Otros Temas
-
-- **Scheduling**: Los procesos bloqueados en semáforos van a cola de espera
-- **Deadlock** puede prevenirse con diseño cuidadoso del orden de recursos
-- **Memory Management**: Variables compartidas requieren coherencia de cache
-- **File Systems**: Control de concurrencia en acceso a archivos
-- **Networks**: Sincronización en sistemas distribuidos
+La comprensión profunda de los hilos es fundamental para el diseño de sistemas concurrentes eficientes. En aplicaciones modernas, la elección correcta entre ULT, KLT o modelos híbridos puede determinar la diferencia entre un sistema que escala y uno que colapsa bajo carga.

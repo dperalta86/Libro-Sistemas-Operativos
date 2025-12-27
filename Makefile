@@ -6,13 +6,14 @@ OUTPUT_DIR = build
 SRC_DIR = src
 
 # Lista de capítulos en orden
-CAPITULOS = $(SRC_DIR)/capitulo-00.md \
-$(SRC_DIR)/capitulo-01.md \
+CAPITULOS = $(SRC_DIR)/capitulo-01.md \
 $(SRC_DIR)/capitulo-02.md \
 $(SRC_DIR)/capitulo-03.md \
 $(SRC_DIR)/capitulo-04.md \
 $(SRC_DIR)/capitulo-05.md \
-$(SRC_DIR)/capitulo-06.md
+$(SRC_DIR)/capitulo-06.md \
+$(SRC_DIR)/capitulo-07.md \
+$(SRC_DIR)/capitulo-08.md
 
 # Archivos de configuración
 METADATA = metadata.yaml
