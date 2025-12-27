@@ -226,7 +226,7 @@ En el Capítulo 7, cada entrada de tabla de páginas era simplemente un número 
 ```
 Entrada de Tabla de Páginas (expandida):
 ┌────────────┬───┬───┬───┬───┬───────────┐
-│ Marco (20) │ P │ R │ M │ X │ Protec.   │
+│ Marco (20) │ P │ U │ M │ X │ Protec.   │
 └────────────┴───┴───┴───┴───┴───────────┘
               ↑
               Bit presencia (P)
@@ -239,7 +239,7 @@ Indica si la página está presente en memoria RAM (P=1) o está en disco/swap (
 
 **Estados posibles:**
 
-| P | R | M | Significado |
+| P | U | M | Significado |
 |---|---|---|-------------|
 | 1 | 0 | 0 | En RAM, no accedida recientemente, no modificada |
 | 1 | 1 | 0 | En RAM, accedida recientemente, no modificada |
@@ -251,7 +251,7 @@ Indica si la página está presente en memoria RAM (P=1) o está en disco/swap (
 ```
 Proceso con 8 páginas:
 ┌────┬───────┬───┬───┬───┬──────────────┐
-│Pág │ Marco │ P │ R │ M │ Ubicación    │
+│Pág │ Marco │ P │ U │ M │ Ubicación    │
 ├────┼───────┼───┼───┼───┼──────────────┤
 │ 0  │   5   │ 1 │ 1 │ 0 │ RAM (marco 5)│
 │ 1  │   -   │ 0 │ - │ - │ Disco blq 10 │
@@ -295,17 +295,6 @@ Page Fault ≠ Segmentation Fault\\
 | Page Fault | Acceso a página P=0 | SO carga página, continúa | NO (transparente) |
 | Segmentation Fault | Acceso fuera del espacio válido | SO mata proceso | SÍ (señal SIGSEGV) |
 
-**Analogía útil:**
-
-Imagina una biblioteca con:
-- **Sala de lectura** (RAM): 10 mesas
-- **Depósito** (Disco): 10,000 libros
-
-Cuando un estudiante (proceso) pide un libro (página):
-- Si está en la sala (P=1): lo usa inmediatamente
-- Si está en el depósito (P=0): **page fault** → empleado lo trae (SO)
-
-**¿Es un error que el libro esté en el depósito? ¡NO! Es normal.**
 
 ### Swap Space (Backing Store)
 
@@ -393,7 +382,7 @@ Ahora veamos el flujo detallado de lo que sucede cuando ocurre un page fault.
 11. SO carga página en marco seleccionado
     ↓
 12. SO actualiza tabla de páginas:
-    - Página 2: marco=X, P=1, R=0, M=0
+    - Página 2: marco=X, P=1, U=0, M=0
     ↓
 13. SO invalida entrada TLB anterior (si existía)
     ↓
@@ -1289,15 +1278,15 @@ Aproximación eficiente de LRU usando un bit de referencia.
 ```
         ┌──────┐
     ┌───│ P=5  │───┐
-    │   │ R=1  │   │
+    │   │ U=1  │   │
 ┌───┴──┐└──────┘┌──┴───┐
 │ P=1  │        │ P=2  │
-│ R=0  │  ↑     │ R=1  │
+│ U=0  │  ↑     │ U=1  │
 └───┬──┘ puntero└──┬───┘
     │   (clock)    │
     │   ┌──────┐   │
     └───│ P=9  │───┘
-        │ R=0  │
+        │ U=0  │
         └──────┘
 ```
 
@@ -1306,38 +1295,38 @@ Aproximación eficiente de LRU usando un bit de referencia.
 ```
 Al buscar víctima:
 1. Examinar página actual (donde apunta el puntero)
-2. Si R=1:
-   - Dar "segunda oportunidad": R=0
+2. Si U=1:
+   - Dar "segunda oportunidad": U=0
    - Avanzar puntero
    - Continuar
-3. Si R=0:
+3. Si U=0:
    - Esta es la víctima
    - Reemplazar
    - Avanzar puntero
 ```
 
-**El bit R (Referenced):**
+**El bit U "uso" (R - Referenced):**
 - Hardware lo pone en 1 cada vez que se accede la página
 - El algoritmo lo pone en 0 al dar segunda oportunidad
 
 \textcolor{blue!50!black}{\textbf{Intuición:}\\
-- R=1: "He sido usada recientemente, dame otra chance"\\
-- R=0: "No he sido usada desde la última inspección"\\
+- U=1: "He sido usada recientemente, dame otra chance"\\
+- U=0: "No he sido usada desde la última inspección"\\
 → Aproxima LRU: páginas no usadas se eliminan primero\\
 }
 
 ### Clock-M (Clock Mejorado / Enhanced Second Chance)
 
-Versión mejorada de Clock que considera tanto el bit R (Referenced) como el bit M (Modified/Dirty).
+Versión mejorada de Clock que considera tanto el bit U (Referenced) como el bit M (Modified/Dirty).
 
 \begin{definitionbox}
 \emph{Clock-M (Clock Mejorado):}
-Extensión del algoritmo Clock que usa los bits R y M para clasificar páginas en 4 categorías de prioridad para reemplazo. Prefiere reemplazar páginas no modificadas para evitar escrituras a disco.
+Extensión del algoritmo Clock que usa los bits U y M para clasificar páginas en 4 categorías de prioridad para reemplazo. Prefiere reemplazar páginas no modificadas para evitar escrituras a disco.
 \end{definitionbox}
 
 **Clasificación de páginas:**
 
-| Clase | R | M | Descripción | Prioridad Reemplazo |
+| Clase | U | M | Descripción | Prioridad Reemplazo |
 |-------|---|---|-------------|---------------------|
 | 0     | 0 | 0 | No usada, no modificada | Mejor víctima |
 | 1     | 0 | 1 | No usada, modificada | Segunda opción |
@@ -1363,32 +1352,32 @@ Total: ~10 ms\\
 ```
 Búsqueda de víctima (hasta 4 pasadas):
 
-Vuelta 1: Buscar clase 0 (R=0, M=0)
-- Examinar páginas sin modificar R
-- Si encuentra (R=0, M=0): ¡víctima encontrada!
+Vuelta 1: Buscar clase 0 (U=0, M=0)
+- Examinar páginas sin modificar U
+- Si encuentra (U=0, M=0): ¡víctima encontrada!
 - Si no: continuar vuelta 2
 
-Vuelta 2: Buscar clase 1 (R=0, M=1)
-- Examinar páginas sin modificar R
-- Si encuentra (R=0, M=1): víctima encontrada
+Vuelta 2: Buscar clase 1 (U=0, M=1)
+- Examinar páginas sin modificar U
+- Si encuentra (U=0, M=1): víctima encontrada
 - Si no: continuar vuelta 3
 
-Vuelta 3: Buscar clase 0 nuevamente (R=0, M=0)
-- Ahora SÍ modificar R: R=1 → R=0
-- Si encuentra (R=0, M=0): víctima encontrada
+Vuelta 3: Buscar clase 0 nuevamente (U=0, M=0)
+- Ahora SÍ modificar U: U=1 → U=0
+- Si encuentra (U=0, M=0): víctima encontrada
 - Si no: continuar vuelta 4
 
-Vuelta 4: Buscar clase 1 (R=0, M=1)
-- Modificar R: R=1 → R=0
-- Tomar la primera página (R=0, M=1) que encuentre
+Vuelta 4: Buscar clase 1 (U=0, M=1)
+- Modificar U: U=1 → U=0
+- Tomar la primera página (U=0, M=1) que encuentre
 ```
 
 \textcolor{blue!50!black}{\textbf{Lógica de las 4 vueltas:}\\
 Vueltas 1-2: Intentar encontrar víctima sin dar segundas oportunidades\\
 → Si existe página clase 0 o 1, la encontrará rápido\\
 \\
-Vueltas 3-4: Dar segundas oportunidades (resetear R)\\
-→ Si todas las páginas tenían R=1, ahora tendrán R=0\\
+Vueltas 3-4: Dar segundas oportunidades (resetear U)\\
+→ Si todas las páginas tenían U=1, ahora tendrán U=0\\
 → Garantiza encontrar víctima eventualmente\\
 }
 
@@ -1435,11 +1424,11 @@ Total Page Faults: 9
 
 #### Algoritmo Clock-M (Detallado)
 
-Ahora veamos Clock-M con detalle de los bits R y M.
+Ahora veamos Clock-M con detalle de los bits U y M.
 
 **Supuestos:**
-- Páginas cargadas desde disco inician con R=0, M=0
-- Al acceder una página: R=1
+- Páginas cargadas desde disco inician con U=0, M=0
+- Al acceder una página: U=1
 - Al escribir una página: M=1
 - Secuencia incluye algunas escrituras (las marcaremos)
 
@@ -1472,7 +1461,7 @@ PF: 3
 
 Ref 4: Acceso 2 (lectura)
 - Page fault, necesita reemplazar
-- Puntero en marco 0: [7(0,0)] ← R=0,M=0 (clase 0)
+- Puntero en marco 0: [7(0,0)] ← U=0,M=0 (clase 0)
   → Víctima encontrada en vuelta 1
   → Reemplazar 7 por 2
 - Marcos: [2(0,0)] [0(0,0)] [1(0,1)]
@@ -1480,7 +1469,7 @@ Ref 4: Acceso 2 (lectura)
 PF: 4
 
 Ref 5: Acceso 0 (lectura)
-- Hit, marcar R=1
+- Hit, marcar U=1
 - Marcos: [2(0,0)] [0(1,0)] [1(0,1)]
 PF: 4
 
@@ -1489,10 +1478,10 @@ Ref 6: Acceso 3 (escritura)
 - Estado actual: [2(0,0)] [0(1,0)] [1(0,1)]
 - Puntero en marco 1:
   
-  Vuelta 1: Buscar (R=0,M=0)
-  - Marco 1: [0(1,0)] → R=1, siguiente
+  Vuelta 1: Buscar (U=0,M=0)
+  - Marco 1: [0(1,0)] → U=1, siguiente
   - Marco 2: [1(0,1)] → M=1, siguiente
-  - Marco 0: [2(0,0)] → R=0,M=0 ✓ Víctima!
+  - Marco 0: [2(0,0)] → U=0,M=0 - Víctima!
   
 - Reemplazar pág 2 por pág 3, marcar M=1
 - Marcos: [3(0,1)] [0(1,0)] [1(0,1)]
@@ -1509,15 +1498,15 @@ Ref 8: Acceso 4 (lectura)
 - Estado actual: [3(0,1)] [0(1,1)] [1(0,1)]
 - Puntero en marco 1:
   
-  Vuelta 1: Buscar (R=0,M=0)
-  - Marco 1: [0(1,1)] → R=1, siguiente
+  Vuelta 1: Buscar (U=0,M=0)
+  - Marco 1: [0(1,1)] → U=1, siguiente
   - Marco 2: [1(0,1)] → M=1, siguiente
   - Marco 0: [3(0,1)] → M=1, siguiente
   - Vuelve a marco 1, ninguna clase 0 encontrada
   
-  Vuelta 2: Buscar (R=0,M=1)
-  - Marco 1: [0(1,1)] → R=1, siguiente
-  - Marco 2: [1(0,1)] → R=0,M=1 ✓ Víctima!
+  Vuelta 2: Buscar (U=0,M=1)
+  - Marco 1: [0(1,1)] → U=1, siguiente
+  - Marco 2: [1(0,1)] → U=0,M=1 - Víctima!
   
 - Reemplazar pág 1 por pág 4
 - Marcos: [3(0,1)] [0(1,1)] [4(0,0)]
@@ -1575,8 +1564,8 @@ Algoritmo    │ Page Faults │ Complejidad │ Hardware Req
 FIFO         │     15      │    O(1)     │ Ninguno
 Óptimo (OPT) │      9      │    O(n)     │ Conocer futuro
 LRU          │     12      │    O(n)     │ Timestamp
-Clock        │     11      │    O(n)     │ Bit R
-Clock-M      │     10      │    O(n)     │ Bits R y M
+Clock        │     11      │    O(n)     │ Bit U
+Clock-M      │     10      │    O(n)     │ Bits U y M
 ```
 
 \textcolor{teal!60!black}{\textbf{Conclusiones:}\\
@@ -1812,7 +1801,7 @@ Este simulador implementa el algoritmo Clock-M (Clock Mejorado) y permite visual
 // Estructura de un marco
 typedef struct {
     int page;               // Número de página (-1 si vacío)
-    bool referenced;        // Bit R (referenced)
+    bool referenced;        // Bit U (referenced)
     bool modified;          // Bit M (modified)
 } Frame;
 
@@ -1884,17 +1873,17 @@ int clock_m_find_victim(SystemState *sys) {
     int start = sys->clock_hand;
     int victim = -1;
     
-    // Vuelta 1: Buscar clase 0 (R=0, M=0) sin modificar bits
-    printf("  Vuelta 1: Buscando (R=0, M=0)\n");
+    // Vuelta 1: Buscar clase 0 (U=0, M=0) sin modificar bits
+    printf("  Vuelta 1: Buscando (U=0, M=0)\n");
     for (int i = 0; i < NUM_FRAMES; i++) {
         int idx = (start + i) % NUM_FRAMES;
         Frame *f = &sys->frames[idx];
         
-        printf("    Marco %d: pág %d (R=%d, M=%d) → ",
+        printf("    Marco %d: pág %d (U=%d, M=%d) → ",
                idx, f->page, f->referenced, f->modified);
         
         if (!f->referenced && !f->modified) {
-            printf("Clase 0 ✓ Víctima encontrada!\n");
+            printf("Clase 0 - Víctima encontrada!\n");
             victim = idx;
             sys->clock_hand = (idx + 1) % NUM_FRAMES;
             return victim;
@@ -1902,17 +1891,17 @@ int clock_m_find_victim(SystemState *sys) {
         printf("Siguiente\n");
     }
     
-    // Vuelta 2: Buscar clase 1 (R=0, M=1) sin modificar bits
-    printf("  Vuelta 2: Buscando (R=0, M=1)\n");
+    // Vuelta 2: Buscar clase 1 (U=0, M=1) sin modificar bits
+    printf("  Vuelta 2: Buscando (U=0, M=1)\n");
     for (int i = 0; i < NUM_FRAMES; i++) {
         int idx = (start + i) % NUM_FRAMES;
         Frame *f = &sys->frames[idx];
         
-        printf("    Marco %d: pág %d (R=%d, M=%d) → ",
+        printf("    Marco %d: pág %d (U=%d, M=%d) → ",
                idx, f->page, f->referenced, f->modified);
         
         if (!f->referenced && f->modified) {
-            printf("Clase 1 ✓ Víctima encontrada!\n");
+            printf("Clase 1 - Víctima encontrada!\n");
             victim = idx;
             sys->clock_hand = (idx + 1) % NUM_FRAMES;
             return victim;
@@ -1920,22 +1909,22 @@ int clock_m_find_victim(SystemState *sys) {
         printf("Siguiente\n");
     }
     
-    // Vuelta 3: Buscar clase 0 (R=0, M=0) reseteando R
-    printf("  Vuelta 3: Buscando (R=0, M=0) y reseteando R\n");
+    // Vuelta 3: Buscar clase 0 (U=0, M=0) reseteando U
+    printf("  Vuelta 3: Buscando (U=0, M=0) y reseteando U\n");
     for (int i = 0; i < NUM_FRAMES; i++) {
         int idx = (start + i) % NUM_FRAMES;
         Frame *f = &sys->frames[idx];
         
-        printf("    Marco %d: pág %d (R=%d, M=%d) → ",
+        printf("    Marco %d: pág %d (U=%d, M=%d) → ",
                idx, f->page, f->referenced, f->modified);
         
         if (f->referenced) {
-            printf("Resetear R=0, ");
+            printf("Resetear U=0, ");
             f->referenced = false;
         }
         
         if (!f->referenced && !f->modified) {
-            printf("Clase 0 ✓ Víctima encontrada!\n");
+            printf("Clase 0 - Víctima encontrada!\n");
             victim = idx;
             sys->clock_hand = (idx + 1) % NUM_FRAMES;
             return victim;
@@ -1943,17 +1932,17 @@ int clock_m_find_victim(SystemState *sys) {
         printf("Siguiente\n");
     }
     
-    // Vuelta 4: Buscar clase 1 (R=0, M=1) con R ya reseteado
-    printf("  Vuelta 4: Buscando (R=0, M=1)\n");
+    // Vuelta 4: Buscar clase 1 (U=0, M=1) con U ya reseteado
+    printf("  Vuelta 4: Buscando (U=0, M=1)\n");
     for (int i = 0; i < NUM_FRAMES; i++) {
         int idx = (start + i) % NUM_FRAMES;
         Frame *f = &sys->frames[idx];
         
-        printf("    Marco %d: pág %d (R=%d, M=%d) → ",
+        printf("    Marco %d: pág %d (U=%d, M=%d) → ",
                idx, f->page, f->referenced, f->modified);
         
         if (!f->referenced && f->modified) {
-            printf("Clase 1 ✓ Víctima encontrada!\n");
+            printf("Clase 1 - Víctima encontrada!\n");
             victim = idx;
             sys->clock_hand = (idx + 1) % NUM_FRAMES;
             return victim;
@@ -1980,14 +1969,14 @@ void access_page(SystemState *sys, int page, AccessType type) {
     
     if (frame_idx != -1) {
         // HIT: página ya está en RAM
-        printf("  ✓ HIT: Página %d en marco %d\n", page, frame_idx);
+        printf("  - HIT: Página %d en marco %d\n", page, frame_idx);
         sys->frames[frame_idx].referenced = true;
         if (type == ACCESS_WRITE) {
             sys->frames[frame_idx].modified = true;
         }
     } else {
         // MISS: page fault
-        printf("  ✗ PAGE FAULT: Página %d no está en RAM\n", page);
+        printf("PAGE FAULT: Página %d no está en RAM\n", page);
         sys->page_faults++;
         
         // Buscar marco vacío
@@ -2032,7 +2021,7 @@ int main() {
     printf("  SIMULADOR DE CLOCK-M (Clock Mejorado)\n");
     printf("═══════════════════════════════════════════\n");
     printf("Configuración: %d marcos en RAM\n", NUM_FRAMES);
-    printf("Formato: [pág(R,M)] donde R=Referenced, M=Modified\n\n");
+    printf("Formato: [pág(U,M)] donde U=Referenced, M=Modified\n\n");
     
     // Secuencia de referencias (página, tipo de acceso)
     // R = READ, W = WRITE
@@ -2098,18 +2087,18 @@ gcc -o clock_m_sim clock_m_sim.c -Wall -std=c99
   SIMULADOR DE CLOCK-M (Clock Mejorado)
 ═══════════════════════════════════════════
 Configuración: 4 marcos en RAM
-Formato: [pág(R,M)] donde R=Referenced, M=Modified
+Formato: [pág(U,M)] donde U=Referenced, M=Modified
 
 ─────────────────────────────────────────
 Acceso 1: Página 7 (LECTURA)
-  ✗ PAGE FAULT: Página 7 no está en RAM
+  PAGE FAULT: Página 7 no está en RAM
   Marco 0 está vacío, cargar página 7
   [I/O] Leer página 7 desde disco
 Marcos: [7(0,0)] [  -  ] [  -  ] [  -  ]  Clock→1
 
 ─────────────────────────────────────────
 Acceso 2: Página 0 (LECTURA)
-  ✗ PAGE FAULT: Página 0 no está en RAM
+  PAGE FAULT: Página 0 no está en RAM
   Marco 1 está vacío, cargar página 0
   [I/O] Leer página 0 desde disco
 Marcos: [7(0,0)] [0(0,0)] [  -  ] [  -  ]  Clock→2
@@ -2118,11 +2107,11 @@ Marcos: [7(0,0)] [0(0,0)] [  -  ] [  -  ]  Clock→2
 
 ─────────────────────────────────────────
 Acceso 8: Página 4 (LECTURA)
-  ✗ PAGE FAULT: Página 4 no está en RAM
+  PAGE FAULT: Página 4 no está en RAM
   No hay marcos vacíos, ejecutar Clock-M
   Buscando víctima con Clock-M...
-  Vuelta 1: Buscando (R=0, M=0)
-    Marco 0: pág 7 (R=0, M=0) → Clase 0 ✓ Víctima encontrada!
+  Vuelta 1: Buscando (U=0, M=0)
+    Marco 0: pág 7 (U=0, M=0) → Clase 0 - Víctima encontrada!
   Reemplazar página 7 (en marco 0)
   [I/O] Leer página 4 desde disco
 Marcos: [4(0,0)] [0(1,1)] [1(0,1)] [3(0,1)]  Clock→1
@@ -2142,7 +2131,7 @@ Marcos: [2(1,1)] [0(1,0)] [1(0,0)] [3(1,0)]  Clock→2
 ```
 
 \textcolor{blue!50!black}{\textbf{Conceptos demostrados en el código:}\\
-- Estructura de marcos con bits R y M\\
+- Estructura de marcos con bits U y M\\
 - Puntero circular (clock hand)\\
 - Las 4 vueltas del algoritmo Clock-M\\
 - Detección de páginas dirty (requieren escritura)\\
