@@ -17,242 +17,191 @@ Al finalizar este capítulo, el estudiante debe ser capaz de:
 
 ### ¿Por qué necesitamos planificación?
 
-Imaginemos una cafetería con un solo barista y 10 clientes esperando. ¿En qué orden debe atender a los clientes? Algunas opciones:
-
-1. **Primero en llegar, primero en ser atendido** (FIFO)
-2. **El pedido más rápido primero** (menor tiempo de servicio)  
-3. **Por turnos** (cada cliente un poco, rotativamente)
-4. **Por prioridad** (clientes VIP primero)
-
-Cada estrategia tiene **ventajas y desventajas**. Lo mismo sucede con los procesos en un SO.
+Imaginemos una cafetería con un solo barista y 10 clientes esperando. ¿En qué orden debe atender a los clientes? Esta pregunta, aparentemente simple, esconde un problema de optimización complejo. Podría atender por orden de llegada, lo cual parece justo. O quizás debería priorizar los pedidos más rápidos para maximizar la cantidad de clientes atendidos por hora. Tal vez tenga sentido un sistema de turnos rotativos, o dar prioridad a clientes VIP.  
+Cada estrategia tiene ventajas y desventajas, y lo que funciona bien en un contexto puede ser desastroso en otro. Este mismo dilema se presenta en los sistemas operativos cuando deben decidir qué proceso ejecutar en el CPU.
 
 ### El problema fundamental
 
-En un sistema con **múltiples procesos** pero **un solo CPU** (o pocos núcleos), el SO debe decidir:
+En un sistema con múltiples procesos pero un solo CPU (o pocos núcleos), el sistema operativo enfrenta tres decisiones críticas que debe tomar miles de veces por segundo: qué proceso ejecutar, cuándo cambiar de proceso, y por cuánto tiempo cada proceso debe mantener el control del CPU.
 
-- **¿Qué proceso ejecutar?** (política de selección)
-- **¿Cuándo cambiar?** (política de desalojo)
-- **¿Por cuánto tiempo?** (quantum de tiempo)
+\begin{highlight}
+La planificación de procesos es el mecanismo mediante el cual el sistema operativo decide qué proceso de la cola de listos (READY) debe ejecutarse a continuación en el CPU.
+\end{highlight}
 
-Esta decisión impacta directamente:
-- **Rendimiento del sistema** (throughput)
-- **Experiencia del usuario** (respuesta interactiva)
-- **Utilización de recursos** (CPU, memoria, I/O)
+Estas decisiones impactan directamente en el rendimiento del sistema, la experiencia del usuario y la utilización eficiente de los recursos disponibles. Un algoritmo de planificación mal diseñado puede hacer que aplicaciones interactivas se sientan lentas y poco responsivas, mientras que un algoritmo bien ajustado puede hacer que un sistema parezca mucho más rápido de lo que realmente es.
 
 ### Objetivos conflictivos
 
-Los algoritmos de planificación buscan optimizar métricas que a menudo **entran en conflicto**:
+Los algoritmos de planificación buscan optimizar múltiples métricas que frecuentemente entran en conflicto entre sí. Maximizar el throughput (cantidad de procesos completados por unidad de tiempo) a menudo significa darle prioridad a procesos cortos, lo que puede hacer que procesos largos esperen indefinidamente. Ser absolutamente justo con todos los procesos puede resultar en un sistema menos eficiente globalmente.
 
-- **Maximizar throughput** vs **Minimizar tiempo de respuesta**
-- **Ser justo** vs **Ser eficiente**
-- **Predecible** vs **Adaptativo**
+\begin{warning}
+No existe el algoritmo de planificación "perfecto". Cada algoritmo representa un compromiso entre objetivos en competencia, y la elección apropiada depende del contexto de uso del sistema.
+\end{warning}
 
-No existe el algoritmo "perfecto", solo **compromisos** apropiados para cada contexto.
+La clave está en entender estos compromisos y elegir el algoritmo más apropiado para cada situación. Un sistema batch que procesa trabajos científicos tiene prioridades muy diferentes a un smartphone que debe responder instantáneamente a la interacción del usuario.
 
 ## Conceptos Fundamentales
 
 ### Niveles de Planificación
 
-El SO tiene **tres niveles** de planificación que operan en diferentes escalas de tiempo:
+El sistema operativo no tiene un solo planificador, sino una jerarquía de tres niveles que operan en diferentes escalas de tiempo. Cada nivel se encarga de decisiones distintas, y juntos forman un sistema cohesivo de gestión de procesos.
 
 #### Planificación a Largo Plazo (Job Scheduler)
-- **Función**: Decide qué programas ingresan al sistema (NEW → READY)
-- **Frecuencia**: Segundos a minutos
-- **Objetivo**: Controlar el grado de multiprogramación
-- **Ejemplo**: Sistemas batch que procesan trabajos offline
+El *planificador a largo plazo* decide qué programas nuevos ingresan al sistema, controlando la transición de NEW a READY. Esta decisión se toma con poca frecuencia, típicamente cuando un usuario ejecuta un nuevo programa o cuando se inicia un trabajo batch.  
+
+Su función principal es controlar el grado de multiprogramación del sistema, es decir, cuántos procesos pueden coexistir simultáneamente en memoria. Si admite demasiados procesos, el sistema puede saturarse y degradar su rendimiento. Si admite muy pocos, el CPU puede quedarse ocioso esperando trabajo.  
+
+Este nivel de planificación es común en sistemas batch tradicionales, pero muchos sistemas operativos modernos como Linux o Windows prácticamente no tienen un planificador a largo plazo explícito: admiten todos los procesos que el usuario solicita, dejando que otros mecanismos gestionen la carga.
 
 #### Planificación a Mediano Plazo (Memory Scheduler) 
-- **Función**: Decide qué procesos mantener en memoria (swapping)
-- **Frecuencia**: Segundos
-- **Objetivo**: Controlar la carga de memoria
-- **Ejemplo**: Suspender procesos inactivos al disco
+Operando en una escala temporal de segundos, el planificador a mediano plazo decide qué procesos mantener en memoria principal y cuáles mover temporalmente al disco mediante swapping. Cuando la memoria RAM se llena, este planificador puede suspender procesos inactivos, liberando espacio para procesos más activos.  
+Este mecanismo es crucial para mantener el balance entre rendimiento y utilización de memoria. Un proceso suspendido no consume RAM, pero reactivarlo requiere traerlo de vuelta desde el disco, una operación costosa en tiempo.
 
 #### Planificación a Corto Plazo (CPU Scheduler)
-- **Función**: Decide qué proceso ejecutar ahora (READY → RUNNING)
-- **Frecuencia**: Milisegundos
-- **Objetivo**: Optimizar uso del CPU
-- **Enfoque de este capítulo**
+El planificador a corto plazo (dispatcher) es el corazón del sistema de planificación y el enfoque principal de este capítulo. Opera a velocidades de milisegundos, decidiendo constantemente qué proceso de la cola READY debe ejecutarse en el CPU.
+\begin{example}
+En un sistema típico, el planificador a corto plazo puede tomar decisiones cada 10-100 milisegundos, mientras que el planificador a largo plazo puede tomar decisiones cada varios segundos o minutos.
+\end{example}
 
 ### Tipos de Planificación
+La distinción más fundamental entre algoritmos de planificación es si son preemptivos o no preemptivos, una característica que define completamente su comportamiento y casos de uso.
 
 #### Planificación No Preemptiva (No Expropiativa)
-- El proceso **mantiene el CPU** hasta que:
-  - Termina voluntariamente
-  - Se bloquea (I/O, wait)
-- **Ventaja**: Simple, menor overhead
-- **Desventaja**: Un proceso puede monopolizar el CPU
+En un esquema no preemptivo, una vez que un proceso obtiene el CPU, lo mantiene hasta que voluntariamente lo libera, ya sea porque termina su ejecución o porque se bloquea esperando una operación de I/O. El sistema operativo no puede forzar al proceso a ceder el CPU.  
+
+Esta simplicidad tiene ventajas: menor overhead computacional porque hay menos cambios de contexto, y mayor previsibilidad en el tiempo de ejecución. Sin embargo, presenta un problema crítico: un solo proceso mal comportado puede monopolizar el CPU indefinidamente, dejando a todos los demás procesos sin oportunidad de ejecutarse.
 
 #### Planificación Preemptiva (Expropiativa)
-- El SO puede **quitar el CPU** a un proceso:
-  - Quantum de tiempo agotado
-  - Llegó proceso de mayor prioridad
-  - Interrupción de reloj
-- **Ventaja**: Mejor respuesta interactiva
-- **Desventaja**: Mayor overhead por context switch
+Los algoritmos preemptivos otorgan al sistema operativo la capacidad de interrumpir un proceso en ejecución y asignar el CPU a otro proceso. Esta interrupción puede ocurrir por varios motivos: el quantum de tiempo asignado se agotó, llegó un proceso de mayor prioridad, o simplemente el sistema decidió que es momento de darle una oportunidad a otro proceso.
+
+\begin{infobox}
+La preemptividad es esencial para sistemas interactivos modernos. Sin ella, un programa que entra en un ciclo infinito podría congelar todo el sistema. Con preemptividad, el sistema operativo mantiene siempre el control final sobre el CPU.
+\end{infobox}
+
+El costo de esta flexibilidad es el overhead de los frecuentes cambios de contexto. Cada vez que el sistema operativo quita el CPU a un proceso para dárselo a otro, debe guardar el estado completo del primer proceso y restaurar el estado del segundo, una operación que consume tiempo.
 
 ### Métricas de Rendimiento
 
-Para evaluar algoritmos de planificación usamos estas métricas:
+Para evaluar y comparar algoritmos de planificación necesitamos métricas objetivas. Estas se dividen en dos categorías según su perspectiva.  
+Las métricas orientadas al sistema incluyen la utilización del CPU (porcentaje de tiempo que el CPU está ejecutando procesos productivos en lugar de estar ocioso) y el throughput (cantidad de procesos que el sistema completa por unidad de tiempo). Estas métricas interesan principalmente a los administradores de sistemas y diseñadores de algoritmos.  
+Las métricas orientadas al usuario capturan la experiencia percibida. El tiempo de retorno (turnaround time) mide cuánto tiempo total transcurre desde que un proceso llega al sistema hasta que termina completamente:
 
-#### Métricas orientadas al sistema:
-- **Utilización del CPU**: % de tiempo que el CPU está ocupado
-- **Throughput**: Procesos completados por unidad de tiempo
+  $$
+  t retorno = t terminación - t llegada
+  $$
+El **tiempo de espera** (waiting time) cuantifica cuánto tiempo un proceso pasó esperando en la cola READY, sin ejecutarse:
 
-#### Métricas orientadas al usuario:
-- **Tiempo de Retorno (Turnaround Time)**: Tiempo total desde llegada hasta terminación
-  ```
-  T_retorno = T_terminación - T_llegada
-  ```
+  $$
+  t espera = t retorno - t ejecución
+  $$
 
-- **Tiempo de Espera (Waiting Time)**: Tiempo total esperando en cola READY
-  ```
-  T_espera = T_retorno - T_ejecución
-  ```
+El **tiempo de respuesta** (response time) es particularmente importante en sistemas interactivos, midiendo cuánto tiempo transcurre desde que un proceso llega hasta que comienza su primera ejecución:  
 
-- **Tiempo de Respuesta (Response Time)**: Tiempo desde llegada hasta primera ejecución
-  ```
-  T_respuesta = T_primera_ejecución - T_llegada
-  ```
+  $$ 
+  t respuesta = t primera ejecución - t llegada
+  $$
+\begin{highlight}
+Un usuario percibe la velocidad de un sistema principalmente a través del tiempo de respuesta, no del tiempo de retorno. Un proceso que comienza a ejecutarse inmediatamente pero tarda mucho en terminar puede sentirse más responsivo que uno que termina rápido pero tarda en comenzar.
+\end{highlight}
 
 ### Ráfagas de CPU y I/O
 
-Los procesos alternan entre dos fases:
-- **CPU Burst**: Período de ejecución continua en CPU
-- **I/O Burst**: Período esperando operaciones de I/O
+Los procesos no utilizan el CPU de manera continua. En lugar de eso, alternan entre períodos de uso intensivo del CPU (CPU burst) y períodos esperando operaciones de entrada/salida (I/O burst). Esta distinción es fundamental para diseñar algoritmos de planificación efectivos.  
 
-**Clasificación de procesos:**
-- **CPU-bound**: Ráfagas de CPU largas (cálculos científicos)
-- **I/O-bound**: Ráfagas de CPU cortas (editores, navegadores)
+Un proceso CPU-bound se caracteriza por ráfagas de CPU largas y pocas operaciones de I/O. Ejemplos típicos incluyen simulaciones científicas, renderizado de video, o minería de criptomonedas. Estos procesos pueden ejecutarse por segundos o incluso minutos sin bloquearse.  
 
-Esta distinción es crucial para elegir el algoritmo apropiado.
+Por otro lado, un proceso I/O-bound tiene ráfagas de CPU muy cortas, bloqueándose frecuentemente para operaciones de disco, red, o interacción con el usuario. Los editores de texto, navegadores web, y la mayoría de aplicaciones interactivas caen en esta categoría.
+
+\begin{example}
+Un editor de texto pasa la mayor parte del tiempo esperando que el usuario presione una tecla. Cuando esto ocurre, procesa la entrada en milisegundos y vuelve a bloquearse. Su ráfaga de CPU típica puede ser de solo 1-10 milisegundos.
+\end{example}
+
+Esta clasificación importa porque un buen algoritmo de planificación debería favorecer procesos I/O-bound para mantener la responsividad del sistema, mientras que los procesos CPU-bound pueden tolerar más latencia sin que el usuario lo note.
 
 ### Eventos que Provocan Planificación
 
-La planificación puede ser invocada por diferentes eventos, con **prioridades específicas**:
+El planificador no toma decisiones en momentos arbitrarios, sino que se invoca en respuesta a eventos específicos del sistema. Estos eventos tienen diferentes prioridades, lo que determina su orden de procesamiento cuando ocurren simultáneamente.  
 
-1. **Interrupción de reloj** (Mayor prioridad)
-   - Quantum agotado en algoritmos preemptivos
-   - Permite que el SO retome control
+La **interrupción de reloj** tiene la prioridad más alta. Ocurre cuando el quantum de tiempo asignado a un proceso se agota en un sistema preemptivo. Esta interrupción garantiza que el sistema operativo retome el control periódicamente, evitando que un proceso monopolice el CPU.  
 
-2. **Interrupción de finalización de I/O** (Media prioridad)
-   - Un proceso bloqueado se vuelve READY
-   - Puede tener mayor prioridad que el proceso actual
+Las **interrupciones de finalización de I/O** tienen prioridad media. Cuando un proceso bloqueado esperando I/O recibe sus datos, genera una interrupción que puede tener mayor prioridad que el proceso actualmente en ejecución, especialmente si el proceso que estaba esperando es más prioritario.  
 
-3. **System call** (Menor prioridad)
-   - Proceso actual se bloquea voluntariamente
-   - El SO debe elegir el próximo proceso
+Finalmente, las **system calls** representan puntos donde el proceso actual voluntariamente cede el control, generalmente porque necesita bloquearse para I/O. Estas tienen la menor prioridad porque no requieren intervención urgente del sistema operativo.
 
-**Criterio de desempate**: Si múltiples procesos llegan simultáneamente a READY, se aplica:
-- Primero los de mayor prioridad
-- En caso de empate: FCFS (orden de llegada)
+\begin{warning}
+Cuando múltiples procesos llegan simultáneamente a la cola READY, el criterio de desempate estándar es aplicar primero prioridades (si existen) y luego FCFS (primero en llegar, primero en ser servido) entre procesos de igual prioridad.
+\end{warning}
 
 ## Análisis Técnico
 
+Ahora que establecimos los fundamentos conceptuales, podemos explorar en detalle los algoritmos de planificación más importantes. Cada uno representa diferentes filosofías y compromisos, diseñados para contextos de uso específicos.  
+
 ### First-Come First-Served (FCFS)
 
-**Principio**: El primer proceso en llegar es el primero en ejecutarse.
+El algoritmo más simple imaginable: atender los procesos en el orden exacto en que llegan. FCFS mantiene una cola FIFO (First In, First Out) y ejecuta cada proceso hasta que termina o se bloquea voluntariamente, sin ninguna posibilidad de expropiar el CPU.  
 
-**Características:**
-- **Tipo**: No preemptivo  
-- **Overhead**: Mínimo  
-- **Starvation**: No (todos eventualmente ejecutan)  
+Su implementación es trivial: una simple cola enlazada donde nuevos procesos se agregan al final y el planificador siempre toma el proceso del frente. No requiere información sobre duración de procesos ni cálculos complejos de prioridades.  
 
-**Algoritmo:**
-```
-1. Mantener cola FIFO de procesos READY
-2. Ejecutar proceso al frente de la cola hasta que termine o se bloquee
-3. Mover siguiente proceso de la cola al CPU
-```
+La característica definitoria de FCFS es su justicia absoluta en términos de orden de llegada. No puede haber starvation (inanición) porque todos los procesos eventualmente llegarán al frente de la cola. El algoritmo es completamente predecible: si conocés el orden de llegada y los tiempos de ejecución, podés calcular exactamente cuándo ejecutará cada proceso.
 
-\textcolor{teal!60!black}{\textbf{Ventajas:\\}
-- Simple de implementar\\
-- No hay starvation\\
-- Predecible
-}
+\begin{theory}
+FCFS es óptimo en un sentido limitado: minimiza la varianza del tiempo de espera. Todos los procesos esperan aproximadamente lo mismo (relativo a su posición en la cola), sin favorecimientos ni discriminación.
+\end{theory}
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Convoy effect: procesos cortos esperan tras uno largo\\
-- Pobre tiempo de respuesta promedio\\
-- No aprovecha paralelismo I/O-CPU
-}
+Sin embargo, FCFS sufre del **efecto convoy**: un proceso largo puede retener todos los procesos cortos que llegan después, resultando en tiempos de espera promedio pobres. Imaginá una fila de supermercado donde alguien con un carrito lleno está adelante de cinco personas con un solo artículo cada una. El tiempo de espera promedio es terrible, aunque técnicamente sea "justo".  
+
+Además, FCFS desperdicia oportunidades de paralelismo. Mientras el CPU ejecuta un proceso CPU-bound largo, múltiples procesos I/O-bound podrían estar realizando sus operaciones de I/O simultáneamente, pero en cambio esperan en la cola sin hacer nada productivo.
 
 ### Shortest Job First (SJF)
 
-**Principio**: Ejecutar el proceso con menor tiempo de CPU estimado.
+SJF adopta un enfoque radicalmente diferente: en lugar de orden de llegada, ejecuta primero el proceso con menor tiempo de CPU estimado. Este simple cambio tiene consecuencias profundas para el rendimiento del sistema.  
+Cuando un proceso termina o se bloquea, el planificador examina todos los procesos en la cola READY, identifica el que requiere menos tiempo de CPU, y lo ejecuta hasta su terminación. No hay preemptividad: una vez que un proceso comienza, continúa hasta bloquearse o terminar.
 
-**Características:**
-- **Tipo**: No preemptivo (versión básica)  
-- **Overhead**: Bajo  
-- **Starvation**: Sí (procesos largos pueden nunca ejecutar)  
-- **Aging**: Necesario para evitar starvation  
+\begin{highlight}
+SJF es matemáticamente óptimo para minimizar el tiempo de retorno promedio. Ningún otro algoritmo no preemptivo puede lograr un mejor tiempo de retorno promedio que SJF. Esta es una garantía teórica demostrable.
+\end{highlight}
 
-**Algoritmo:**
-```
-1. De todos los procesos READY, seleccionar el de menor tiempo estimado
-2. Ejecutar hasta terminación (versión no preemptiva)
-3. Repetir con procesos restantes
-```
+La intuición detrás de esta optimalidad es simple: ejecutar primero trabajos cortos significa que muchos procesos terminan rápidamente, reduciendo el tiempo promedio de espera. Pensá en la fila del supermercado: si las personas con pocos artículos pasan primero, el tiempo de espera promedio disminuye dramáticamente.  
+Pero SJF tiene dos problemas fundamentales que limitan su aplicabilidad práctica. Primero, requiere conocer el tiempo de ejecución de cada proceso de antemano, algo imposible en general. El sistema operativo puede estimar tiempos basándose en ráfagas anteriores usando un promedio móvil exponencial:
 
-\textcolor{teal!60!black}{\textbf{Ventajas:\\}
-- Óptimo para tiempo de retorno promedio (demostrable matemáticamente)\\
-- Minimiza tiempo de espera promedio
-}
+$$
+ τ_{(n+1)} = \alpha × τ_{(n)} + (1-\alpha) × τ_{(n)}
+$$
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Requiere conocer tiempo de ejecución (imposible en la práctica)\\
-- Starvation de procesos largos\\
-- No apropiado para sistemas interactivos
-}
-
-**Estimación de tiempo**: Se usa predicción basada en historia:
-```
- τ(n+1) = α × t(n) + (1-α) × τ(n)
-```
-Donde:
-- τ(n+1) = tiempo estimado para próxima ráfaga  
-- t(n) = tiempo real de ráfaga anterior  
-- α = factor de peso (0 ≤ α ≤ 1)  
+donde $τ_{(n+1)}$ es el tiempo estimado para la próxima ráfaga, $τ_{(n)}$ fue el tiempo real de la ráfaga anterior, y $\alpha$ controla cuánto peso le damos a la historia reciente versus el pasado lejano.
+El segundo problema es más serio: starvation severa. Un proceso largo puede nunca ejecutarse si constantemente llegan procesos más cortos. En un sistema ocupado, un trabajo de varias horas podría quedar perpetuamente postergado, esperando un momento de calma que nunca llega.
+\begin{warning}
+SJF sin mecanismo de aging puede resultar en starvation indefinida para procesos largos. En sistemas de producción, siempre debe implementarse algún mecanismo que incremente gradualmente la prioridad de procesos que esperan mucho tiempo.
+\end{warning}
 
 ### Shortest Remaining Time (SRT)
 
-**Principio**: Versión preemptiva de SJF. Si llega un proceso con tiempo menor al restante del actual, se hace context switch.
+SRT es la versión preemptiva de SJF, llevando su filosofía al extremo. En lugar de considerar solo el tiempo total de ejecución, SRT examina el tiempo restante de cada proceso y siempre ejecuta el que tiene menos tiempo pendiente.  
+La diferencia crucial es que SRT puede expropiar un proceso en ejecución. Si llega un nuevo proceso cuyo tiempo de CPU es menor que el tiempo restante del proceso actual, SRT inmediatamente realiza un context switch para ejecutar el proceso nuevo.
 
-**Características:**
-- **Tipo**: Preemptivo  
-- **Overhead**: Alto (muchos context switches)  
-- **Starvation**: Severa (peor que SJF)  
-- **Aging**: Crítico para funcionar  
-
-**Algoritmo:**
-```
-1. Seleccionar proceso con menor tiempo restante
-2. Si llega nuevo proceso con menor tiempo restante, expropiar
-3. Actualizar tiempo restante del proceso expropiado
-4. Continuar hasta que todos terminen
+```c
+// Pseudocódigo simplificado de SRT
+al_llegar_nuevo_proceso(proceso_nuevo):
+    if proceso_nuevo.tiempo_restante < proceso_actual.tiempo_restante:
+        context_switch(proceso_nuevo)
+    else:
+        agregar_a_cola(proceso_nuevo)
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:\\}
-- Mejor tiempo de retorno promedio que SJF\\
-- Respuesta rápida para procesos cortos que llegan tarde
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Mayor overhead por context switches frecuentes\\
-- Starvation severa de procesos largos\\
-- Impredecible para procesos largos
-}
+Esta agresividad en la preempción mejora aún más el tiempo de retorno promedio comparado con SJF. Procesos cortos que llegan tarde no necesitan esperar a que termine el proceso largo actualmente en ejecución; pueden apropiarse del CPU inmediatamente.  
+Sin embargo, el costo es considerable. El overhead de context switches puede volverse prohibitivo en sistemas con muchos procesos cortos llegando constantemente. Cada cambio de contexto implica guardar registros, actualizar tablas de páginas, invalidar cachés del CPU, y restaurar el estado del nuevo proceso.  
+Peor aún, la starvation se vuelve aún más severa que en SJF. Un proceso largo puede iniciarse, ejecutarse unos milisegundos, ser expropiado por un proceso corto, volver a iniciar brevemente, ser expropiado nuevamente, y así sucesivamente sin nunca llegar a completarse.
+\begin{example}
+En un servidor web procesando miles de requests cortos por segundo, un proceso de backup que requiere 10 minutos de CPU podría ser constantemente expropiado y tomar horas o días en completarse, aunque técnicamente solo necesita 10 minutos de CPU.
+\end{example}
+El aging es absolutamente crítico en SRT. Sin él, el algoritmo es prácticamente inutilizable en sistemas de producción. Una estrategia común es incrementar artificialmente la prioridad de procesos (o decrementar su "tiempo restante" percibido) en proporción al tiempo que han esperado.
 
 ### Round Robin (RR)
 
-**Principio**: Cada proceso recibe un quantum fijo de tiempo. Al agotarse, va al final de la cola.
+Round Robin representa un cambio filosófico completo. En lugar de intentar optimizar el tiempo de retorno, RR prioriza la justicia (*fairness*) y el tiempo de respuesta. La idea es elegante en su simplicidad: cada proceso recibe un turno fijo de tiempo (*quantum*), y cuando termina su turno, va al final de la cola para esperar su próxima oportunidad.    
+El algoritmo mantiene una cola circular de procesos READY. El planificador asigna el CPU al proceso al frente de la cola por un máximo de Q unidades de tiempo. Si el proceso termina antes de agotar su quantum, el sistema pasa al siguiente proceso. Si el quantum expira, el proceso actual se mueve al final de la cola y el siguiente proceso obtiene el CPU.
 
-**Características:**
-- **Tipo**: Preemptivo (por quantum)  
-- **Overhead**: Medio (depende del quantum)  
-- **Starvation**: No  
-- **Aging**: No necesario  
-
-**Algoritmo:**
+*Algoritmo:*
 ```
 1. Asignar quantum Q a cada proceso
 2. Ejecutar proceso por máximo Q unidades de tiempo
@@ -261,168 +210,133 @@ Donde:
 5. Seleccionar siguiente proceso de la cola
 ```
 
-**Selección del quantum:**
-- **Q muy pequeño**: Muchos context switches (overhead alto)  
-- **Q muy grande**: Se comporta como FCFS  
-- **Regla práctica**: Q = 10-100ms, debe ser mayor que tiempo de context switch  
+La magia de Round Robin está en que garantiza progreso para todos los procesos. No importa cuántos procesos haya en el sistema; cada uno recibirá periódicamente su turno de ejecución. Esto elimina completamente la posibilidad de starvation.
 
-\textcolor{teal!60!black}{\textbf{Ventajas:\\}
-- Justo: todos los procesos progresan\\
-- Buen tiempo de respuesta\\
-- No hay starvation\\
-- Predecible
-}
+\begin{highlight}
+El tiempo de respuesta en Round Robin está acotado: un proceso con $n$ procesos en la cola nunca esperará más de $n × Q$ unidades de tiempo antes de su próxima ejecución. Esta garantía es invaluable para sistemas interactivos.
+\end{highlight}
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Tiempo de retorno puede ser pobre para procesos largos\\
-- Overhead de context switch\\
-- No favorece procesos interactivos
-}
+La selección del quantum es un arte sutil que requiere balance cuidadoso. Un quantum demasiado pequeño (por ejemplo, 1 milisegundo) resulta en overhead excesivo: el sistema pasa más tiempo cambiando entre procesos que realmente ejecutándolos. Un quantum demasiado grande (por ejemplo, 1 segundo) degrada Round Robin prácticamente a FCFS: la mayoría de procesos terminarán antes de agotar su quantum.  
+
+La regla práctica tradicional sugiere quantums de 10-100 milisegundos, significativamente mayores que el tiempo de context switch (típicamente 0.1-1 milisegundo en hardware moderno). Esto mantiene el overhead de cambio de contexto bajo 1-10% del tiempo total de CPU.  
+
+Round Robin no es óptimo para tiempo de retorno. De hecho, puede tener uno de los peores tiempos de retorno promedio entre todos los algoritmos. Un proceso que requiere 100 milisegundos de CPU y es el único en el sistema terminará en exactamente 100ms con cualquier algoritmo. Pero con Round Robin compartiendo el CPU con otros 9 procesos (Q=10ms), ese mismo proceso tardará aproximadamente 1 segundo en completarse: 10ms por turno, 10 turnos total, con 90ms de espera entre cada turno.  
+
+Sin embargo, para sistemas interactivos modernos, este compromiso vale la pena. La experiencia del usuario mejora dramáticamente cuando todas las aplicaciones progresan constantemente, incluso si ninguna termina particularmente rápido.
+
 
 ### Virtual Round Robin (VRR)
 
-**Principio**: Round Robin mejorado que da prioridad a procesos que se bloquearon antes de agotar su quantum.
+Round Robin trata todos los procesos por igual, pero no todos los procesos son iguales. VRR es un refinamiento que reconoce una asimetría fundamental: los procesos I/O-bound generalmente merecen un trato ligeramente preferencial porque responden a interacciones del usuario y liberan el CPU rápidamente.  
 
-**Características:**
-- **Tipo**: Preemptivo con dos colas  
-- **Overhead**: Medio-alto  
-- **Starvation**: No  
-- **Aging**: Implícito
+La innovación de VRR es simple pero efectiva: mantiene dos colas en lugar de una. La **cola READY** funciona como en Round Robin clásico, conteniendo procesos nuevos y procesos que agotaron su quantum completo. La **cola AUXILIARY** contiene procesos que se bloquearon voluntariamente para I/O antes de agotar su quantum.  
 
-**Algoritmo:**
+El planificador siempre prefiere la cola AUXILIARY sobre la cola READY. Cuando un proceso de la cola AUXILIARY ejecuta, recibe solo su quantum *restante* (no un quantum completo nuevo). Esto recompensa el comportamiento cooperativo: un proceso que se bloqueó rápidamente puede volver al CPU antes que procesos que intentaron usar todo su tiempo.
+
+
 ```
-1. Mantener dos colas: READY y AUXILIARY
-2. Procesos nuevos y que agotaron quantum van a READY
-3. Procesos que se bloquearon antes del quantum van a AUXILIARY
-4. AUXILIARY tiene prioridad sobre READY
-5. Procesos de AUXILIARY ejecutan con quantum restante
-```
-\textcolor{teal!60!black}{\textbf{Ventajas:\\}
- - Favorece procesos I/O-bound (más interactivos)\\
- - Mejor respuesta que RR puro\\
- - Mantiene fairness de RR
-}
+Estado inicial: Cola READY = [P1, P2, P3], Q=10ms
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Mayor complejidad de implementación\\
-- Overhead adicional por doble cola
-}
+t=0-8: P1 ejecuta 8ms, se bloquea para I/O → va a AUXILIARY con quantum_restante=2ms
+t=8-18: P2 ejecuta 10ms completos → va al final de READY
+t=18-20: I/O de P1 termina
+t=20-22: P1 (desde AUXILIARY) ejecuta sus 2ms restantes, termina
+t=22-32: P3 ejecuta su turno
+```
+
+Esta modificación beneficia desproporcionadamente a procesos interactivos y editores de texto que se bloquean frecuentemente esperando input del usuario. Estos procesos obtienen respuesta más rápida sin penalizar significativamente a procesos CPU-bound.
+
+\begin{infobox}
+VRR implementa una forma sutil de aging: el quantum restante efectivamente actúa como un boost de prioridad temporal. Procesos que se comportan "bien" bloqueándose voluntariamente reciben trato preferencial la próxima vez que necesiten el CPU.
+\end{infobox}
+
+El costo es complejidad de implementación adicional: el sistema operativo debe rastrear quantum restante para cada proceso y gestionar dos colas separadas. En la práctica, el overhead es modesto y el beneficio en responsividad justifica la complejidad extra.
 
 ### Highest Response Ratio Next (HRRN)
 
-**Principio**: Selecciona el proceso con mayor ratio de respuesta, balanceando tiempo de espera y tiempo de servicio.
+HRRN intenta capturar lo mejor de SJF y FCFS en un solo algoritmo, balanceando la preferencia por trabajos cortos con un mecanismo de aging automático que previene starvation.  
 
-**Características:**
-- **Tipo**: No preemptivo  
-- **Overhead**: Medio (cálculo de ratios)  
-- **Starvation**: No (aging automático)  
-- **Aging**: Incorporado en la fórmula  
+La métrica central es el *response ratio* (ratio de respuesta), calculado para cada proceso como:
+$$
+Response Ratio = (t espera + t servicio) / t servicio
+$$
 
-**Algoritmo:**
-```
-1. Para cada proceso READY, calcular:
-   Response Ratio = (Tiempo_espera + Tiempo_servicio) / Tiempo_servicio
-2. Seleccionar proceso con mayor ratio
-3. Ejecutar hasta terminación o bloqueo
-```
+El planificador siempre selecciona el proceso con el mayor response ratio. Miremos qué significa esta fórmula. Un proceso que acaba de llegar tiene tiempo de espera cero, entonces su ratio es simplemente 1.0. A medida que espera, el numerador crece linealmente, aumentando su ratio y por lo tanto su prioridad.  
 
-\textcolor{teal!60!black}{\textbf{Ventajas:\\}
-- Combina ventajas de SJF y FCFS\\
-- Aging automático previene starvation\\  
-- Favorece trabajos cortos pero no ignora largos
-}  
+Procesos cortos (Tiempo_servicio pequeño) naturalmente tienen ratios más altos, dándoles preferencia similar a SJF. Pero procesos largos que han esperado mucho tiempo eventualmente tendrán ratios muy altos también, garantizando que eventualmente ejecuten.  
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Requiere estimar tiempo de servicio\\
-- Cálculo adicional en cada decisión\\
-- No preemptivo
-}
+\begin{example}
+Proceso A: $t servicio=5ms, t espera=10ms -> ratio = (10+5)/5 = 3.0$\\
+Proceso B: $t servicio=20ms, t espera=40ms -> ratio = (40+20)/20 = 3.0$
+
+Ambos tienen el mismo ratio, aunque B es más largo. El tiempo de espera de B compensa su mayor longitud.
+\end{example}
+
+Esta fórmula implementa aging de manera elegante y automática. No requiere parámetros arbitrarios ni ajustes manuales: el balance entre favorecimiento de trabajos cortos y prevención de starvation emerge naturalmente de la matemática.  
+
+HRRN mantiene el enfoque no preemptivo, ejecutando cada proceso seleccionado hasta su terminación o bloqueo. Esto limita su efectividad para sistemas interactivos altamente responsivos, pero lo hace apropiado para sistemas batch que buscan optimizar throughput mientras mantienen fairness razonable.  
+
+El overhead computacional de HRRN es moderado. En cada decisión de planificación, el sistema debe calcular el response ratio para todos los procesos READY. Con cientos de procesos, esto puede volverse costoso. Además, HRRN hereda de SJF la necesidad de estimar tiempos de servicio, lo cual no siempre es preciso.
 
 ### Planificación por Prioridades
 
-**Principio**: Cada proceso tiene una prioridad. Se ejecuta el de mayor prioridad disponible.
+Los algoritmos de prioridad reconocen explícitamente que no todos los procesos son igualmente importantes. El sistema operativo, el administrador, o el propio diseño del sistema pueden asignar diferentes niveles de prioridad, y el planificador simplemente ejecuta el proceso de mayor prioridad disponible.  
 
-**Características:**
-- **Tipo**: Puede ser preemptivo o no preemptivo  
-- **Overhead**: Bajo-medio  
-- **Starvation**: Sí (sin aging)  
-- **Aging**: Esencial para funcionamiento práctico  
+Las **prioridades estáticas** se asignan cuando un proceso inicia y no cambian durante su vida. Esto es simple y eficiente, apropiado cuando las relaciones de importancia entre procesos son claras y estables. Por ejemplo, procesos del sistema operativo podrían tener prioridad 0 (máxima), aplicaciones de usuario prioridad 50, y tareas de mantenimiento prioridad 100.  
 
-**Tipos de prioridades:**
-- **Estáticas**: Asignadas al crear el proceso  
-- **Dinámicas**: Cambian durante la ejecución  
+Las **prioridades dinámicas** ajustan continuamente basándose en el comportamiento del proceso. Un proceso I/O-bound podría recibir prioridad más alta porque libera el CPU rápidamente. Un proceso que ha esperado mucho tiempo podría ver su prioridad incrementarse gradualmente.  
 
-**Algoritmos:**
-```
-// Versión no preemptiva
-1. Seleccionar proceso READY con mayor prioridad
-2. Ejecutar hasta terminación o bloqueo
-3. Repetir
+La planificación por prioridades puede implementarse de manera preemptiva o no preemptiva. En el esquema no preemptivo, un proceso ejecuta hasta terminar o bloquearse incluso si llegan procesos de mayor prioridad. En el esquema preemptivo, la llegada de un proceso de mayor prioridad inmediatamente expulsa al proceso actual.  
 
-// Versión preemptiva  
-1. Si llega proceso con prioridad mayor, expropiar
-2. Continuar con mayor prioridad disponible
-```
+\begin{warning}
+Planificación por prioridades sin aging sufre de starvation severa. Procesos de baja prioridad pueden literalmente nunca ejecutarse en un sistema moderadamente ocupado. Aging no es opcional, es esencial.
+\end{warning}
 
-**Problema del Starvation**: Procesos de baja prioridad pueden nunca ejecutarse.
+El aging en sistemas de prioridad típicamente incrementa la prioridad de un proceso en función de su tiempo de espera:
+$$
+prioridad_efectiva = prioridad_base + (tiempo_espera / factor_aging)
+$$
 
-**Solución - Aging**: Incrementar prioridad gradualmente
-```
-nueva_prioridad = prioridad_base + (tiempo_espera / factor_aging)
-```
+El `factor_aging` controla qué tan rápido crece la prioridad. Un factor pequeño significa que procesos de baja prioridad rápidamente alcanzan prioridad competitiva. Un factor grande significa que deben esperar mucho tiempo antes de volverse relevantes.  
 
-\textcolor{teal!60!black}{\textbf{Ventajas:\\}
-- Flexible y configurable\\
-- Apropiado para tiempo real\\
-- Control fino del sistema
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Starvation sin aging\\
-- Dificultad para asignar prioridades apropiadas\\
-- Puede ser unfair
-}
+Los sistemas de prioridades brillan en contextos de tiempo real donde ciertos procesos tienen deadlines estrictos. Un controlador de motor en un auto autónomo debe ejecutarse cada 10ms sin excepción, mientras que la actualización de la pantalla de entretenimiento puede esperar. Las prioridades proporcionan las garantías necesarias para estos escenarios.
 
 ### Multilevel Feedback Queue
 
-**Principio**: Múltiples colas con diferentes algoritmos y prioridades. Los procesos pueden moverse entre colas según su comportamiento.
+Multilevel Feedback Queue representa el pináculo de complejidad en planificación de procesos, combinando ideas de múltiples algoritmos en un framework adaptativo sofisticado. El sistema mantiene múltiples colas de prioridad, cada una con su propio algoritmo de planificación, y los procesos pueden moverse dinámicamente entre colas basándose en su comportamiento observado.  
 
-**Características:**
-- **Tipo**: Preemptivo con múltiples niveles  
-- **Overhead**: Alto  
-- **Starvation**: Posible sin aging  
-- **Aging**: Necesario (promoción entre colas)  
+Una configuración típica podría tener tres colas:  
 
-**Ejemplo de configuración:**
+**Cola 0** (prioridad más alta): Round Robin con quantum de 8ms. Todos los procesos nuevos inician aquí. Esta cola captura procesos interactivos y trabajos muy cortos.  
+
+**Cola 1** (prioridad media): Round Robin con quantum de 16ms. Procesos que agotaron su quantum en Cola 0 descienden aquí. El quantum más largo es apropiado para procesos que claramente necesitan más tiempo de CPU.  
+
+**Cola 2** (prioridad más baja): FCFS. Procesos que agotaron su quantum en Cola 1 descienden aquí. Estos son claramente trabajos CPU-bound largos; FCFS minimiza el overhead para ellos.  
+
+La regla de promoción es crucial: si un proceso se bloquea para I/O *antes* de agotar su quantum, mantiene su cola actual o incluso puede ser promovido a una cola de mayor prioridad. Esto recompensa el comportamiento I/O-bound, que generalmente corresponde a procesos interactivos.
 ```
-Cola 0: RR con Q=8ms (mayor prioridad) - Procesos nuevos
-Cola 1: RR con Q=16ms                  - Procesos que agotaron Q en Cola 0  
-Cola 2: FCFS (menor prioridad)         - Procesos que agotaron Q en Cola 1
+// Comportamiento adaptativo del sistema
+Proceso P inicia → Cola 0
+P ejecuta 8ms completos → desciende a Cola 1
+P ejecuta 16ms completos → desciende a Cola 2
+P se bloquea después de 5ms → mantiene Cola 2
+P frecuentemente se bloquea → puede ser promovido a Cola 1
 
-Reglas:
-- Procesos nuevos ingresan a Cola 0
-- Si agotan quantum, bajan a siguiente cola
-- Si se bloquean antes del quantum, mantienen cola actual
-- Promoción periódica para evitar starvation
+// El sistema aprende qué tipo de proceso es P
 ```
-
-\textcolor{teal!60!black}{\textbf{Ventajas:\\}
-- Se adapta al comportamiento del proceso\\
-- Favorece procesos interactivos (I/O bound)\\
-- Procesos largos eventualmente reciben servicio
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Complejidad alta de implementación\\
-- Difícil de tunear parámetros\\
-- Overhead considerable
-}
+\begin{theory}
+Multilevel Feedback Queue implementa una forma de machine learning primitivo: observa el comportamiento pasado de cada proceso para predecir su comportamiento futuro y ajustar su tratamiento dinámicamente.
+\end{theory}
+Este enfoque adaptativo es poderoso pero tiene costos. La complejidad de implementación es considerable: el sistema operativo debe rastrear múltiples colas, implementar múltiples algoritmos simultáneamente, aplicar reglas de promoción y demotion, y prevenir starvation mediante aging cuidadoso entre colas.
+Tuning el sistema también es un desafío.¿Cuántas colas? ¿Qué quantum para cada una? ¿Cuándo promover procesos? ¿Con qué frecuencia aplicar aging? Cada parámetro afecta el comportamiento global del sistema de maneras a veces contraintuitivas.  
+A pesar de esta complejidad, muchos sistemas operativos modernos utilizan variantes de Multilevel Feedback Queue porque, cuando está bien tuneado, proporciona excelente rendimiento para cargas de trabajo heterogéneas. Linux, por ejemplo, utiliza el "Completely Fair Scheduler" (CFS) que incorpora ideas similares.
 
 ## Casos de Estudio
+La teoría cobra vida cuando la aplicamos a problemas concretos. Analicemos varios escenarios de planificación en detalle, calculando todas las métricas relevantes.  
 
 ### Caso de Estudio: Planificación con Round Robin
 
-**Problema**: Dados 4 procesos con las siguientes características, realizar planificación con Round Robin (Q=3) y calcular tiempo promedio de espera y respuesta.
+Consideremos cuatro procesos con comportamiento heterogéneo, incluyendo múltiples ráfagas de CPU intercaladas con operaciones de I/O. Este escenario refleja sistemas reales donde los procesos raramente ejecutan hasta completarse sin interrupciones.
 
 ```
 Proceso | Llegada | CPU Burst | I/O Burst | CPU Burst 2
@@ -433,36 +347,16 @@ P3      |    2    |     4     |     -     |     -
 P4      |    3    |     2     |     3     |     1
 ```
 
-**Solución con Round Robin (Q=3):**
-
+Aplicaremos Round Robin con un quantum de Q=3. La clave está en trackear cuidadosamente el estado de cada proceso: cuánto tiempo de CPU ha consumido en su ráfaga actual, si está bloqueado esperando I/O, y cuándo puede volver a la cola READY.
 \begin{center}
 \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap03-gantt-RR.png}
 \end{center}
-
-
-**Desarrollo paso a paso:**
-
-```
-t=0: P1 llega, inicia ejecución (Q=3)
-t=1: P2 llega, se agrega a cola READY [P2]
-t=2: P3 llega, cola READY [P2,P3]
-t=3: P1 agota quantum (ejecutó 3/5), cola READY [P2,P3,P1], P2 inicia
-t=3: P4 llega, cola READY [P3,P1,P4]
-t=6: P2 termina ráfaga CPU (3/3), va a I/O, P3 inicia
-t=7: P2 termina I/O, cola READY [P1,P4,P2]
-t=9: P3 agota quantum (ejecutó 3/4), P4 inicia, cola READY [P1,P2,P3]
-t=11: P4 termina ráfaga CPU (2/2), va a I/O, P1 inicia
-t=13: P1 termina ráfaga restante (2/2), va a I/O, P2 inicia
-t=14: P1 y P4 terminan I/O, P2 ejecuta último burst (1ms)
-t=14: P2 termina completamente
-t=15: P3 termina ráfaga restante (1ms), termina completamente
-t=15: P1 inicia ráfaga final (3ms)  
-t=17: P1 agota quantum (ejecutó 2/3), P4 inicia
-t=18: P1 termina completamente
-t=19: P4 termina ráfaga final (1ms), termina completamente
-```
-
-**Cálculos de métricas:**
+Desarrollemos el timeline paso a paso. En t=0, P1 es el único proceso en el sistema y comienza a ejecutarse. Usará 3 de sus 5 milisegundos de CPU antes de que su quantum expire. Mientras tanto, P2 y P3 llegan al sistema en t=1 y t=2 respectivamente, ingresando a la cola READY.  
+En t=3, P1 ha agotado su quantum habiendo ejecutado solo 3 de sus 5ms necesarios. Va al final de la cola READY con 2ms de CPU pendientes. P2, que ha estado esperando desde t=1, ahora obtiene el CPU. Simultáneamente, P4 llega y se agrega a la cola.  
+P2 completa su primera ráfaga de CPU (3ms) en t=6, justo agotando su quantum. Se bloquea inmediatamente para realizar I/O durante 1ms. P3 ahora obtiene su turno, ejecutando durante 3ms de su ráfaga de 4ms total.  
+En t=7, P2 completa su I/O y vuelve a la cola READY, pero debe esperar su turno detrás de P1 y P4. P3 continúa ejecutando hasta t=9, cuando agota su quantum con 1ms de CPU aún pendiente.  
+Este patrón continúa: procesos ejecutan por su quantum o hasta bloquearse, nuevos procesos completan I/O y vuelven a la cola, y el planificador rota sistemáticamente entre todos los procesos READY.  
+Calculemos las métricas finales. Los tiempos de terminación son: P1 termina en t=18, P2 en t=14, P3 en t=15, y P4 en t=19.
 
 ```
 Tiempos de terminación:
@@ -490,47 +384,22 @@ P4: 9-3 = 6
 Promedio: (0+2+4+6)/4 = 3
 ```
 
+Observá cómo el tiempo de respuesta promedio es excelente (solo 3ms), confirmando que Round Robin proporciona buena responsividad. Sin embargo, el tiempo de retorno promedio (15ms) es relativamente alto porque los procesos se turnan el CPU en lugar de completarse rápidamente.
+
 ### Caso de Estudio: Planificación con SJF
 
-**Mismo conjunto de procesos con SJF no preemptivo:**
-
-**Solución con SJF:**
+Ahora analicemos el mismo conjunto de procesos usando SJF no preemptivo. Este algoritmo tomará decisiones completamente diferentes, priorizando la minimización del tiempo de retorno promedio sobre la justicia y la responsividad.
 
 \begin{center}
 \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap03-gantt-SJF.png}
 \end{center}
 
-**Desarrollo paso a paso:**
-
-```
-t=0: P1 llega, ejecuta (burst=5, menor disponible)
-t=1: P2 llega, espera
-t=2: P3 llega, espera  
-t=3: P4 llega, espera
-t=5: P1 termina ráfaga, va a I/O
-
-Procesos disponibles en t=5:
-- P2: burst=3
-- P3: burst=4  
-- P4: burst=2 ← MENOR, ejecuta primero
-
-t=5: P4 ejecuta (no puede, P1 aún usa I/O)
-t=7: P1 termina I/O, P2 ejecuta (burst=3, menor entre P2,P3,P4)
-t=10: P2 termina ráfaga, va a I/O, P4 ejecuta (burst=2)
-t=11: P2 termina I/O, disponible para segunda ráfaga
-t=12: P4 termina ráfaga, va a I/O, P3 ejecuta (burst=4, único disponible)
-t=15: P4 termina I/O, disponible
-t=16: P3 termina completamente
-
-Procesos disponibles:
-- P1: burst=3
-- P2: burst=2 ← MENOR
-- P4: burst=1 ← MENOR
-
-P4 ejecuta primero, luego P2, finalmente P1.
-```
-
-**Cálculos para SJF:**
+En t=0, P1 es el único proceso disponible y ejecuta sus 5ms completos, terminando su primera ráfaga en t=5 y bloqueándose para I/O. Durante este tiempo, P2, P3 y P4 han llegado y están esperando.  
+Aquí está la primera decisión interesante de SJF. En t=5, tenemos tres procesos en la cola READY con las siguientes ráfagas de CPU pendientes: P2 necesita 3ms, P3 necesita 4ms, y P4 necesita 2ms. SJF selecciona P4 porque tiene la ráfaga más corta.  
+Pero hay un problema: P1 aún está usando el recurso de I/O. Dependiendo de la implementación del sistema, esto puede o no bloquear a P4. Asumiendo que el I/O es independiente, P4 ejecuta sus 2ms y se bloquea para su propio I/O en t=7.  
+En t=7, P1 ha completado su I/O y tiene una segunda ráfaga de CPU de 3ms pendiente. La cola READY ahora contiene: P1 (3ms), P2 (3ms), P3 (4ms). Con dos procesos empatados en tiempo más corto, SJF aplica FCFS como criterio de desempate: P2 llegó antes que P1 volvió de I/O, entonces P2 ejecuta.
+P2 completa su primera ráfaga en t=10, va a I/O brevemente, y vuelve en t=11 con su segunda ráfaga de 2ms. Mientras tanto, P3 finalmente obtiene su oportunidad en t=12, ejecutando sus 4ms completos y terminando en t=16.  
+En este punto las colas se reordenan constantemente basándose en las ráfagas restantes. P4 completa su I/O y tiene una ráfaga final de 1ms (la más corta), P2 necesita 2ms, y P1 necesita 3ms. El orden de ejecución final es P4, luego P2, finalmente P1.
 
 ```
 Tiempos de terminación:
@@ -557,23 +426,28 @@ P3: 12-2 = 10
 P4: 5-3 = 2 (ejecuta cuando P1 va a I/O)
 Promedio: (0+6+10+2)/4 = 4.5
 ```
+Comparado con Round Robin, SJF logra mejor tiempo de retorno promedio (14.75 vs 15) y mejor tiempo de espera promedio (9.75 vs 10), confirmando su optimalidad teórica. Sin embargo, el tiempo de respuesta promedio es significativamente peor (4.5 vs 3), y notá cómo P3 tiene un tiempo de respuesta terrible de 10ms porque llegó cuando había procesos más cortos esperando.
 
 ### Manejo de Prioridades en Eventos Simultáneos
+Un aspecto sutil pero crítico de la planificación es cómo manejar múltiples eventos que ocurren en el mismo instante. Este escenario aparece frecuentemente en sistemas reales debido a la granularidad finita del reloj del sistema.  
+Imaginá la situación en t=10 donde tres eventos convergen simultáneamente:  
+- Interrupción de reloj: P1 agota su quantum  
+- Finalización de I/O: P2 completa su operación de disco y vuelve a READY  
+- System call: P3 se bloquea voluntariamente esperando red  
 
-**Escenario**: Múltiples eventos ocurren simultáneamente en t=10:  
-- Interrupción de reloj (P1 agota quantum)  
-- Finalización de I/O (P2 se vuelve READY)  
-- System call (P3 se bloquea)  
+El orden en que el sistema operativo procesa estos eventos determina qué proceso ejecuta a continuación. El orden de prioridad estándar es:
+\begin{highlight}
 
-**Orden de procesamiento (si y sólo si llegan a la cola de listos en el mismo instante):**
-1. **Interrupción de reloj (vuelve por fin de Q)**  
-2. **Interrupción fin evento (Finalización de I/O)**  
-3. **System call (New a Ready)**  
+Interrupción de reloj (prioridad más alta)\\
+Finalización de I/O (prioridad media)\\
+System call / transición voluntaria (prioridad más baja)
+\end{highlight}
 
-**Decisión de planificación**:  
-- Si P2 tiene mayor prioridad → P2 ejecuta  
-- Si P2 tiene igual prioridad → P4 ejecuta (ya estaba en READY)  
-- Aplicar algoritmo de planificación con nueva configuración  
+Este ordenamiento no es arbitrario. Las interrupciones de reloj deben procesarse inmediatamente para mantener la integridad del sistema de tiempo. Las finalizaciones de I/O tienen prioridad sobre system calls porque representan eventos externos que el sistema debe reconocer rápidamente.
+Una vez procesados todos los eventos, el planificador evalúa la nueva configuración. Si P2 (que volvió de I/O) tiene mayor prioridad que P1 (que fue expropiado), entonces P2 ejecutará. Si tienen igual prioridad, generalmente continúa P1 porque ya estaba en posesión del CPU, minimizando context switches innecesarios.
+\begin{infobox}
+El criterio de desempate cuando múltiples procesos tienen igual prioridad y están READY simultáneamente suele ser FCFS basado en el instante en que cada proceso originalmente se volvió READY, no en el instante del desempate actual.
+\end{infobox}
 
 ## Síntesis
 
@@ -593,24 +467,23 @@ Promedio: (0+6+10+2)/4 = 4.5
 | **Multilevel** | Sí | Alto | Posible | Necesario | Propósito general |
 
 **Fórmulas esenciales:**
-```
-Tiempo_retorno = Tiempo_terminación - Tiempo_llegada
-Tiempo_espera = Tiempo_retorno - Tiempo_CPU_total
-Tiempo_respuesta = Primera_ejecución - Tiempo_llegada
+$$
+t retorno =t terminación - t llegada
+t espera = t retorno - t CPU total
+t respuesta = primera ejecución - t llegada
 
-HRRN: Response_Ratio = (Tiempo_espera + Tiempo_servicio) / Tiempo_servicio
-Aging: Nueva_prioridad = Prioridad_base + (Tiempo_espera / Factor_aging)
-```
+HRRN: Response Ratio = (t espera + t servicio) / t servicio
+Aging: Nueva Prioridad = prioridad base + (t espera / factor aging)
+$$
 
-**Criterios para resolver ejercicios:**  
-1. **Dibujar timeline** con llegadas y eventos  
-2. **Identificar interrupciones** y sus prioridades  
-3. **Aplicar algoritmo** respetando preemptividad  
-4. **Manejar I/O** correctamente (tiempos de bloqueo)  
-5. **Calcular métricas** para cada proceso  
+Cuando resuelvas ejercicios de planificación, seguí esta metodología sistemática:  
+Primero, dibujá un timeline mostrando todas las llegadas y eventos importantes. Marcá claramente cuándo cada proceso llega, cuándo comienzan y terminan las ráfagas de CPU, y cuándo ocurren los I/O.  
+Segundo, identificá todas las interrupciones y sus prioridades relativas. Esto es especialmente importante cuando múltiples eventos ocurren simultáneamente.  
+Tercero, aplicá el algoritmo de planificación respetando estrictamente sus reglas de preemptividad. No asumas comportamientos: si el algoritmo es no preemptivo, un proceso ejecuta hasta bloquearse o terminar sin excepciones.  
+Cuarto, manejá las operaciones de I/O correctamente. Un proceso en I/O no está en la cola READY y no puede ser seleccionado para ejecución. Cuando completa su I/O, debe explícitamente retornar a READY antes de ser considerado.  
+Finalmente, calculá todas las métricas solicitadas para cada proceso individualmente, luego promedialas. Verificá que los números tengan sentido: el tiempo de espera nunca puede ser negativo, y el tiempo de retorno debe ser al menos igual al tiempo de CPU total.
 
 ### Ejemplo simulación Round Robin
-
 
 ```c
 #include <stdio.h>
@@ -741,35 +614,36 @@ int main() {
     return 0;
 }
 ```
+Este código muestra todos los detalles sutiles de una implementación real: gestión de la cola circular, tracking del tiempo restante de cada proceso, cálculo preciso de todas las métricas, y manejo correcto de procesos que terminan antes de agotar su quantum.  
 
+Cuando estudies para el parcial, no solo memorices algoritmos; entendé por qué toman las decisiones que toman. ¿Por qué SJF minimiza el tiempo de retorno? Porque ejecutar trabajos cortos primero minimiza el tiempo total que todos los procesos pasan en el sistema. ¿Por qué Round Robin garantiza responsividad? Porque ningún proceso espera más de n × Q unidades de tiempo, sin importar cuán largo sea.
 
 
 **Tips para parcial:**
 
-1. **Diagramas de Gantt son esenciales** - Mostrar CPU e I/O separadamente
-2. **Marcar eventos importantes** - Interrupciones, llegadas, cambios de estado
-3. **Verificar cálculos** - Tiempo total debe ser consistente
-4. **Considerar overhead** - Context switches tienen costo
-5. **Justificar decisiones** - Explicar por qué se eligió cada proceso
+1. Diagramas de Gantt son esenciales - Mostrar CPU e I/O separadamente
+2. Marcar eventos importantes - Interrupciones, llegadas, cambios de estado
+3. Verificar cálculos - Tiempo total debe ser consistente
+4. Considerar overhead - Context switches tienen costo
+5. Justificar decisiones - Explicar por qué se eligió cada proceso
 
 ### Decisiones de Diseño
 
-**Sistemas Batch**: SJF, HRRN, FCFS
-- Optimizar throughput sobre respuesta
-- Starvation menos crítico
+La elección del algoritmo apropiado depende fundamentalmente del contexto de uso del sistema. No existe una respuesta universal porque diferentes entornos priorizan diferentes objetivos.  
+Para **sistemas batch** que procesan trabajos largos sin intervención humana, algoritmos como SJF, HRRN o FCFS son apropiados. El objetivo principal es maximizar throughput (trabajos completados por hora) y utilizar eficientemente los recursos. La responsividad individual de cada proceso es menos importante porque no hay usuarios esperando resultados inmediatos. La starvation es menos crítica porque eventualmente el sistema procesará todos los trabajos durante la noche o el fin de semana.  
 
-**Sistemas Interactivos**: RR, VRR, Multilevel
-- Tiempo de respuesta crítico
-- Fairness importante
+Los **sistemas interactivos** como laptops, smartphones, o estaciones de trabajo tienen prioridades completamente diferentes. El tiempo de respuesta es crítico porque los usuarios perciben demoras de más de 100-200ms como lentitud frustrante. Algoritmos como Round Robin, VRR, o Multilevel Feedback Queue son ideales porque garantizan que todas las aplicaciones progresen constantemente. Un usuario puede tener 20 aplicaciones abiertas; todas deben sentirse responsivas aunque ninguna esté usando el CPU intensivamente.  
 
-**Sistemas de Tiempo Real**: Prioridades fijas
-- Deadlines deben cumplirse
-- Predecibilidad esencial
+**Sistemas de tiempo real** enfrentan restricciones más estrictas aún: ciertos procesos deben completarse antes de deadlines absolutos. Perder un deadline puede resultar en fallas catastróficas (considerá un controlador de airbag que debe activarse en 10ms). Estos sistemas requieren planificación por prioridades con garantías matemáticamente verificables. La justicia es irrelevant; lo único que importa es cumplir deadlines.
 
-**Sistemas de Propósito General**: Multilevel feedback
-- Balance entre todos los objetivos
-- Adaptabilidad a diferentes cargas
+\begin{excerpt}
+Los sistemas de propósito general modernos como Linux o Windows enfrentan el desafío más complejo: deben manejar simultáneamente procesos batch de larga duración, aplicaciones interactivas que requieren respuesta instantánea, y componentes de tiempo real del sistema operativo. La solución es típicamente alguna variante de Multilevel Feedback Queue que se adapta dinámicamente a patrones de carga heterogéneos.
+\end{excerpt}
+
+Finalmente, recordá que la planificación de CPU es solo una pieza del rompecabezas de rendimiento del sistema. La gestión de memoria, el sistema de I/O, y el diseño de las aplicaciones mismas frecuentemente tienen mayor impacto en la experiencia del usuario que el algoritmo de planificación específico. Un algoritmo de planificación brillante no puede compensar aplicaciones mal diseñadas que bloquean la interfaz de usuario o realizan I/O ineficientemente.
+
 
 ---
+
 
 **Próximo capítulo**: Hilos - Explorando la concurrencia dentro de los procesos y desafíos de planificación multinivel.
