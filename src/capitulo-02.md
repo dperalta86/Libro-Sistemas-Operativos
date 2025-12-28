@@ -444,71 +444,45 @@ Acceso a memoria para guardar/restaurar registros → Invalidación de TLB y cac
 
 ### Introducción a los Sistemas Operativos
 
-Ahora que entendemos el hardware, podemos definir qué es realmente un sistema operativo.
-  
+Ahora que comprendemos la arquitectura de hardware sobre la cual operan, podemos finalmente definir con precisión qué es un sistema operativo.  
+
 \begin{excerpt}
-\emph{Definición:}  
-
-
-Un Sistema Operativo es un conjunto de rutinas y procedimientos manuales y automáticos que permiten la operatoria en un sistema de computación, es un \textbf{programa de control.}
+\emph{Definición:}
+Un Sistema Operativo es un conjunto de rutinas y procedimientos manuales y automáticos que permiten la operatoria en un sistema de computación. Es, fundamentalmente, un \textbf{programa de control} que media entre el hardware y los programas de aplicación.
 \end{excerpt}  
 
-
-Sus principales tareas son:  
-1. **IPL** Se encarga de lanzar el Init Program Loader  
-2. **Gestiona los recursos** del hardware de manera eficiente  
-3. **Proporciona servicios** a los programas de aplicación  
-4. **Actúa como intermediario** entre usuarios y hardware (gestión de usuarios)  
-5. **Mantiene la seguridad e integridad** del sistema  
+El sistema operativo no es un programa más: es el programa que hace posible que existan todos los demás programas. Sus responsabilidades abarcan desde el momento en que se enciende la computadora hasta que se apaga, y cada milisegundo de ese tiempo está dedicado a alguna tarea crítica.  
+Sus principales tareas incluyen lanzar el Init Program Loader durante el arranque, gestionar todos los recursos del hardware de manera eficiente y justa, proporcionar servicios estandarizados a los programas de aplicación, actuar como intermediario entre usuarios y el hardware bruto, y mantener la seguridad e integridad de todo el sistema. 
 
 ### Principales Tareas del Sistema Operativo
 
-**1. Gestión de Procesos**
-- Crear, planificar y terminar procesos
-- Proporcionar mecanismos de comunicación entre procesos
-- Manejar la sincronización y evitar deadlocks
+El sistema operativo moderno es un software extraordinariamente complejo que debe manejar múltiples responsabilidades simultáneamente. Veamos cada una de sus áreas principales:  
+La *gestión de procesos* involucra crear nuevos procesos cuando un programa necesita ejecutarse, planificar cuál proceso debe usar la CPU en cada momento, y terminar procesos de manera ordenada cuando finalizan. Además, debe proporcionar mecanismos de comunicación entre procesos que los permitan colaborar, y manejar la sincronización para evitar condiciones de carrera y deadlocks.  
 
-**2. Gestión de Memoria**
-- Asignar y liberar memoria a procesos
-- Implementar memoria virtual
-- Proteger espacios de memoria entre procesos
+La *gestión de memoria* requiere asignar bloques de memoria a procesos cuando la necesitan y liberarla cuando ya no la usan. Para maximizar el uso de la RAM limitada, implementa memoria virtual que permite usar disco como extensión de la RAM, y protege los espacios de memoria de cada proceso para que uno no pueda corromper accidentalmente (o maliciosamente) la memoria de otro.  
 
-**3. Gestión de Almacenamiento**
-- Organizar archivos en sistemas de archivos
-- Controlar acceso a dispositivos de almacenamiento
-- Implementar políticas de respaldo y recuperación
+La *gestión de almacenamiento* organiza los archivos en sistemas de archivos jerárquicos, controla el acceso a dispositivos de almacenamiento físico como discos y SSDs, e implementa políticas de respaldo y recuperación para proteger contra pérdida de datos.  
 
-**4. Gestión de E/S**
-- Controlar todos los dispositivos del sistema
-- Proporcionar interfaz uniforme para acceso a dispositivos
-- Buffering, caching y spooling
+La *gestión de E/S* debe controlar la enorme variedad de dispositivos que pueden conectarse al sistema, desde teclados y ratones hasta impresoras 3D y sensores especializados. Proporciona una interfaz uniforme que abstrae las diferencias entre dispositivos, y implementa técnicas como buffering, caching y spooling para maximizar la eficiencia.  
 
-**5. Seguridad y Protección**
-- Autenticación de usuarios
-- Control de acceso a recursos
-- Protección entre procesos y del sistema
+Los aspectos de *seguridad y protección* incluyen autenticar usuarios para verificar identidades, controlar qué usuarios pueden acceder a qué recursos y con qué privilegios, y proteger procesos entre sí y proteger al sistema operativo mismo de procesos maliciosos.  
 
-**6. Interfaz de Usuario**
-- Command Line Interface (CLI)
-- Graphical User Interface (GUI)
-- APIs para programadores
+Finalmente, *la interfaz de usuario* puede tomar la forma de una línea de comandos (CLI) para usuarios avanzados, interfaces gráficas (GUI) para usuarios generales, o APIs bien diseñadas para programadores que necesitan acceder a servicios del sistema.
 
 ### System Calls (Llamadas al Sistema)
 
+Aquí llegamos a uno de los conceptos más fundamentales en sistemas operativos: el mecanismo mediante el cual programas en modo usuario pueden solicitar servicios del kernel sin comprometer la seguridad del sistema.  
+
 \begin{excerpt}
-\emph{Definición:}  
-
-
-Las System Calls son un mecanismo mediante el cual los programas solicitan servicios al SO (acceso a hardware, creación de procesos, etc.)
+\emph{Definición:}
+Las System Calls son el mecanismo controlado mediante el cual los programas en modo usuario pueden solicitar servicios al sistema operativo, como acceso a hardware, creación de procesos, o manipulación de archivos.
 \end{excerpt}
 
-**¿Por qué existen?**  
-- **Protección**: Impiden acceso directo no controlado al hardware  
-- **Abstracción**: Proporcionan interfaz uniforme independiente del hardware específico  
-- **Eficiencia**: Centralizan funciones comunes del sistema  
-- **Portabilidad**: La misma API funciona en diferentes hardware  
+Las system calls existen por razones fundamentales de protección, abstracción, eficiencia y portabilidad. Sin ellas, cada programa necesitaría incluir código específico para cada modelo de disco duro, cada tarjeta de red, cada tipo de pantalla. Además, cualquier programa podría acceder directamente al hardware de otros procesos, robando datos o causando crashes.  
 
-**Mecanismo Tradicional:**
+El *mecanismo tradicional* de system calls en arquitecturas x86 sigue estos pasos: el programa prepara los parámetros en registros o stack, ejecuta una instrucción INT (interrupt de software), la CPU cambia automáticamente a modo kernel, el kernel identifica qué syscall fue solicitada consultando una tabla, ejecuta la función correspondiente en modo privilegiado, y finalmente retorna el resultado y devuelve control al programa en modo usuario.
+
+Mecanismo Tradicional:
 ```
 1. Programa prepara parámetros
 2. Ejecuta instrucción INT (interrupt)
@@ -519,7 +493,12 @@ Las System Calls son un mecanismo mediante el cual los programas solicitan servi
 7. CPU vuelve a modo usuario
 ```
 
-**Ejemplo en Linux (x86):**
+\begin{example}
+\emph{Ejemplo en Linux (x86):}
+En Linux x86, una syscall tradicional se ve así:  
+Cada línea tiene un propósito específico: EAX identifica qué syscall queremos, EBX-EDX contienen los argumentos, y la instrucción INT 0x80 es el portal al kernel.
+\end{example}  
+
 ```assembly
 mov eax, 4          ; syscall number para sys_write
 mov ebx, 1          ; file descriptor (stdout)
@@ -528,19 +507,16 @@ mov edx, len        ; longitud del mensaje
 int 0x80            ; interrupción de software
 ```
 
+
 ### Fast System Calls
 
-**Problema con syscalls tradicionales:**
-Las interrupciones de software (INT) son relativamente lentas porque:
-- Deben guardar todo el contexto del procesador
-- Requieren consultar tabla de vectores de interrupción
-- Overhead de cambio de modo es considerable. *Overhead es es el conjunto de recursos (tiempo de CPU, memoria, etc.) que el sistema operativo utiliza realizando tareas que no son propias de los procesos.*
+El mecanismo tradicional de syscalls mediante interrupciones de software, aunque funcional, tiene un problema de rendimiento significativo. Las interrupciones requieren guardar todo el contexto del procesador, consultar la tabla de vectores de interrupción, y manejar overhead considerable en el cambio de modo. Para un sistema que realiza millones de syscalls por segundo, esta ineficiencia se vuelve crítica.  
 
-**Solución: Fast System Calls**
+Los procesadores modernos introducen instrucciones especializadas para hacer syscalls más rápidas. Intel desarrolló SYSENTER/SYSEXIT, mientras que AMD (posteriormente adoptado también por Intel en x86-64) creó SYSCALL/SYSRET.  
 
-**SYSENTER/SYSEXIT (Intel):**
+
 ```assembly
-; Preparar registros específicos
+; SYSENTER/SYSEXIT (Intel)
 mov eax, syscall_number
 mov edx, return_address
 mov ecx, user_stack
@@ -549,8 +525,8 @@ sysenter            ; Entrada rápida al kernel
 sysexit             ; Retorno rápido a usuario
 ```
 
-**SYSCALL/SYSRET (AMD/Intel x86-64):**
 ```assembly
+; SYSCALL/SYSRET (AMD/Intel x86-64)
 mov rax, syscall_number
 mov rdi, arg1
 mov rsi, arg2
@@ -558,70 +534,61 @@ syscall             ; Entrada directa al kernel
 ; Resultado en RAX al retornar
 ```
 
-**Ventajas de Fast Syscalls:**  
-- **50-70% más rápidas** que INT tradicional  
-- Menos overhead de cambio de contexto  
-- Registros específicos en lugar de stack  
-- Transición directa sin consultar vectores  
+Estas instrucciones especializadas son *50-70% más rápidas* que INT tradicional. Logran esto reduciendo el overhead de cambio de contexto, usando registros especializados en lugar de stack, y proporcionando transición directa sin necesidad de consultar vectores de interrupción.  
 
-**Uso en Linux Moderno:**  
-- **x86-32**: SYSENTER es el método preferido  
-- **x86-64**: SYSCALL es el estándar  
-- **ARM**: SVC (Supervisor Call) instruction  
-- Biblioteca glibc automáticamente elige el método más eficiente  
+\begin{infobox}
+En Linux moderno, la biblioteca glibc automáticamente elige el método más eficiente disponible en el procesador. El programador simplemente llama a funciones como \texttt{write()} o \texttt{read()}, y glibc se encarga de usar SYSCALL en x86-64, SYSENTER en x86-32, o SVC en ARM, según corresponda.
+\end{infobox}
 
 ### Arquitecturas de Kernel
 
-La organización interna del kernel afecta directamente el rendimiento, seguridad y mantenibilidad del SO.
+La forma en que se organiza internamente el código del sistema operativo tiene profundas implicaciones en rendimiento, seguridad y mantenibilidad. Existen dos filosofías principales que representan extremos opuestos en el espectro de diseño.  
 
 **Kernel Monolítico:**
 
-*Características:*  
-- **Todo el SO ejecuta en modo kernel**  
-- Drivers, filesystem, network stack en un solo espacio de direcciones  
-- Comunicación interna mediante llamadas a función directas  
-- Un solo binario grande del kernel  
+En un kernel monolítico, todo el sistema operativo ejecuta en modo kernel como un solo programa grande. Los drivers de dispositivos, el sistema de archivos, el stack de red, y todos los subsistemas comparten un único espacio de direcciones. La comunicación entre componentes se realiza mediante llamadas a función directas, como en cualquier programa normal.  
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Rendimiento superior: Sin overhead de comunicación entre componentes\\
-- Acceso directo: Todos los subsistemas pueden llamarse entre sí\\
-- Eficiencia: Menos cambios de contexto\\
-- Simplicidad de debugging: Todo está en un lugar\\
-}
+\begin{highlight}
+\textbf{Ventajas del enfoque monolítico:}
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Menor estabilidad: Un bug en cualquier driver puede crashear todo el sistema\\
-- Seguridad: Todo código tiene privilegios máximos\\
-- Tamaño: Kernel grande consume más memoria\\
-- Mantenimiento: Más difícil modificar sin afectar otros componentes\\
-}
+El rendimiento es superior porque no hay overhead de comunicación entre componentes. Un driver puede llamar directamente a una función del filesystem sin cambios de contexto ni paso de mensajes. Esta eficiencia es la razón por la cual Linux, siendo monolítico, puede competir en rendimiento con sistemas diseñados específicamente para alta performance.
 
-*Ejemplos:* Linux, Unix tradicional, Windows (parcialmente)
+La simplicidad de debugging también es notable: cuando algo falla, todo está en un solo lugar. Las herramientas de debugging pueden seguir el flujo de ejecución sin saltar entre diferentes espacios de direcciones.
+\end{highlight}
+
+\begin{warning}
+\textbf{Desventajas del enfoque monolítico:}
+
+La menor estabilidad es el precio que se paga por la eficiencia. Un bug en cualquier driver, por obscuro que sea, puede crashear todo el sistema porque todo comparte el mismo espacio de direcciones. Un error de puntero en el driver de una webcam puede corromper las estructuras del scheduler.
+
+La seguridad también sufre: todo el código tiene privilegios máximos. No hay aislamiento entre un driver de red y el código que maneja contraseñas. El tamaño del kernel es considerable, y cada línea de código es un potencial punto de fallo.
+\end{warning}
+
+*Ejemplos:* Linux, Unix tradicional, y parcialmente Windows (que combina elementos monolíticos con diseño en capas)
 
 **Microkernel:**
 
-*Características:*  
-- **Kernel mínimo** solo con funciones esenciales  
-- Drivers y servicios ejecutan como procesos separados en modo usuario  
-- Comunicación mediante paso de mensajes (IPC)  
-- Kernel solo maneja: scheduling, IPC, memoria básica  
+La filosofía del microkernel es radicalmente diferente: mantener el kernel lo más pequeño posible, implementando solo las funciones absolutamente esenciales. Todo lo demás ejecuta como procesos separados en modo usuario.  
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Mayor estabilidad: Falla de driver no afecta al kernel\\
-- Seguridad mejorada: Servicios con privilegios mínimos necesarios\\
-- Modularidad: Fácil agregar/quitar componentes\\
-- Debugging: Aislamiento facilita encontrar problemas\\
-}
+El kernel mínimo se limita a scheduling de procesos básico, comunicación inter-procesos (IPC), y manejo elemental de memoria. Los drivers de dispositivos, sistemas de archivos, y servicios de red ejecutan como procesos normales que se comunican mediante paso de mensajes.  
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Rendimiento menor: Overhead de IPC entre componentes\\
-- Complejidad: Más difícil de diseñar y implementar\\
-- Latencia: Múltiples cambios de contexto para operaciones simples\\
-}
+\begin{highlight}
+\textbf{Ventajas del enfoque microkernel:}
 
-*Ejemplos:* Minix, QNX, seL4, Hurd (GNU)
+La estabilidad mejora dramáticamente: si un driver falla, es solo un proceso más que terminó. El sistema puede reiniciar el driver sin afectar al resto. La seguridad se beneficia de que cada servicio puede ejecutar con solo los privilegios mínimos necesarios.
 
-**Comparación Práctica:**  
+La modularidad facilita agregar, quitar, o actualizar componentes. Querer probar un nuevo filesystem no requiere recompilar el kernel, solo lanzar un nuevo proceso servidor. El debugging se simplifica porque los componentes están aislados.
+\end{highlight}
+
+\begin{warning}
+\textbf{Desventajas del enfoque microkernel:}
+
+El rendimiento sufre debido al overhead de IPC entre componentes. Una operación simple puede requerir múltiples cambios de contexto y múltiples mensajes. La complejidad de diseño e implementación es considerablemente mayor: diseñar un buen sistema de IPC eficiente es extremadamente difícil.
+\end{warning}
+
+*Ejemplos:* Minix (el sistema usado para enseñar sistemas operativos), QNX (usado en sistemas embebidos críticos), seL4 (kernel formalmente verificado), y GNU Hurd (aún en desarrollo después de décadas).
+
+**Comparación Práctica:** 
 
 ![Comparacion distintos kernel](src/images/capitulo-01/02.png){ width=440px height=260px }  
 
@@ -633,52 +600,37 @@ La organización interna del kernel afecta directamente el rendimiento, segurida
 | Simplicidad | Alta | Baja |
 | Tiempo de desarrollo | Menor | Mayor |
 
-**Enfoques Híbridos:**
-Muchos SO modernos combinan ambos enfoques:  
-- **Windows NT**: Microkernel modificado con algunos servicios en kernel  
-- **macOS**: Mach microkernel + BSD kernel monolítico  
-- **Linux**: Principalmente monolítico pero con módulos cargables  
-
+*Enfoques Híbridos:*
+La realidad es que la mayoría de sistemas operativos modernos no son puramente monolíticos ni microkernels puros, sino que combinan elementos de ambos enfoques según convenga. Windows NT usa un microkernel modificado pero mueve algunos servicios críticos de performance al kernel. macOS combina el microkernel Mach con componentes monolíticos de BSD. Linux, aunque principalmente monolítico, usa módulos cargables que pueden agregarse y removerse dinámicamente.  
 
 ## Análisis Técnico (Leelo sólo por curiosidad...)
+Esta sección profundiza en aspectos más técnicos que, si bien no son esenciales para un primer entendimiento, te darán una apreciación más profunda de la complejidad involucrada. Podés leerla por curiosidad o saltearla y volver más adelante.  
 
 ### Proceso de Arranque (Bootstrap)
 
-**Secuencia de Arranque:**
+El proceso de arranque es fascinante porque debe resolver un problema aparentemente imposible: ¿cómo puede una computadora apagada comenzar a ejecutar software si el software mismo necesita estar ejecutándose para cargar software? La respuesta involucra una cuidadosa secuencia de etapas, cada una más compleja que la anterior.  
 
-1. **Power-On Self Test (POST)**
-   - Verificación básica de hardware
-   - Ejecutado por firmware (BIOS/UEFI)
+La secuencia comienza con el *Power-On Self Test* (POST), un programa pequeño almacenado en firmware (BIOS o UEFI) que ejecuta verificaciones básicas de hardware. Verifica que la RAM funcione, que haya dispositivos de boot disponibles, y que los componentes críticos respondan.  
 
-2. **Carga del Bootloader**
-   - Programa pequeño que sabe cómo cargar el SO
-   - Ubicado en Master Boot Record (MBR) o partición EFI
+Una vez que POST completa exitosamente, se carga el *bootloader*, un programa pequeño que sabe cómo cargar el sistema operativo. Este programa típicamente reside en el Master Boot Record (MBR) en sistemas BIOS legacy, o en una partición EFI en sistemas modernos UEFI.  
 
-3. **Carga del Kernel**
-   - Bootloader lee el kernel del disco a memoria
-   - Transfiere control al kernel
+El bootloader lee el kernel del sistema operativo desde disco y lo carga en memoria. Luego transfiere control al punto de entrada del kernel, que comienza su propia fase de inicialización: detecta e inicializa todo el hardware disponible, configura estructuras de datos internas como tablas de procesos y sistemas de archivos, y finalmente arranca el primer proceso (tradicionalmente llamado `init`).  
 
-4. **Inicialización del Kernel**
-   - Detección e inicialización de hardware
-   - Configuración de estructuras de datos internas
-   - Arranque del primer proceso (init)
 
 ### Manejo de Interrupciones
 
-**Vector de Interrupciones:**
-Tabla que mapea cada tipo de interrupción a su rutina de manejo correspondiente.
+El manejo de interrupciones involucra una estructura de datos crítica llamada *vector de interrupciones* o *Interrupt Descriptor Table* (IDT) en x86. Esta tabla mapea cada número de interrupción a la dirección de memoria de su handler correspondiente.  
 
-**Proceso de Manejo:**  
-1. **Ocurre Interrupción** → Hardware detiene ejecución actual  
-2. **Guardar Contexto** → Estado actual se guarda en stack  
-3. **Identificar Tipo** → Consultar vector de interrupciones  
-4. **Ejecutar Handler** → Rutina específica en modo kernel  
-5. **Restaurar Contexto** → Volver al estado anterior  
-6. **Continuar Ejecución** → Resumir programa interrumpido  
+Cuando ocurre una interrupción, el proceso completo se desarrolla así: el hardware detiene la ejecución actual y guarda el contexto mínimo (PC y PSW) en el stack. Consulta el vector de interrupciones para encontrar la dirección del handler apropiado. El procesador cambia a modo kernel si no estaba ya en ese modo. El handler ejecuta, realizando las acciones necesarias para atender la interrupción. Al completar, se restaura el contexto guardado y se retorna al punto donde fue interrumpido, como si nada hubiera pasado.  
+
+\begin{theory}
+Esta capacidad de interrumpir transparentemente la ejecución, atender un evento, y continuar como si nada hubiera pasado es fundamental para la ilusión de que múltiples cosas están ocurriendo simultáneamente en un procesador que solo puede ejecutar una instrucción a la vez.
+\end{theory}
 
 ### Jerarquía de Memoria
 
-**Pirámide de Memoria (velocidad vs capacidad):**
+Los diferentes niveles de memoria en un sistema moderno forman una pirámide donde velocidad y capacidad están inversamente relacionados:  
+
 ```
 Registros CPU (1 ciclo, bytes)
     ↓
@@ -691,13 +643,10 @@ Memoria Principal RAM (100-300 ciclos, GB)
 Almacenamiento Secundario (millones de ciclos, TB)
 ```
 
-**Implicaciones para el SO:**  
-- Gestión de cache es crítica para rendimiento  
-- Necesidad de memoria virtual cuando RAM es insuficiente  
-- Algoritmos de reemplazo para optimizar accesos  
-
+Las implicaciones para el sistema operativo son profundas. La gestión eficiente de cache es crítica para rendimiento, ya que la diferencia entre un cache hit y un cache miss puede ser de dos órdenes de magnitud en latencia. La memoria virtual se vuelve necesaria cuando la RAM es insuficiente para todos los procesos activos. Los algoritmos de reemplazo deben optimizar para minimizar accesos al nivel más lento.  
 
 ## Código en C
+Veamos cómo estos conceptos se traducen en código real. Los siguientes ejemplos te permitirán experimentar directamente con system calls y manejo de señales.
 
 ### Ejemplo: Información del Sistema
 
@@ -730,11 +679,7 @@ int main() {
 }
 ```
 
-**Análisis línea por línea:**  
-- `#include <sys/utsname.h>`: Header para la estructura utsname  
-- `uname(&system_info)`: **Syscall** que obtiene info del sistema  
-- `getpid()`, `getppid()`, `getuid()`: **Syscalls** para IDs de proceso y usuario  
-- Cada función provoca una **transición modo usuario → modo kernel**
+Este programa demuestra varias system calls en acción. La función `uname()` es una syscall que obtiene información del sistema operativo. Cada llamada provoca una transición de modo usuario a modo kernel, donde el kernel recopila la información solicitada y la retorna de manera segura. Las funciones `getpid()`, `getppid()` y `getuid()` son syscalls adicionales que obtienen identificadores del proceso actual, su proceso padre, y el usuario que lo ejecuta.  
 
 ### Ejemplo: Manejo Básico de Señales
 
@@ -766,11 +711,11 @@ int main() {
 }
 ```
 
-**Conceptos demostrados:**  
-- **Señales**: Mecanismo de comunicación asincrónica  
-- **signal()**: Syscall para registrar manejadores  
-- **Interrupción de software**: Ctrl+C genera SIGINT  
-- **Context switching**: El SO interrumpe el programa para ejecutar el handler  
+Este ejemplo ilustra el manejo de señales, un mecanismo de comunicación asincrónica fundamental. Cuando presionás Ctrl+C, el terminal envía la señal SIGINT al proceso. Normalmente esto terminaría el programa, pero como registramos nuestro propio handler, nuestro código ejecuta en su lugar.  
+
+\begin{example}
+Las señales son un caso fascinante de cómo el sistema operativo puede interrumpir un proceso para entregarle información. El handler se ejecuta en el contexto del proceso interrumpido, pero fue invocado por el kernel. Es un ejemplo perfecto de cómo hardware (la tecla Ctrl+C), kernel (detección y entrega de señal), y proceso de usuario (handler) colaboran.
+\end{example}
 
 
 ## Casos de Estudio
@@ -781,73 +726,70 @@ int main() {
 
 **Resolución Paso a Paso:**
 
-1. **Análisis del Código:**
-   - `printf()` es una función de biblioteca (libc)
-   - Internamente llama a la syscall `write()`
-   - Debe escribir en stdout (file descriptor 1)
+Comencemos analizando el código. La función `printf()` es parte de la biblioteca estándar de C (libc), no del kernel. Internamente, `printf()` formatea el string y luego llama a la syscall `write()`, que sí es parte del kernel. Esta syscall debe escribir en stdout, representado por el file descriptor 1.  
 
-2. **Secuencia de Ejecución:**
-   ```
-   Programa (modo usuario) 
-   → printf() 
-   → write(1, "Hola mundo\n", 11)
-   → Interrupción de software (trap)
-   → Modo kernel
-   → sys_write() en el kernel
-   → Driver de terminal
-   → Hardware de pantalla
-   → Retorno a modo usuario
-   ```
+La secuencia de ejecución completa es:  
 
-3. **Cambios de Contexto:**
-   - **Usuario → Kernel**: Se guardan registros, se cambia stack
-   - **Kernel → Usuario**: Se restauran registros, se retorna valor
+```
+Programa (modo usuario) 
+→ printf() 
+→ write(1, "Hola mundo\n", 11)
+→ Interrupción de software (trap)
+→ Modo kernel
+→ sys_write() en el kernel
+→ Driver de terminal
+→ Hardware de pantalla
+→ Retorno a modo usuario
+```
 
-4. **Puntos Clave para Parcial:**
-   - printf() NO es una syscall directa
-   - Hay cambio de modo de operación
-   - El kernel valida permisos antes de escribir
-   - File descriptor 1 representa stdout por convención
+Durante la transición de usuario a kernel, se guardan todos los registros del proceso en su kernel stack. Se cambia el puntero de stack para usar el stack del kernel. El modo de operación del procesador cambia a supervisor/kernel. En la transición inversa, se restauran los registros desde el kernel stack, se cambia de vuelta al stack de usuario, y el valor de retorno de la syscall se coloca en el registro apropiado (típicamente EAX/RAX).  
 
+\begin{warning}
+\textbf{Puntos clave para recordar:}
+\begin{itemize}
+\item \texttt{printf()} NO es una syscall directa, es una función de biblioteca
+\item Hay cambio de modo de operación (usuario → kernel → usuario)
+\item El kernel valida permisos antes de permitir la escritura
+\item El file descriptor 1 representa stdout por convención POSIX
+\item Todo el proceso es transparente para el programador
+\end{itemize}
+\end{warning}
 
 
 ## Síntesis
 
 ### Puntos Clave del Capítulo
 
-1. **La arquitectura hardware determina las capacidades del SO**
-   - Von Neumann establece el modelo básico
-   - Modos de operación permiten protección
-   - Interrupciones habilitan multitasking
+Hemos recorrido un largo camino desde los componentes básicos del hardware hasta los conceptos fundamentales del sistema operativo. Tres ideas principales deben quedar cristalinas:  
+Primero, la arquitectura hardware no es un detalle de implementación irrelevante: determina las capacidades fundamentales del sistema operativo. La arquitectura de von Neumann establece el modelo básico de cómo funcionan las computadoras. Los modos de operación permiten la protección necesaria para la estabilidad del sistema. Las interrupciones son el mecanismo que habilita el multitasking y la respuesta a eventos externos.  
 
-2. **El SO es el intermediario entre software y hardware**
-   - Syscalls proporcionan servicios controlados
-   - Abstrae complejidades del hardware
-   - Mantiene seguridad y estabilidad
+Segundo, el sistema operativo es el intermediario esencial entre software y hardware. Las system calls proporcionan servicios controlados y seguros. El SO abstrae las complejidades del hardware, permitiendo que los programadores se concentren en la lógica de sus aplicaciones. Mantiene la seguridad y estabilidad que damos por sentada.  
 
-3. **Rendimiento depende de entender la jerarquía de memoria**
-   - Localidad temporal y espacial
-   - Cache management es crítico
-   - Accesos a disco son el cuello de botella
+Tercero, el rendimiento de un sistema depende críticamente de entender la jerarquía de memoria. Los principios de localidad temporal y espacial son fundamentales para el diseño de algoritmos eficientes. La gestión de cache puede hacer la diferencia entre un sistema lento y uno rápido. Los accesos a disco son inevitablemente el cuello de botella principal en muchos sistemas.  
 
 ### Conexiones con Próximos Capítulos
 
-- **Procesos (Cap. 2)**: Los modos de operación y syscalls son fundamentales para entender cómo el SO crea y gestiona procesos
-- **Planificación (Cap. 3)**: Las interrupciones de timer permiten al SO implementar multitasking preemptivo
-- **Memoria (Caps. 7-8)**: La jerarquía de memoria y la MMU (Memory Management Unit) son la base de la gestión de memoria
+Los conceptos que hemos explorado aquí forman la base sobre la cual construiremos todo lo que sigue. En el próximo capítulo sobre Procesos, veremos cómo los modos de operación y las syscalls permiten al SO crear y gestionar la abstracción fundamental de "programa en ejecución".  
+Cuando estudiemos Planificación, las interrupciones de timer que apenas mencionamos aquí se volverán centrales: son el mecanismo que permite al SO implementar multitasking preemptivo, quitándole la CPU a un proceso que se está ejecutando para darle turno a otro.  
+
+En los capítulos sobre Gestión de Memoria, la jerarquía de memoria y la MMU (Memory Management Unit) que solo tocamos superficialmente se convertirán en protagonistas, permitiéndonos entender cómo un sistema puede hacer que múltiples procesos crean que tienen toda la memoria para ellos solos.
+
 
 ### Errores Comunes en Parciales
+Terminemos identificando algunos malentendidos frecuentes que aparecen en exámenes:
+\begin{warning}
+\textbf{Error común:} ``printf() es una syscall''
+\textbf{Realidad:} printf() es una función de biblioteca (libc) que \textit{usa} la syscall write() internamente. Esta distinción es importante: la biblioteca proporciona conveniencia (formateo de strings), mientras que la syscall proporciona funcionalidad fundamental (escribir bytes a un file descriptor).
+\end{warning}
+\begin{warning}
+\textbf{Error común:} ``Las interrupciones solo vienen del hardware''
+\textbf{Realidad:} También existen interrupciones de software (syscalls, excepciones). De hecho, las syscalls son típicamente implementadas como interrupciones de software. Las excepciones, como división por cero o acceso a memoria inválida, también son formas de interrupción.
+\end{warning}
+\begin{warning}
+\textbf{Error común:} ``El modo kernel es más rápido''
+\textbf{Realidad:} El modo kernel tiene más privilegios, no necesariamente más velocidad. De hecho, el cambio de modo usuario a kernel tiene overhead. Lo que hace que el kernel parezca rápido es que puede acceder directamente a hardware sin pasar por capas de abstracción.
+\end{warning}
 
-**"printf() es una syscall"** 
-printf() usa la syscall write() internamente
+--
 
-**"Las interrupciones solo vienen del hardware"**
-También existen interrupciones de software (syscalls, excepciones)
-
-**"El modo kernel es más rápido"**
-El modo kernel tiene más privilegios, no necesariamente más velocidad
-
-
----
-
-**Próximo Capítulo:** Procesos - donde veremos cómo el SO usa estos mecanismos fundamentales para crear la abstracción de "programa en ejecución".
+**Próximo Capítulo:** Procesos - donde veremos cómo el SO usa estos mecanismos fundamentales para crear la abstracción de "programa en ejecución", completa con su propio espacio de memoria, registros, y estado.
