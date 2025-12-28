@@ -570,6 +570,7 @@ $endfor$
 \newtcolorbox{infobox}{blockTemplate=mciBlue}
 
 \usepackage{bookmark}
+
 \IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
 \urlstyle{$if(urlstyle)$$urlstyle$$else$same$endif$}
 $if(links-as-notes)$
@@ -914,7 +915,6 @@ $else$
   \ohead*{$if(header-right)$$header-right$$else$$date$$endif$}
   \ifoot*{$if(footer-left)$$footer-left$$else$$for(author)$$author$$sep$, $endfor$$endif$}
   \cfoot*{$if(footer-center)$$footer-center$$else$$endif$}
-  \ofoot*{$if(footer-right)$$footer-right$$else$\thepage$endif$}
   \addtokomafont{pageheadfoot}{\upshape}
 }
 \pagestyle{eisvogel-header-footer}

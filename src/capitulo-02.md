@@ -790,6 +790,6 @@ Terminemos identificando algunos malentendidos frecuentes que aparecen en exáme
 \textbf{Realidad:} El modo kernel tiene más privilegios, no necesariamente más velocidad. De hecho, el cambio de modo usuario a kernel tiene overhead. Lo que hace que el kernel parezca rápido es que puede acceder directamente a hardware sin pasar por capas de abstracción.
 \end{warning}
 
---
+---
 
 **Próximo Capítulo:** Procesos - donde veremos cómo el SO usa estos mecanismos fundamentales para crear la abstracción de "programa en ejecución", completa con su propio espacio de memoria, registros, y estado.
