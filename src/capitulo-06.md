@@ -19,19 +19,18 @@ Al finalizar este capítulo, el estudiante debe ser capaz de:
 
 ### ¿Por qué necesitamos sincronización?
 
-Imaginemos un supermercado en hora pico:
+Los sistemas concurrentes son como una orquesta: múltiples instrumentos tocando simultáneamente pueden crear una sinfonía hermosa o un desastre. La diferencia está en la coordinación. En los sistemas operativos modernos, donde múltiples procesos e hilos compiten por recursos compartidos, la sincronización es el director de orquesta que mantiene todo en armonía.  
+Imaginemos un supermercado en hora pico. Tenemos 20 cajas funcionando independientemente, un empleado que debe ordenar las filas (pero solo puede estar en un lugar a la vez), un sistema de promociones que solo permite una aplicación simultánea, y clientes que llegan aleatoriamente eligiendo cajas según su conveniencia. Este escenario, aparentemente simple, está plagado de problemas potenciales de concurrencia.  
+\begin{warning}
+Sin una coordinación adecuada, pueden ocurrir los siguientes problemas:
 
-**Sin coordinación:**  
-**20 cajas** funcionando independientemente, **1 empleado** que debe ordenar las filas, pero puede estar en cualquier lugar. **1 sistema de promociones** que solo permite una aplicación a la vez, **Clientes** que llegan aleatoriamente y eligen cajas.  
+Race condition: Dos cajeros intentan usar el sistema de promociones simultáneamente, corrompiendo la base de datos  
+Starvation: Una caja siempre tiene fila larga porque el empleado nunca la atiende  
+Deadlock: El empleado espera que se libere una caja para ordenarla, pero el cajero espera que el empleado termine de ordenar para continuar  
+Inconsistencia: El contador total de ventas se pierde cuando dos cajas lo actualizan al mismo tiempo
+\end{warning}
 
-**¿Qué problemas pueden ocurrir?**
-
-1. **Race condition**: Dos cajeros intentan usar el sistema de promociones simultáneamente → se corrompe la base de datos
-2. **Starvation**: Una caja siempre tiene fila larga porque el empleado nunca la atiende
-3. **Deadlock**: El empleado espera que se libere una caja para ordenarla, pero el cajero espera que el empleado termine de ordenar para continuar
-4. **Inconsistencia**: El contador total de ventas se pierde cuando dos cajas lo actualizan al mismo tiempo
-
-### La analogía completa del supermercado
+Esta analogía del supermercado nos permite mapear conceptos abstractos de sincronización a situaciones cotidianas. Las cajas registradoras representan un array de recursos limitados, el sistema de promociones es un recurso de exclusión mutua, el empleado ordenador funciona como un recurso único móvil, y el contador de ventas ejemplifica una variable compartida crítica. Los cajeros y clientes actúan como threads que acceden concurrentemente a estos recursos, mientras que la cola de clientes por caja implementa el clásico patrón productor-consumidor.
 
 ```
 RECURSOS DEL SUPERMERCADO (Variables compartidas):
@@ -50,9 +49,8 @@ PROCESOS/HILOS:
 
 ## El Problema Fundamental: Race Conditions
 
-Una **race condition** ocurre cuando el resultado depende del orden de ejecución de operaciones concurrentes sobre datos compartidos.
-
-**Ejemplo concreto:**
+Una race condition ocurre cuando el resultado de una operación depende del orden específico de ejecución de múltiples operaciones concurrentes sobre datos compartidos. El término "race" (carrera) es apropiado: los procesos compiten entre sí, y el ganador determina el resultado final, haciendo que el comportamiento del sistema sea impredecible.  
+Consideremos un ejemplo concreto: dos cajeros actualizando el contador de ventas totales. A nivel de código de alto nivel, parece simple:
 ```c
 // Dos cajeros actualizando ventas totales
 int ventas_totales = 0;
@@ -61,7 +59,7 @@ int ventas_totales = 0;
 ventas_totales += 100;        ventas_totales += 200;
 ```
 
-**En assembly:**
+Sin embargo, lo que parece una operación atómica en C en realidad se traduce a múltiples instrucciones de lenguaje de máquina. Cuando observamos el assembly generado, vemos la verdadera complejidad:  
 ```assembly
 ; Cajero 1                    ; Cajero 2
 LOAD R1, [ventas_totales]     LOAD R2, [ventas_totales]
@@ -69,18 +67,24 @@ ADD  R1, 100                  ADD  R2, 200
 STORE [ventas_totales], R1    STORE [ventas_totales], R2
 ```
 
-**Posibles resultados:**
-- **Correcto**: ventas_totales = 300
-- **Incorrecto**: ventas_totales = 100 (se perdió la venta del cajero 2)
-- **Incorrecto**: ventas_totales = 200 (se perdió la venta del cajero 1)
+\begin{theory}
+El problema surge porque la operación $ventas\_totales += valor$ no es atómica. En realidad, consiste en tres operaciones distintas:  
+
+- Cargar el valor actual de memoria a un registro  
+- Incrementar el valor en el registro  
+- Almacenar el nuevo valor de vuelta en memoria  
+
+Si dos threads ejecutan estas operaciones intercaladamente, el resultado final puede ser incorrecto, perdiendo una o ambas actualizaciones.  
+\end{theory}
+Los resultados posibles varían desde el correcto ($ventas\_totales = 300$) hasta completamente incorrectos donde se pierde la venta de uno u otro cajero ($ventas\_totales = 100 o 200$). Esta impredecibilidad es lo que hace a las race conditions tan peligrosas y difíciles de depurar: el bug puede no manifestarse en pruebas, apareciendo solo bajo condiciones específicas de carga en producción.
 
 ## Sección Crítica y Condiciones de Bernstein
 
 ### Sección Crítica
 
-**Definición**: Porción de código que accede a recursos compartidos y debe ejecutarse atómicamente (sin interrupciones).
+Cada programa concurrente tiene porciones de código donde accede a recursos compartidos. Estas porciones se denominan secciones críticas, y deben ejecutarse de manera atómica, es decir, sin interrupciones que permitan que otro proceso acceda simultáneamente al mismo recurso.  
 
-**Estructura general:**
+La estructura general de un programa con sección crítica sigue un patrón bien definido:
 ```c
 do {
     // Protocolo de entrada
@@ -98,31 +102,27 @@ do {
 } while (true);
 ```
 
-**Requisitos para la solución:**
-
-1. **Exclusión Mutua**: Solo un proceso en sección crítica a la vez
-2. **Progreso**: Si nadie está en sección crítica, alguien debe poder entrar
-3. **Espera Acotada**: Un proceso no puede esperar indefinidamente
-4. **Sin Asumir Velocidades**: No depender de velocidades relativas de procesos
+Para que una solución al problema de la sección crítica sea correcta, debe satisfacer cuatro requisitos fundamentales. Primero, debe garantizar exclusión mutua: solo un proceso puede estar en su sección crítica a la vez. Segundo, debe asegurar progreso: si ningún proceso está en su sección crítica, la decisión de quién entrará no puede posponerse indefinidamente. Tercero, debe proporcionar espera acotada: existe un límite en el número de veces que otros procesos pueden entrar a su sección crítica antes de que un proceso en espera pueda hacerlo. Finalmente, la solución no debe asumir nada sobre las velocidades relativas de los procesos.
 
 ### Condiciones de Bernstein
 
-Para que dos procesos puedan ejecutarse concurrentemente de manera segura, deben cumplirse las **Condiciones de Bernstein**:
+Antes de aplicar mecanismos de sincronización, es útil determinar si dos procesos realmente necesitan sincronizarse. Las Condiciones de Bernstein proporcionan un criterio matemático para esta decisión.
+\begin{theory}
+Para que dos procesos P₁ y P₂ puedan ejecutarse concurrentemente de manera segura, deben cumplirse tres condiciones simultáneamente:
+Sean R₁ y R₂ los conjuntos de variables que leen los procesos respectivamente, y W₁ y W₂ los conjuntos de variables que escriben. Entonces:
+$$
+R₁ ∩ W₂ = ∅ (P₁ no lee lo que P₂ escribe)
+$$
+$$
+W₁ ∩ R₂ = ∅ (P₁ no escribe lo que P₂ lee)
+$$
+$$
+W₁ ∩ W₂ = ∅ (P₁ y P₂ no escriben las mismas variables)
+$$
+\end{theory}
 
-Sean P₁ y P₂ dos procesos con:  
-```
-- R₁, R₂: Conjuntos de variables que leen  
-- W₁, W₂: Conjuntos de variables que escriben  
-```
+Consideremos un ejemplo donde estas condiciones se violan:
 
-**Condiciones necesarias:**  
-```
-1. R₁ ∩ W₂ = (vacío) (P₁ no lee lo que P₂ escribe)  
-2. W₁ ∩ R₂ = (vacío) (P₁ no escribe lo que P₂ lee)  
-3. W₁ ∩ W₂ = (vacío) (P₁ y P₂ no escriben las mismas variables)  
-```
-
-**Ejemplo de violación:**
 ```c
 // Proceso 1: R₁ = {x}, W₁ = {y}
 y = x + 10;
@@ -131,20 +131,17 @@ y = x + 10;
 x = y * 2;
 ```
 
-**Violaciones:**
-- W₁ ∩ R₂ = {y} ≠ (vacío) (P₁ escribe y, P₂ lee y)
-- R₁ ∩ W₂ = {x} ≠ (vacío) (P₁ lee x, P₂ escribe x)
+En este caso, hay violaciones claras: $W₁ ∩ R₂ = {y}$ porque el Proceso 1 escribe y que el Proceso 2 lee, y $R₁ ∩ W₂ = {x}$ porque el Proceso 1 lee x que el Proceso 2 escribe. Por tanto, estos procesos no pueden ejecutarse concurrentemente sin sincronización, ya que el resultado dependerá del orden de ejecución.
 
-Por tanto, **NO pueden ejecutarse concurrentemente** sin sincronización.
-
-\newpage
 ## Soluciones a Nivel Software
 
 ### Evolución Histórica de las Soluciones
+La historia de la sincronización en sistemas operativos es una historia de intentos, fallas y mejoras incrementales. Cada solución fallida nos enseñó algo sobre la complejidad del problema y nos acercó a soluciones correctas.
 
 #### Primeras Aproximaciones: Variables de Control
 
-**Intento 1: Turno Simple**
+Los primeros intentos de resolver el problema de la sección crítica usaron variables compartidas simples para coordinar el acceso. Aunque intuitivos, revelaron sutilezas inesperadas.
+El primer intento, el turno simple, usaba una variable compartida que indicaba qué proceso podía entrar:
 ```c
 int turno = 1;
 
@@ -159,9 +156,9 @@ while (turno != 2);
 turno = 1;
 ```
 
-**Problema**: Viola la condición de **progreso**. Si un proceso no quiere entrar, el otro queda bloqueado permanentemente.
+Esta solución garantiza exclusión mutua: solo el proceso cuyo turno corresponde puede entrar. Sin embargo, viola gravemente la condición de progreso. Si un proceso termina de usar su sección crítica y no quiere volver a entrar inmediatamente, el otro proceso queda bloqueado indefinidamente esperando su turno, incluso si nadie más está usando el recurso. Es como tener dos personas compartiendo un baño, donde cada una solo puede usarlo en turnos estrictos, incluso si la otra persona está durmiendo.  
+El segundo intento mejoró la situación usando *flags* independientes:
 
-**Intento 2: Flags Independientes**
 ```c
 bool flag[2] = {false, false};
 
@@ -172,9 +169,8 @@ while (flag[j]);  // j = 1-i
 flag[i] = false;
 ```
 
-**Problema**: **Race condition** en el chequeo de flags. Ambos pueden ver flag[j] = false al mismo tiempo y entrar juntos.
-
-**Intento 3: Flags con Cortesía**
+Aquí, cada proceso indica su intención de entrar levantando su flag, luego verifica si el otro proceso también está interesado. El problema es una race condition clásica: ambos procesos pueden leer el flag del otro como `false` antes de que cualquiera lo establezca en `true`, resultando en que ambos entren simultáneamente a la sección crítica. La exclusión mutua se viola.  
+El tercer intento intentó ser más cortés, haciendo que los procesos cedan ante conflictos:
 ```c
 bool flag[2] = {false, false};
 
@@ -189,11 +185,13 @@ while (flag[j]) {
 flag[i] = false;
 ```
 
-**Problema**: Posible **livelock** - ambos procesos pueden quedar cediendo indefinidamente.
+\begin{warning}
+Esta solución introduce un nuevo problema: livelock. Ambos procesos pueden entrar en un ciclo donde continuamente bajan y levantan sus flags, cada uno cediendo cortésmente al otro, pero ninguno progresando nunca. Es como dos personas en un pasillo estrecho, cada una haciéndose a un lado para que pase la otra, resultando en que ambas se mueven en la misma dirección indefinidamente.
+\end{warning}
 
 ### Solución de Peterson (1981)
 
-**La primera solución correcta para 2 procesos:**
+Gary Peterson finalmente resolvió el problema en 1981 con una solución elegante que combina ideas de los intentos anteriores. La solución de Peterson es la *primera solución correcta* puramente de software para dos procesos:
 
 ```c
 bool flag[2] = {false, false};
@@ -226,26 +224,25 @@ void proceso_i() {
 }
 ```
 
-**¿Por qué funciona Peterson?**
+La brillantez de Peterson está en cómo combina el flag de intención con la cesión de turno. Cuando un proceso quiere entrar, primero levanta su flag mostrando interés, luego cede el turno al otro proceso. Solo espera si el otro proceso también está interesado y tiene el turno. Esta combinación garantiza las cuatro propiedades necesarias.  
 
-1. **Exclusión Mutua**: Si ambos procesos están en while, uno tiene turn = i y el otro turn = j. Como turn es única, solo uno puede tener turn ≠ j.
-
-2. **Progreso**: Si nadie quiere entrar (flag[j] = false), el proceso entra inmediatamente.
-
-3. **Espera Acotada**: El proceso que llegó segundo pone turn = j, garantizando que el primero entre primero.
-
-**Limitaciones de Peterson:**
-- Solo funciona para **2 procesos**
-- Requiere **busy waiting** (uso intensivo de CPU)
-- Asume **orden secuencial de memoria** (problemas en CPUs modernas)
+\begin{theory}
+La corrección de Peterson se puede demostrar formalmente:
+Exclusión Mutua: Si ambos procesos están en el while, uno debe tener turn = i y el otro turn = j. Como turn es una variable única compartida, esto es imposible. Por tanto, al menos uno saldrá del while.\\
+Progreso: Si un proceso no está interesado (flag[j] = false), el otro puede entrar inmediatamente sin importar el valor de turn.\\
+Espera Acotada: El proceso que ejecutó turn = j más recientemente cederá el turno, garantizando que el otro proceso pueda entrar después de a lo sumo una espera.
+\end{theory}
+Sin embargo, la solución de Peterson tiene limitaciones importantes. Funciona solo para dos procesos, requiere busy waiting que desperdicia ciclos de CPU, y asume orden secuencial de memoria. En procesadores modernos con reordenamiento de instrucciones y cachés múltiples, puede fallar sin barreras de memoria explícitas.
 
 ## Soluciones a Nivel Hardware
+Las limitaciones de las soluciones puramente de software llevaron al desarrollo de primitivas atómicas implementadas directamente en hardware. Estas instrucciones ejecutan múltiples operaciones como una unidad indivisible, proporcionando los bloques fundamentales para construir mecanismos de sincronización más eficientes.
 
 ### Primitivos Atómicos
 
-**Operación Atómica**: Ejecución indivisible, sin interrupciones posibles.
+Una operación atómica es aquella que se ejecuta completamente sin posibilidad de interrupción. Desde la perspectiva de otros procesos, la operación ocurre instantáneamente.
 
 #### Test-and-Set (Hardware)
+La instrucción Test-and-Set lee un valor, lo cambia a true, y retorna el valor original, todo en una operación atómica:
 ```c
 // Implementada en hardware - ATÓMICA
 bool test_and_set(bool* target) {
@@ -269,17 +266,14 @@ void release_lock() {
 }
 ```
 
-**Ventajas:**
-- Simple de implementar
-- Funciona para N procesos
-- Garantiza exclusión mutua
-
-**Desventajas:**
-- Busy waiting (desperdicia CPU)
-- No garantiza espera acotada
-- Puede causar starvation
+Este primitivo permite implementar spin locks de manera correcta. Un proceso intenta adquirir el lock repetidamente con test-and-set hasta que tiene éxito. Cuando obtiene el lock (test-and-set retorna false), puede entrar a su sección crítica. Al salir, simplemente establece el lock en false.
+\begin{infobox}
+Ventajas y desventajas de Test-and-Set
+La simplicidad de test-and-set lo hace fácil de implementar en hardware y funciona para cualquier número de procesos, garantizando exclusión mutua. Sin embargo, sufre de busy waiting: un proceso bloqueado continúa consumiendo ciclos de CPU chequeando el lock repetidamente. Además, no garantiza espera acotada, lo que puede causar starvation donde un proceso espera indefinidamente mientras otros continuamente obtienen el lock.
+\end{infobox}
 
 #### Compare-and-Swap (CAS)
+Compare-and-Swap es más flexible que test-and-set, permitiendo actualizar un valor solo si tiene un valor esperado específico:
 
 ```c
 // Más flexible que test-and-set
@@ -300,8 +294,11 @@ void atomic_increment(int* counter) {
     } while (!compare_and_swap(counter, old_value, new_value));
 }
 ```
+CAS es la base de muchas estructuras de datos lock-free modernas. En el ejemplo, incrementamos un contador atómicamente: leemos el valor actual, calculamos el nuevo valor, y usamos CAS para actualizarlo solo si no cambió entre la lectura y la actualización. Si falló (otro thread lo cambió), reintentamos.
 
 #### Fetch-and-Add
+Fetch-and-Add retorna el valor anterior de una variable y le suma un valor dado, todo atómicamente:
+
 ```c
 // Retorna valor anterior y suma atomicamente
 int fetch_and_add(int* ptr, int value) {
@@ -325,12 +322,14 @@ void ticket_release(ticket_lock_t* lock) {
     lock->turn++;  // Dar turno al siguiente
 }
 ```
+Este primitivo permite implementar ticket locks, que garantizan espera acotada similar a un sistema de turnos en un banco. Cada proceso que llega obtiene un número de ticket con fetch-and-add, luego espera hasta que su número sea el turno actual. Esto garantiza fairness: los procesos entran en el orden que llegaron.
 
 ## Soluciones del Sistema Operativo: Semáforos
+Los primitivos de hardware resolvieron el problema de la atomicidad, pero dejaron el problema del busy waiting. Los sistemas operativos necesitaban un mecanismo de más alto nivel que bloqueara procesos eficientemente en lugar de desperdiciar CPU. *Edsger Dijkstra* inventó los semáforos en 1965, revolucionando la sincronización en sistemas operativos.
 
 ### Definición y Operaciones
 
-**Semáforo**: Inventado por **Dijkstra (1965)**, es un contador entero no negativo con dos operaciones atómicas.
+Un semáforo es esencialmente un contador entero no negativo con dos operaciones atómicas. A diferencia de los spin locks, un semáforo puede bloquear un proceso, poniéndolo a dormir hasta que el recurso esté disponible.
 
 ```c
 typedef struct {
@@ -358,14 +357,23 @@ void sem_post(semaphore_t* sem) {
     }
 }
 ```
+La operación `sem_wait()` (también llamada P, por el holandés "proberen" = probar) decrementa el contador. Si el resultado es negativo, el proceso se bloquea y se agrega a una cola de espera. La operación `sem_post()` (también llamada V, por "verhogen" = incrementar) incrementa el contador. Si hay procesos esperando (valor ≤ 0), despierta uno de ellos.
+\begin{theory}
+La semántica del valor del semáforo es crucial para entender su funcionamiento:\\
+
+- Valor positivo: número de recursos disponibles\\
+- Valor cero: no hay recursos disponibles, pero tampoco procesos esperando\\
+- Valor negativo: su valor absoluto indica el número de procesos esperando\\
+
+Esta interpretación explica por qué post despierta un proceso cuando el valor es ≤ 0: un valor no positivo implica que hay procesos bloqueados esperando el recurso.
+\end{theory}
 
 ### Tipos de Semáforos
+Los semáforos vienen en dos variedades principales, cada una optimizada para casos de uso específicos.
 
 #### Semáforo Binario (Mutex)
 
-**Valores posibles**: 0 o 1
-- **1**: Recurso disponible
-- **0**: Recurso ocupado
+Un semáforo binario, también llamado mutex (mutual exclusion), solo puede tener valores 0 o 1. Se usa principalmente para proteger secciones críticas:
 
 ```c
 semaphore_t mutex;
@@ -380,12 +388,11 @@ void critical_section() {
     sem_post(&mutex);   // V(mutex) - Liberar exclusión mutua
 }
 ```
+Cuando el mutex vale 1, el recurso está disponible. El primer proceso que ejecuta `sem_wait()` decrementa el mutex a 0 y entra. Cualquier otro proceso que intente entrar se bloquea hasta que el primer proceso ejecute `sem_post()`, incrementando el mutex de vuelta a 1.
 
 #### Semáforo Contador
 
-**Valores posibles**: 0 a N
-- **N**: Máximo número de recursos disponibles
-- **0**: Todos los recursos ocupados
+Un semáforo contador puede tener cualquier valor no negativo, representando múltiples instancias de un recurso:
 
 ```c
 #define POOL_SIZE 5
@@ -401,10 +408,13 @@ void use_connection() {
     sem_post(&connection_pool);  // Liberar conexión
 }
 ```
+Este patrón es ideal para administrar pools de recursos limitados. Un servidor web con 5 conexiones de base de datos usa un semáforo inicializado en 5. Cada cliente que obtiene una conexión ejecuta `sem_wait()`, decrementando el contador. Cuando las 5 conexiones están en uso, nuevos clientes se bloquean hasta que alguien libere una conexión con `sem_post()`.
 
 ### Usos Principales de Semáforos
 
-#### Exclusión Mutua
+Los semáforos son herramientas versátiles que pueden resolver múltiples problemas de sincronización. Veamos sus patrones de uso más comunes.  
+Para *exclusión mutua*, un semáforo binario inicializado en 1 protege la sección crítica:
+
 ```c
 semaphore_t mutex = 1;
 
@@ -415,7 +425,8 @@ void proceso() {
 }
 ```
 
-#### Limitar Acceso a N Instancias
+Para *limitar acceso a N instancias* de un recurso, un semáforo contador inicializado en N controla cuántos procesos pueden usar el recurso simultáneamente:
+
 ```c
 semaphore_t recursos = N;
 
@@ -426,7 +437,8 @@ void usar_recurso() {
 }
 ```
 
-#### Ordenar Ejecución (Sincronización)
+Para *ordenar ejecución entre procesos*, un semáforo inicializado en 0 actúa como señal de sincronización:
+
 ```c
 semaphore_t sincronizacion = 0;
 
@@ -443,7 +455,9 @@ void proceso_B() {
 }
 ```
 
-#### Problema Productor-Consumidor
+Aquí, el proceso B no puede comenzar hasta que A termine. El semáforo en 0 garantiza que B se bloqueará en wait hasta que A señale completitud con post.  
+
+El patrón más complejo y útil es el problema *productor-consumidor*, que requiere tres semáforos trabajando en conjunto:
 ```c
 #define BUFFER_SIZE 10
 
@@ -480,15 +494,21 @@ void consumidor() {
     }
 }
 ```
+\begin{example}
+En este patrón, \texttt{empty} cuenta espacios vacíos disponibles (inicia en BUFFER\_SIZE), full cuenta elementos disponibles para consumir (inicia en 0), y \texttt{mutex} protege el acceso al buffer compartido (inicia en 1).
+El productor primero espera un espacio vacío (wait empty), luego obtiene exclusión mutua (wait mutex), agrega su elemento, libera el mutex (post mutex), y finalmente señala un nuevo elemento disponible (post full).
+El consumidor hace lo inverso: espera un elemento (wait full), obtiene el mutex (wait mutex), extrae el elemento, libera el mutex (post mutex), y señala un espacio vacío (post empty).
+El orden de las operaciones es crítico. Si el productor obtuviera el mutex antes de verificar empty, podría quedarse bloqueado sosteniendo el mutex, impidiendo que el consumidor libere espacio, causando deadlock.
+\end{example}
 
 ## Ejemplo Práctico: Control de Cochera
+Ahora que entendemos los semáforos, apliquémoslos a un problema realista. Vamos a diseñar el sistema de control para una cochera automatizada, un escenario que involucra múltiples recursos compartidos y diferentes patrones de sincronización.
 
 ### Planteamiento del Problema
 
-Una cochera tiene:
-- **20 espacios** para autos **1 entrada** (con barrera), **2 salidas** (con barreras) y un **Sistema de control** que debe llevar cuenta de espacios ocupados
+Una cochera tienev**20 espacios** para autos, **1 entrada** (con barrera), **2 salidas** (con barreras) y un **Sistema de control** que debe llevar cuenta de espacios ocupados.
 
-**Requerimientos:**
+*Requerimientos:*
 1. No permitir entrada si cochera está llena
 2. Controlar acceso exclusivo a entrada y salidas
 3. Mantener contador preciso de autos
@@ -623,7 +643,7 @@ void* auto_saliendo(void* arg) {
 void mostrar_estadisticas() {
     sem_wait(&cochera.mutex_contador);
     
-    printf("\n📈 ESTADÍSTICAS DE LA COCHERA:\n");
+    printf("\n ESTADÍSTICAS DE LA COCHERA:\n");
     printf("   - Autos dentro: %d/%d\n", cochera.autos_dentro, CAPACIDAD_COCHERA);
     printf("   - Total entradas: %d\n", cochera.total_entradas);
     printf("   - Total salidas: %d\n", cochera.total_salidas);
@@ -685,15 +705,21 @@ int main() {
     return 0;
 }
 ```
+La solución usa cinco semáforos coordinados. `espacios_disponibles` es un semáforo contador inicializado en 20 que representa los espacios libres. Cuando un auto quiere entrar, primero ejecuta wait en este semáforo, bloqueándose si la cochera está llena. Los tres mutex (`mutex_entrada`, `mutex_salida1`, `mutex_salida2`) garantizan acceso exclusivo a cada barrera. Finalmente, `mutex_contador` protege las variables de estadísticas compartidas.  
+
+La función `auto_entrando()` sigue un protocolo cuidadoso. Primero espera un espacio disponible (wait espacios_disponibles), lo que garantiza que solo entre si hay lugar. Luego obtiene acceso exclusivo a la entrada (wait mutex_entrada), simula el proceso de entrada, actualiza el contador de manera thread-safe, y libera la entrada (post mutex_entrada) para el siguiente auto. Notar que el auto retiene su espacio reservado (no hace post en espacios_disponibles) porque está ocupando ese espacio.  
+
+La función `auto_saliendo()` implementa load balancing simple eligiendo aleatoriamente entre las dos salidas. Obtiene acceso exclusivo a la salida elegida (wait mutex_salida), procesa la salida, actualiza el contador, libera la salida (post mutex_salida), y crucialmente, señala que hay un espacio más disponible (post espacios_disponibles). Este último post es fundamental: permite que autos esperando en la entrada puedan proceder.
+\begin{infobox}
+El orden de las operaciones en \texttt{auto\_entrando()} previene deadlock. Si esperáramos el mutex\_entrada antes de verificar espacios\_disponibles, un auto podría obtener acceso a la entrada pero luego bloquearse esperando espacio, manteniendo el mutex y bloqueando todos los demás autos indefinidamente.
+\end{infobox}
 
 ## Uso de Arrays de Semáforos
+A medida que los sistemas se vuelven más complejos, a menudo necesitamos múltiples recursos del mismo tipo pero con características ligeramente diferentes. Los arrays de semáforos permiten modelar estos escenarios de manera elegante.
 
 ### Problema: Múltiples Recursos del Mismo Tipo
 
-Consideremos un servidor web con **pool de workers**:
-- 10 threads worker disponibles
-- Cada request necesita exactamente 1 worker
-- Algunos requests requieren workers específicos (por expertise)
+Consideremos un servidor web con un pool de 10 threads worker, donde cada request necesita exactamente un worker. Sin embargo, algunos requests requieren workers especializados: algunos workers son expertos en consultas de base de datos, otros en procesamiento de imágenes, otros en llamadas API. Necesitamos un mecanismo para asignar el worker correcto a cada tipo de request.
 
 ```c
 #define NUM_WORKERS 10
@@ -795,9 +821,12 @@ void* procesar_request(void* arg) {
     return NULL;
 }
 ```
-
+En esta implementación, usamos un array de semáforos workers[4] donde cada elemento representa un tipo diferente de worker. Los semáforos se inicializan según la distribución: 4 workers generales, 3 especializados en bases de datos, 2 en procesamiento de imágenes, y 1 en APIs.  
+Cuando llega un request, primero ejecuta wait en el semáforo correspondiente al tipo de worker que necesita. Esto garantiza que solo procederá si hay un worker de ese tipo disponible. Luego busca el worker específico dentro de ese tipo, usa mutex individuales por worker para evitar race conditions en la asignación, y marca el worker como ocupado.  
+Este patrón permite balanceo de carga automático: requests de diferentes tipos no compiten entre sí por workers, pero requests del mismo tipo se encolan apropiadamente. Si todos los workers de base de datos están ocupados, nuevos requests de DB se bloquean sin afectar requests de procesamiento de imágenes que puedan usar sus workers especializados.
 
 ### Problema Clásico: Productor-Consumidor
+El problema productor-consumidor es uno de los problemas de sincronización más estudiados en sistemas operativos. Aparece en casi cualquier sistema que procese datos asincrónicamente: pipelines de procesamiento, sistemas de mensajería, buffers de red, colas de impresión, y más.
 
 ```c
 #include <stdio.h>
@@ -970,8 +999,16 @@ int main() {
     return 0;
 }
 ```
+Notar como en esta solución tres semáforos trabajan juntos para garantizar corrección. El semáforo `empty` (inicializado en BUFFER_SIZE) cuenta espacios vacíos disponibles, `full` (inicializado en 0) cuenta elementos listos para consumir, y `mutex` (inicializado en 1) protege el acceso concurrente al buffer.  
+El productor sigue un protocolo de cuatro pasos. Primero, espera un espacio vacío (wait empty), bloqueándose si el buffer está lleno. Segundo, obtiene exclusión mutua (lock mutex) para acceder al buffer de manera segura. Tercero, inserta el elemento en el buffer circular, actualiza el índice `in` con aritmética módulo para wrap-around, e incrementa las estadísticas. Cuarto, libera el mutex (unlock mutex) y señala un elemento disponible (post full) para despertar consumidores en espera.  
+El consumidor ejecuta el protocolo inverso: espera un elemento (wait full), obtiene el mutex, extrae el elemento actualizando el índice out, libera el mutex, y señala un espacio vacío (post empty). Este último paso es crucial: permite que productores bloqueados puedan continuar agregando elementos.
+\begin{warning}
+El orden de las operaciones de semáforos es crítico para evitar deadlock. El productor debe verificar empty antes de obtener el mutex. Si obtuviera el mutex primero, podría bloquearse esperando espacio mientras sostiene el mutex, impidiendo que el consumidor libere espacio. Similarmente, el consumidor debe verificar full antes del mutex.
+La regla general: siempre esperar semáforos de recursos (empty, full) antes de obtener mutex de exclusión mutua.
+\end{warning}
 
 ### Problema Lectores-Escritores
+El problema lectores-escritores modela situaciones donde múltiples threads quieren leer un recurso compartido, pero las escrituras requieren acceso exclusivo. Bases de datos, cachés, y estructuras de datos compartidas enfrentan este desafío.
 
 ```c
 #include <stdio.h>
@@ -1157,19 +1194,23 @@ int main() {
 }
 ```
 
+La solución permite múltiples lectores simultáneos (ya que leer no modifica datos), pero garantiza que escritores tengan acceso exclusivo. El `write_lock` semáforo controla el acceso exclusivo: un escritor esperando en este semáforo bloquea tanto a otros escritores como eventualmente a nuevos lectores.  
+
+El protocolo de lectores es sofisticado. Cuando un lector quiere entrar, obtiene el mutex que protege `reader_count`, incrementa el contador, y si es el primer lector (count == 1), ejecuta wait en `write_lock` para bloquear escritores. Libera el mutex rápidamente para permitir que otros lectores entren concurrentemente. Múltiples lectores pueden estar leyendo simultáneamente porque solo el primero esperó el `write_lock`.  
+
+Al salir, el lector nuevamente obtiene el mutex, decrementa el contador, y si es el último lector (count == 0), ejecuta post en `write_lock` para permitir que escritores procedan. Este diseño garantiza que escritores esperan hasta que todos los lectores terminen.  
+
+Los escritores tienen un protocolo más simple: simplemente esperan acceso exclusivo (wait `write_lock`), realizan su escritura, y liberan (post `write_lock`). El semáforo garantiza que solo un escritor puede estar activo, y que escritores esperan hasta que todos los lectores salgan.
+\begin{infobox}
+Esta solución favorece a los lectores: mientras lleguen lectores nuevos, los escritores esperarán indefinidamente (starvation de escritores). Existen variantes que dan prioridad a escritores o implementan fairness, cada una con diferentes trade-offs. La elección depende del patrón de acceso esperado: sistemas con lecturas frecuentes y escrituras raras favorecen esta implementación, mientras sistemas con muchas escrituras necesitan variantes con prioridad de escritor.
+\end{infobox}
+
 ## Síntesis
+Hemos recorrido un largo camino desde las race conditions hasta soluciones sofisticadas con semáforos. La sincronización es fundamental en sistemas modernos: sin ella, el multithreading y la concurrencia simplemente no funcionarían de manera confiable.  
 
-### Puntos Clave
+Los puntos clave que debemos recordar son que las race conditions son la causa raíz de la mayoría de los bugs en programas concurrentes, difíciles de reproducir y depurar porque dependen del timing. La sección crítica debe protegerse con primitivas de sincronización apropiadas, eligiendo la herramienta correcta para cada problema. Los semáforos emergieron como la herramienta más versátil, permitiendo exclusión mutua, limitación de recursos, y sincronización de eventos con un único mecanismo. Finalmente, el overhead de sincronización debe balancearse cuidadosamente con las necesidades de concurrencia: demasiada sincronización serializa el programa innecesariamente, muy poca causa race conditions.  
 
-1. **Race Conditions** son la causa fundamental de bugs en programas concurrentes
-2. **Sección Crítica** debe protegerse con primitivas de sincronización
-3. **Semáforos** son la herramienta más versátil para sincronización
-5. **Overhead** de sincronización debe balancearse con necesidades de concurrencia
+La sincronización conecta con prácticamente todos los temas del sistema operativo. El scheduling interactúa con sincronización cuando procesos bloqueados en semáforos van a colas de espera, cambiando su estado de running a blocked. El deadlock puede prevenirse con diseño cuidadoso del orden de adquisición de recursos, tema que exploraremos en profundidad en el próximo capítulo. Memory management requiere sincronización para mantener coherencia de caché cuando múltiples cores acceden a memoria compartida. Los sistemas de archivos usan sincronización para controlar acceso concurrente a archivos y directorios. Finalmente, las redes requieren sincronización tanto a nivel local (acceso a sockets) como en sistemas distribuidos donde procesos en diferentes máquinas deben coordinarse.  
 
-### Conexiones con Otros Temas
+Con este fundamento sólido en sincronización, estamos preparados para enfrentar el próximo gran desafío: detectar, prevenir y recuperarnos de deadlocks, donde la sincronización mal aplicada puede llevar al sistema a un estado de bloqueo permanente.
 
-- **Scheduling**: Los procesos bloqueados en semáforos van a cola de espera
-- **Deadlock** puede prevenirse con diseño cuidadoso del orden de recursos
-- **Memory Management**: Variables compartidas requieren coherencia de cache
-- **File Systems**: Control de concurrencia en acceso a archivos
-- **Networks**: Sincronización en sistemas distribuidos
