@@ -841,7 +841,7 @@ Hemos recorrido un camino desde los conceptos fundamentales de hilos hasta imple
 
 La distinción entre ULT y KLT no es meramente académica: representa diferentes trade-offs fundamentales en el diseño de sistemas. Los ULT ofrecen eficiencia extrema a costa de paralelismo, mientras los KLT sacrifican algo de eficiencia para ganar paralelismo real y mejor integración con el sistema operativo. El modelo M:N intenta lo mejor de ambos mundos pero añade complejidad significativa.
 La problemática de planificación mixta, ilustrada en nuestro ejercicio detallado, revela cómo los hilos ULT están fundamentalmente limitados por el quantum asignado a su KLT contenedor. Este constraint debe considerarse cuidadosamente al diseñar sistemas que mezclan ambos tipos de hilos.
-Las APIs de pthreads proporcionan los building blocks para programación concurrente, pero usar estos bloques correctamente requiere entender profundamente el modelo de memoria compartida y los peligros de las race conditions. El ciclo completo `create → join/detach` y la gestión cuidadosa de la sincronización no son opcionales sino absolutamente esenciales para código correcto.
+Las APIs de pthreads proporcionan los building blocks para programación concurrente, pero usar estos bloques correctamente requiere entender profundamente el modelo de memoria compartida y los peligros de las race conditions. El ciclo completo `create -> join/detach` y la gestión cuidadosa de la sincronización no son opcionales sino absolutamente esenciales para código correcto.
 
 ### Errores conceptuales frecuentes
 
