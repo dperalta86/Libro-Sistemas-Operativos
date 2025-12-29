@@ -26,23 +26,24 @@ Este libro surge de la necesidad de contar con material didáctico específico p
 - [x] **Capítulo 5**: Sincronización
 - [x] **Capítulo 6**: Interbloqueo (Deadlock)
 - [x] **Capítulo 7**: Gestión de Memoria Real
+- [x] **Capítulo 8**: Memoria Virtual
 
 ### En desarrollo
 
-- [ ] **Capítulo 8**: Memoria Virtual
 - [ ] **Capítulo 9**: Sistema de Archivos
 
 
 ### Leer online
 
 Puedes leer los capítulos individuales directamente en GitHub:
-- [Capítulo 1: Introducción](src/capitulo-00.md)
-- [Capítulo 2: Repaso Arquitectura de Computadores](src/capitulo-01.md)
-- [Capítulo 3: Procesos](src/capitulo-02.md)
-- [Capítulo 4: Planificación](src/capitulo-03.md)
-- [Capítulo 5: Hilos](src/capitulo-04.md)
-- [Capítulo 6: Sincronización](src/capitulo-05.md)
-- [Capítulo 7: Memoria Real](src/capitulo-06.md)
+- [Capítulo 1: Introducción](src/capitulo-01.md)
+- [Capítulo 2: Repaso Arquitectura de Computadores](src/capitulo-02.md)
+- [Capítulo 3: Procesos](src/capitulo-03.md)
+- [Capítulo 4: Planificación](src/capitulo-04.md)
+- [Capítulo 5: Hilos](src/capitulo-05.md)
+- [Capítulo 6: Sincronización](src/capitulo-06.md)
+- [Capítulo 7: Memoria Real](src/capitulo-07.md)
+- [Capítulo 8: Memoria Virtual](src/capitulo-08.md)
 
 ## 🔧 Compilación local
 
