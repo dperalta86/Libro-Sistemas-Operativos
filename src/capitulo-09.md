@@ -2318,7 +2318,7 @@ Uno de los file systems más avanzados, diseñado para servidores enterprise.
 
 20. **Fragmentación interna promedio:**
     ```
-    ≈ tamaño_bloque / 2 por archivo
+    aprox tamaño_bloque / 2 por archivo
     ```
 
 ## Preparación para Parcial
