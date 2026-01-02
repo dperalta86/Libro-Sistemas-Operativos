@@ -570,7 +570,7 @@ Habiendo explorado los fundamentos técnicos, consideremos ahora cuándo usar ca
 |-----------|-----|-----|---------|
 | Creación | 1-10 μs | 50-200 μs | 1-10 ms |
 | Context Switch | 0.1-1 μs | 5-50 μs | 100-1000 μs |
-| Memoria por entidad | 2-8 KB | 8-16 KB | 4-8 MB |
+| Memoria por entidad | 2-8 KiB | 8-16 KiB | 4-8 MiB |
 | Sincronización | Variables | Mutex/Sem | IPC |
 
 Estas métricas revelan que los ULT son 50-100x más rápidos que los KLT para context switch, y los KLT son 10-20x más rápidos que los procesos. Sin embargo, recordemos que velocidad no es el único criterio: el paralelismo real en multicore frecuentemente vale más que la velocidad de context switch.

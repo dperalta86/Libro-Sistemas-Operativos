@@ -4,32 +4,32 @@ Bienvenido a **Introducción a los Sistemas Operativos**, un libro colaborativo 
 
 ## ¿Qué vas a encontrar en este libro?
 
-Este no es otro "manual básico" de sistemas operativos. Es un material didáctico creado con un enfoque práctico que busca conectar la teoría rigurosa con la implementación real. A lo largo de estos capítulos, vas a encontrar conceptos explicados desde lo concreto hacia lo abstracto, porque creemos que es más fácil entender una abstracción cuando primero viste cómo funciona en la práctica.
+Este no es otro "manual básico" de sistemas operativos. Es un material didáctico creado con un enfoque práctico que busca conectar la teoría rigurosa con la implementación real. A lo largo de estos capítulos, vas a encontrar conceptos explicados desde lo concreto hacia lo abstracto, porque siempre es más fácil entender una abstracción cuando primero viste cómo funciona en la práctica.
 
-El libro combina rigor académico sin caer en complejidad innecesaria. Cada definición teórica viene acompañada de ejemplos reales, y las conexiones entre teoría y práctica están explícitamente señaladas. No asumimos que "ya lo sabés" ni que "es obvio", porque sabemos que estos temas son densos y merecen explicaciones claras.
+El libro combina rigor académico sin caer en complejidad innecesaria. Cada definición teórica viene acompañada de ejemplos reales, y las conexiones entre teoría y práctica están explícitamente señaladas. El principal enfoque es NO asumimir que "ya lo sabés" ni que "es obvio", creo que estos temas son densos y merecen explicaciones claras.
 
-Vas a encontrar código C funcional y comentado en detalle. No son pseudocódigos ni ejemplos simplificados que "casi funcionan". Son implementaciones reales que podés compilar, ejecutar y experimentar. Las syscalls de Unix/Linux están explicadas línea por línea, porque creemos que la mejor forma de entender un sistema operativo es viendo cómo se programa contra él.
+Vas a encontrar código C funcional y comentado en detalle. No son pseudocódigos ni ejemplos simplificados que "casi funcionan". Son implementaciones reales que podés compilar, ejecutar y experimentar. Las syscalls de Unix/Linux están explicadas línea por línea.
 
 \begin{infobox}
-Este libro también incluye preparación específica para evaluaciones. Los ejercicios tipo parcial están resueltos paso a paso, con casos de estudio basados en evaluaciones reales. Además, señalamos explícitamente los errores comunes que la cátedra ha identificado en años anteriores.
+Este libro también incluye preparación específica para evaluaciones. Los ejercicios tipo parcial están resueltos paso a paso, con casos de estudio basados en evaluaciones reales. Además, se marcan explícitamente los errores comunes que se suelen cometer.
 \end{infobox}
 
 El enfoque es iterativo y conectado: cada capítulo se construye sobre los anteriores y prepara el terreno para los siguientes. Al final de cada tema, hay síntesis que te ayudan a conectar lo que acabás de aprender con lo que viene. La idea es que desarrolles una visión integral del sistema operativo como un todo coherente, no como una colección de temas inconexos.
 
 ## Metodología de Estudio Sugerida
 
-Cada capítulo está estructurado de forma deliberada para maximizar tu aprendizaje. Te recomendamos seguir este flujo:
+Cada capítulo está estructurado de forma deliberada para maximizar tu aprendizaje. Idealmente deberías seguir este flujo:
 
 Comenzá leyendo los objetivos del capítulo para saber exactamente qué vas a aprender y por qué es importante. Después, entrá al contexto: entender por qué existe un tema, qué problema resuelve, es fundamental para que los detalles técnicos tengan sentido.
 
 Una vez que tenés el panorama general, dominá los conceptos con la base teórica sólida que presentamos. No saltes esta parte pensando que "ya después lo entendés con el código". La teoría te da el marco conceptual que hace que el código sea comprensible.
 
-Luego analizá la técnica: cómo se implementa realmente lo que acabás de aprender en teoría. Acá es donde conectamos conceptos abstractos con decisiones concretas de implementación. Después, programá y experimentá con el código funcional que proporcionamos. No te limites a leerlo; modificalo, rompelo, arreglalo. Esa experimentación activa es donde realmente se consolida el aprendizaje.
+Luego analizá la técnica: cómo se implementa realmente lo que acabás de aprender en teoría. Acá es donde conectamos conceptos abstractos con decisiones concretas de implementación. Después, programá y experimentá con el código de ejemplo. No te limites a leerlo; modificalo, rompelo, arreglalo. Esa experimentación activa es donde realmente se consolida el aprendizaje.
 
-Finalmente, practicá con casos reales usando los ejercicios tipo parcial que incluimos, y hacé la síntesis final integrando todo con el panorama completo del sistema operativo.
+Finalmente, practicá con casos reales resolviendo ejercicios tipo parcial, y hacé la síntesis final integrando todo con el panorama completo del sistema operativo.
 
 \begin{excerpt}
-\textbt{Licencia y Filosofía Colaborativa}
+Licencia y Filosofía Colaborativa
 Este libro se distribuye bajo Creative Commons BY-SA 4.0, lo que significa que es libre de usar, modificar y redistribuir. Es un proyecto creado dentro de la comunidad académica para la comunidad académica. Podés reutilizarlo, modificarlo, distribuirlo sin ningún problema de copyright. Encontrá el detalle de la licencia en: https://creativecommons.org/licenses/by-sa/4.0/
 \end{excerpt}
 
@@ -60,7 +60,7 @@ La gestión de memoria no es trivial: involucra crear abstracciones que hagan qu
 El tercer pilar es la **gestión de almacenamiento**. Desde guardar un documento hasta instalar un programa, el sistema operativo debe organizar información en dispositivos permanentes como discos duros o SSDs. Pero no solo eso: debe crear abstracciones útiles como "archivos" y "directorios", garantizar la integridad de los datos ante fallos de energía o errores de hardware, y proporcionar mecanismos de control de acceso para que no cualquiera pueda leer tus archivos privados.
 
 \begin{example}
-Cuando guardás un archivo de texto de 1KB, el sistema operativo decide en qué sectores del disco físico va a almacenarlo, actualiza las estructuras de metadatos que permiten encontrarlo después, potencialmente lo fragmenta si no hay espacio contiguo, mantiene una caché en memoria para accesos rápidos, y registra toda la operación para poder recuperarse si hay un fallo.
+Cuando guardás un archivo de texto de 1KiB, el sistema operativo decide en qué sectores del disco físico va a almacenarlo, actualiza las estructuras de metadatos que permiten encontrarlo después, potencialmente lo fragmenta si no hay espacio contiguo, mantiene una caché en memoria para accesos rápidos, y registra toda la operación para poder recuperarse si hay un fallo.
 \end{example}
 
 El cuarto pilar es la **gestión de E/S y comunicación**. Tu computadora tiene una increíble diversidad de dispositivos: teclado, mouse, pantalla, red, impresora, cámara, micrófonos. Cada uno funciona de manera diferente, con protocolos distintos y velocidades que varían por órdenes de magnitud. El sistema operativo debe manejar esta heterogeneidad y proporcionar interfaces uniformes que permitan a los programas comunicarse con estos dispositivos sin conocer los detalles de bajo nivel de cada uno.

@@ -27,7 +27,7 @@ El subsistema de I/O es uno de los componentes más complejos de un sistema oper
 \textcolor{red!60!gray}{\textbf{Complejidad del I/O:}\\
 - Enorme variedad de dispositivos: discos, teclados, impresoras, tarjetas de red, GPUs, sensores\\
 - Cada dispositivo tiene interfaces y protocolos diferentes\\
-- Rangos de velocidad extremadamente amplios: teclado (10 bytes/seg) vs SSD NVMe (7 GB/seg)\\
+- Rangos de velocidad extremadamente amplios: teclado (10 bytes/seg) vs SSD NVMe (7 GiB/seg)\\
 - Necesidad de sincronización entre CPU y dispositivos lentos\\
 - Confiabilidad crítica: pérdida de datos en disco es catastrófica\\
 - Compatibilidad: drivers para múltiples dispositivos y versiones\\
@@ -39,11 +39,11 @@ Dispositivo         Velocidad típica      Características
 ---------------------------------------------------------
 Teclado             10-100 bytes/seg      Interactivo, impredecible
 Mouse               100 bytes/seg         Interactivo, streams
-Disco HDD           100-200 MB/seg        Bloques, latencia alta
-SSD SATA            500-600 MB/seg        Bloques, latencia media
-SSD NVMe            3-7 GB/seg            Bloques, latencia baja
+Disco HDD           100-200 MiB/seg        Bloques, latencia alta
+SSD SATA            500-600 MiB/seg        Bloques, latencia media
+SSD NVMe            3-7 GiB/seg            Bloques, latencia baja
 Tarjeta de red      100 Mbps - 100 Gbps   Paquetes, tiempo real
-GPU                 100+ GB/seg           Paralelo masivo
+GPU                 100+ GiB/seg           Paralelo masivo
 ```
 
 ### Objetivos del Subsistema de I/O
@@ -505,15 +505,15 @@ La latencia rotacional NO se puede mejorar con algoritmos de scheduling. Es una 
 T_transferencia = (bytes a transferir) / (tasa de transferencia)
 
 Tasa de transferencia típica:
-- HDD interno SATA: 100 - 200 MB/s
-- HDD externo USB 3.0: 80 - 120 MB/s
-- SSD SATA: 500 - 600 MB/s
-- SSD NVMe: 3000 - 7000 MB/s
+- HDD interno SATA: 100 - 200 MiB/s
+- HDD externo USB 3.0: 80 - 120 MiB/s
+- SSD SATA: 500 - 600 MiB/s
+- SSD NVMe: 3000 - 7000 MiB/s
 ```
 
 **Ejemplo de cálculo:**
 
-Transferir 4 KiB (un bloque) en HDD a 150 MB/s:
+Transferir 4 KiB (un bloque) en HDD a 150 MiB/s:
 ```
 T_transferencia = 4096 bytes / (150 × 10^6 bytes/seg)
                 = 0.0000273 seg
@@ -529,7 +529,7 @@ T_transferencia = 4096 bytes / (150 × 10^6 bytes/seg)
 Se tiene un disco duro con las siguientes características:
 - Velocidad de rotación: 7200 RPM
 - Seek time promedio: 9 ms
-- Tasa de transferencia: 150 MB/s
+- Tasa de transferencia: 150 MiB/s
 - Tamaño de sector: 4 KiB
 
 Calcular el tiempo total para leer:
@@ -1056,8 +1056,8 @@ Rendimiento lectura/escritura = N × velocidad_disco
 ```
 
 **Ejemplo:**
-- 4 discos de 1 TB cada uno
-- Capacidad útil: 4 TB
+- 4 discos de 1 TiB cada uno
+- Capacidad útil: 4 TiB
 - Si 1 disco falla: pérdida total
 
 **Uso:** Aplicaciones que requieren máximo rendimiento y tienen backups externos (edición de video, caches)
@@ -1093,8 +1093,8 @@ Tolerancia a fallos = N/2 discos pueden fallar
 ```
 
 **Ejemplo:**
-- 2 discos de 1 TB cada uno
-- Capacidad útil: 1 TB
+- 2 discos de 1 TiB cada uno
+- Capacidad útil: 1 TiB
 - Si 1 disco falla: datos siguen accesibles
 
 **Uso:** Datos críticos (bases de datos, servidores), donde la confiabilidad es prioritaria
@@ -1198,9 +1198,9 @@ Tolerancia a fallos = 1 disco
 ```
 
 **Ejemplo:**
-- 4 discos de 1 TB cada uno
-- Capacidad útil: 3 TB (75%)
-- Espacio de paridad: 1 TB
+- 4 discos de 1 TiB cada uno
+- Capacidad útil: 3 TiB (75%)
+- Espacio de paridad: 1 TiB
 - Si 1 disco falla: datos recuperables
 - Si 2 discos fallan: pérdida total
 
@@ -1588,8 +1588,8 @@ close(fd);
 
 16. **Propiedad XOR para recuperación:**
     ```
-    Si A ⊕ B ⊕ C = Paridad
-    Entonces: A = B ⊕ C ⊕ Paridad
+    Si A XOR B XOR C = Paridad
+    Entonces: A = B XOR C XOR Paridad
     ```
 
 ### Software de I/O
@@ -1685,43 +1685,43 @@ Movimiento = |A-B| + |B-C| + |C-D| + ...
 
 ### Errores Comunes a Evitar
 
-❌ **Error 1:** Confundir seek time con latencia rotacional
+- Confundir seek time con latencia rotacional
 ```
 Seek = movimiento del brazo (cambia cilindros)
 Rotacional = espera a que pase el sector (fijo por RPM)
 ```
 
-❌ **Error 2:** En SCAN/C-SCAN, olvidar ir hasta el extremo
+- En SCAN/C-SCAN, olvidar ir hasta el extremo
 ```
 SCAN va hasta 199 (o 0), no hasta última solicitud
 LOOK va solo hasta última solicitud
 ```
 
-❌ **Error 3:** En C-SCAN/C-LOOK, no contar el salto al inicio
+- En C-SCAN/C-LOOK, no contar el salto al inicio
 ```
 C-SCAN: movimiento incluye |MAX-pos| + |MAX-0| + |primera_solicitud-0|
 El salto de MAX a 0 SÍ cuenta como movimiento
 ```
 
-❌ **Error 4:** Calcular mal capacidad en RAID 5
+- Calcular mal capacidad en RAID 5
 ```
 Correcto: (N-1) × C
 Incorrecto: N × C (olvidan el disco de paridad)
 ```
 
-❌ **Error 5:** Confundir buffer con cache
+- Confundir buffer con cache
 ```
 Buffer: temporal durante transferencia (tránsito)
 Cache: copia para acceso rápido (duplicado)
 ```
 
-❌ **Error 6:** No considerar que DMA usa cycle stealing
+- No considerar que DMA usa cycle stealing
 ```
 DMA "roba" ciclos del bus periódicamente
 CPU puede ralentizarse ligeramente (pero sigue siendo mejor que interrupciones)
 ```
 
-❌ **Error 7:** Pensar que SSTF es siempre óptimo
+- Pensar que SSTF es siempre óptimo
 ```
 SSTF puede causar starvation
 LOOK/C-LOOK son mejor balance en la práctica
@@ -1834,7 +1834,7 @@ Aplicación llama read(fd, buf, 4096):
 
 ### Ejercicio 2: Tiempos de Acceso
 
-**Pregunta:** Disco de 10000 RPM, seek promedio 6 ms, transferencia 200 MB/s. Calcular tiempo para leer 100 sectores de 512 bytes:
+**Pregunta:** Disco de 10000 RPM, seek promedio 6 ms, transferencia 200 MiB/s. Calcular tiempo para leer 100 sectores de 512 bytes:
 
 a) Consecutivos en la misma pista
 b) Dispersos aleatoriamente
@@ -1854,7 +1854,7 @@ b) Dispersos:
 
 ### Ejercicio 3: RAID Capacity
 
-**Pregunta:** Tienes 6 discos de 2 TB cada uno. Calcular capacidad útil para:
+**Pregunta:** Tienes 6 discos de 2 TiB cada uno. Calcular capacidad útil para:
 
 a) RAID 0
 b) RAID 1
@@ -1862,11 +1862,11 @@ c) RAID 5
 
 **Respuesta:**
 ```
-a) RAID 0: 6 × 2 TB = 12 TB (sin redundancia)
+a) RAID 0: 6 × 2 TiB = 12 TiB (sin redundancia)
 
-b) RAID 1: 3 × 2 TB = 6 TB (3 pares espejo)
+b) RAID 1: 3 × 2 TiB = 6 TiB (3 pares espejo)
 
-c) RAID 5: (6-1) × 2 TB = 10 TB (1 disco de paridad distribuida)
+c) RAID 5: (6-1) × 2 TiB = 10 TiB (1 disco de paridad distribuida)
 ```
 
 ### Ejercicio 4: Scheduling Avanzado

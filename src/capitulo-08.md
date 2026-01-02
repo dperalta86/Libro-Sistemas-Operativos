@@ -21,8 +21,8 @@ Al finalizar este capítulo, el estudiante debe ser capaz de:
 ### El Problema Fundamental
 
 Imaginemos que estamos desarrollando un sistema operativo en 1960. Tenemos:
-- Memoria RAM: 64 KB (¡muy cara!)
-- Programas que necesitan: 128 KB, 256 KB o más
+- Memoria RAM: 64 KiB (¡muy cara!)
+- Programas que necesitan: 128 KiB, 256 KiB o más
 - Múltiples procesos que queremos ejecutar simultáneamente
 
 **¿Cómo ejecutamos un programa más grande que la RAM disponible?**
@@ -77,17 +77,17 @@ La clave está en dos conceptos:
 2. **Podemos usar el disco como extensión de la RAM** (con traducción automática)
 
 ```
-Programa de 1 GB:
+Programa de 1 GiB:
 ┌─────────────────────────┐
-│   Código (100 MB)       │ ← Solo 10 MB activos ahora
+│   Código (100 MiB)       │ ← Solo 10 MiB activos ahora
 ├─────────────────────────┤
-│   Datos (200 MB)        │ ← Solo 5 MB activos ahora
+│   Datos (200 MiB)        │ ← Solo 5 MiB activos ahora
 ├─────────────────────────┤
-│   Heap (300 MB)         │ ← Solo 20 MB activos ahora
+│   Heap (300 MiB)         │ ← Solo 20 MiB activos ahora
 ├─────────────────────────┤
-│   Stack (400 MB)        │ ← Solo 2 MB activos ahora
+│   Stack (400 MiB)        │ ← Solo 2 MiB activos ahora
 └─────────────────────────┘
-Total en RAM: ~37 MB de 1 GB
+Total en RAM: ~37 MiB de 1 GiB
 Resto en disco (swap)
 ```
 
@@ -99,7 +99,7 @@ Antes de continuar, repasemos brevemente los conceptos de paginación que vimos 
 
 En el Capítulo 7 aprendimos que:
 
-- El **espacio lógico** se divide en páginas de tamaño fijo (típicamente 4 KB)
+- El **espacio lógico** se divide en páginas de tamaño fijo (típicamente 4 KiB)
 - La **memoria física** se divide en marcos del mismo tamaño
 - Una **tabla de páginas** mapea páginas lógicas a marcos físicos
 - La **MMU** traduce direcciones automáticamente en hardware
@@ -149,7 +149,7 @@ Para más detalles sobre paginación básica, tablas multinivel, TLB y segmentac
 
 \begin{excerpt}
 \emph{Espacio de Direcciones Virtual:}
-El rango completo de direcciones que un proceso puede generar, independiente de la cantidad de memoria física disponible. En un sistema de 32 bits: 0 a 4 GB, en 64 bits: 0 a 16 EB (exabytes).
+El rango completo de direcciones que un proceso puede generar, independiente de la cantidad de memoria física disponible. En un sistema de 32 bits: 0 a 4 GiB, en 64 bits: 0 a 16 EB (exabytes).
 \end{excerpt}
 
 **Ejemplo práctico:**
@@ -161,9 +161,9 @@ El rango completo de direcciones que un proceso puede generar, independiente de 
 int main() {
     // En un sistema de 64 bits, este proceso "ve" un espacio
     // de direcciones de ~16 exabytes, aunque la máquina
-    // solo tenga 8 GB de RAM física
+    // solo tenga 8 GiB de RAM física
     
-    void *ptr = malloc(1024 * 1024 * 1024); // 1 GB
+    void *ptr = malloc(1024 * 1024 * 1024); // 1 GiB
     printf("Dirección virtual: %p\n", ptr);
     
     // Esta dirección es VIRTUAL
@@ -180,7 +180,7 @@ int main() {
 
 ```
 Proceso A:                    Proceso B:
-Espacio Virtual (4 GB)        Espacio Virtual (4 GB)
+Espacio Virtual (4 GiB)        Espacio Virtual (4 GiB)
 ┌─────────────────┐          ┌─────────────────┐
 │ 0xFFFFFFFF      │          │ 0xFFFFFFFF      │
 │                 │          │                 │
@@ -264,12 +264,12 @@ Proceso con 8 páginas:
 └────┴───────┴───┴───┴───┴──────────────┘
 
 Solo 4 de 8 páginas en RAM
-Proceso usa 8 * 4 KB = 32 KB virtual
-Pero solo 4 * 4 KB = 16 KB físicos
+Proceso usa 8 * 4 KiB = 32 KiB virtual
+Pero solo 4 * 4 KiB = 16 KiB físicos
 ```
 
 \textcolor{teal!60!black}{\textbf{Ventaja crítica:}\\
-Un proceso de 1 GB puede ejecutarse con solo 50 MB en RAM\\
+Un proceso de 1 GiB puede ejecutarse con solo 50 MiB en RAM\\
 El resto permanece en disco hasta que se necesite\\
 }
 
@@ -319,7 +319,7 @@ Disco Duro:
 ┌─────────────────────────────────┐
 │ Partición 1: Sistema de Archivos│
 ├─────────────────────────────────┤
-│ Partición 2: Swap (8 GB)        │ ← Páginas no en RAM
+│ Partición 2: Swap (8 GiB)        │ ← Páginas no en RAM
 │   ┌─────────────────────────┐   │
 │   │ Bloque 0-99:   Proceso A│   │
 │   │ Bloque 100-199:Proceso B│   │
@@ -340,9 +340,9 @@ Disco Duro:
 
 ```
 Configuración típica:
-RAM: 8 GB  → Swap: 8-16 GB
-RAM: 16 GB → Swap: 8-16 GB
-RAM: 32 GB → Swap: 4-8 GB (o menos)
+RAM: 8 GiB  → Swap: 8-16 GiB
+RAM: 16 GiB → Swap: 8-16 GiB
+RAM: 32 GiB → Swap: 4-8 GiB (o menos)
 
 Razón: Con más RAM, menos page faults → menos swap necesario
 ```
@@ -510,14 +510,14 @@ Observación empírica de que los programas tienden a acceder un subconjunto rel
 \end{excerpt}
 
 \textcolor{orange!70!black}{\textbf{¿Por qué es crítico para memoria virtual?}\\
-Si un proceso de 1 GB necesitara acceder aleatoriamente\\
+Si un proceso de 1 GiB necesitara acceder aleatoriamente\\
 todas sus páginas constantemente, tendríamos:\\
 - Page faults continuos\\
 - Disco trabajando sin parar\\
 - Rendimiento catastrófico\\
 \\
 Pero GRACIAS a la localidad, el proceso solo accede\\
-~50 MB activamente, permitiendo que funcione con poca RAM.\\
+~50 MiB activamente, permitiendo que funcione con poca RAM.\\
 }
 
 ### Localidad Temporal
@@ -587,7 +587,7 @@ Si se referencia una ubicación de memoria en la dirección X, es muy probable q
 #define SIZE 1000000
 
 int main() {
-    int array[SIZE];  // 4 MB en heap
+    int array[SIZE];  // 4 MiB en heap
     int suma = 0;
     
     // Inicializar array
@@ -612,7 +612,7 @@ int main() {
 **¿Qué está pasando con las páginas?**
 
 ```
-Array de 4 MB con páginas de 4 KB:
+Array de 4 MiB con páginas de 4 KiB:
 array[0..1023]    → Página 0   ┐
 array[1024..2047] → Página 1   │ Cuando accedemos array[0],
 array[2048..3071] → Página 2   │ es MUY probable que luego
@@ -627,8 +627,8 @@ Próximos 1023 accesos: ¡SIN page fault! (misma página)
 
 ```
 Array de 1,000,000 elementos (int):
-- Tamaño: 4 MB
-- Páginas necesarias: 4 MB / 4 KB = 1024 páginas
+- Tamaño: 4 MiB
+- Páginas necesarias: 4 MiB / 4 KiB = 1024 páginas
 
 Acceso secuencial (CON localidad espacial):
 - Page faults: 1024 (uno por página, la primera vez)
@@ -645,14 +645,14 @@ Acceso aleatorio (SIN localidad espacial):
 **Ejemplo: Navegador web**
 
 ```
-Código del navegador: 50 MB
-Datos/páginas web: 500 MB
-Total: 550 MB
+Código del navegador: 50 MiB
+Datos/páginas web: 500 MiB
+Total: 550 MiB
 
 En cualquier momento de 10 segundos:
-- Código activo: ~5 MB (render engine, JavaScript VM)
-- Datos activos: ~20 MB (página actual, imágenes visibles)
-- Total activo: ~25 MB
+- Código activo: ~5 MiB (render engine, JavaScript VM)
+- Datos activos: ~20 MiB (página actual, imágenes visibles)
+- Total activo: ~25 MiB
 
 Ratio: 25/550 = 4.5% del espacio en uso activo
 → Localidad hace viable ejecutar con poca RAM
@@ -719,7 +719,7 @@ Si le damos ≥ 5 páginas de RAM:
 #define PAGES 10000
 
 int main() {
-    int *huge_array = malloc(PAGES * 4096);  // 40 MB
+    int *huge_array = malloc(PAGES * 4096);  // 40 MiB
     srand(time(NULL));
     
     // Acceso completamente aleatorio a páginas
@@ -896,8 +896,8 @@ Técnica donde múltiples procesos comparten las mismas páginas físicas de mem
 pid_t pid = fork();
 
 // Sin COW: fork() debe copiar TODAS las páginas del padre
-// Padre tiene 100 MB en RAM
-// → Copiar 100 MB toma ~100 ms
+// Padre tiene 100 MiB en RAM
+// → Copiar 100 MiB toma ~100 ms
 // → Desperdicio si el hijo hace exec() inmediatamente
 ```
 
@@ -968,12 +968,12 @@ Proceso Padre:              Proceso Hijo:
 
 ```
 fork() seguido de exec() (caso común):
-- Sin COW: copiar 100 MB → ~100 ms
-- Con COW: copiar 0 MB → ~1 ms (solo estructuras SO)
+- Sin COW: copiar 100 MiB → ~100 ms
+- Con COW: copiar 0 MiB → ~1 ms (solo estructuras SO)
 
 fork() donde hijo modifica 10% de páginas:
-- Sin COW: copiar 100 MB → ~100 ms
-- Con COW: copiar 10 MB bajo demanda → ~10 ms total
+- Sin COW: copiar 100 MiB → ~100 ms
+- Con COW: copiar 10 MiB bajo demanda → ~10 ms total
 ```
 
 ### Memory-Mapped Files
@@ -995,10 +995,10 @@ int main() {
     // Abrir archivo
     int fd = open("datos.bin", O_RDWR);
     
-    // Mapear archivo a memoria (1 MB)
+    // Mapear archivo a memoria (1 MiB)
     void *addr = mmap(
         NULL,                   // SO elige dirección
-        1024*1024,              // 1 MB
+        1024*1024,              // 1 MiB
         PROT_READ | PROT_WRITE, // Permisos
         MAP_SHARED,             // Cambios visibles en archivo
         fd,                     // File descriptor
@@ -1105,11 +1105,11 @@ Marcos 100,200,300: código privado de cada proceso
 ```
 
 \textcolor{blue!50!black}{\textbf{Ahorro de memoria:}\\
-Sin compartición: 3 procesos × 2 MB libc = 6 MB\\
-Con compartición: 3 procesos × 1 copia = 2 MB\\
-Ahorro: 4 MB (66\\%)\\
+Sin compartición: 3 procesos × 2 MiB libc = 6 MiB\\
+Con compartición: 3 procesos × 1 copia = 2 MiB\\
+Ahorro: 4 MiB (66\\%)\\
 \\
-En servidor con 100 procesos: ahorro de ~200 MB\\
+En servidor con 100 procesos: ahorro de ~200 MiB\\
 }
 
 ### TLB Reach (Comentario Breve)
@@ -1122,31 +1122,31 @@ Cantidad de memoria que puede ser mapeada por todas las entradas del TLB. Se cal
 **Ejemplo:**
 
 ```
-TLB con 64 entradas, páginas de 4 KB:
-TLB Reach = 64 × 4 KB = 256 KB
+TLB con 64 entradas, páginas de 4 KiB:
+TLB Reach = 64 × 4 KiB = 256 KiB
 
-Significado: si el working set del proceso es < 256 KB,
+Significado: si el working set del proceso es < 256 KiB,
 todas las traducciones estarán en TLB (hit rate ~100%)
 ```
 
 **Optimización:**
 
 ```
-Problema: working set = 1 MB, TLB reach = 256 KB
+Problema: working set = 1 MiB, TLB reach = 256 KiB
 → Muchos TLB misses
 → Rendimiento degradado
 
 Solución: usar páginas más grandes
-Con páginas de 2 MB (huge pages):
-TLB Reach = 64 × 2 MB = 128 MB
+Con páginas de 2 MiB (huge pages):
+TLB Reach = 64 × 2 MiB = 128 MiB
 → Working set completo cabe en TLB
 → Hit rate aumenta dramáticamente
 ```
 
 \textcolor{blue!50!black}{\textbf{Uso en sistemas reales:}\\
-- Bases de datos usan huge pages (2 MB o 1 GB)\\
+- Bases de datos usan huge pages (2 MiB o 1 GiB)\\
 - VMs usan páginas grandes para EPT (Extended Page Tables)\\
-- HPC (computación científica) usa páginas de 1 GB\\
+- HPC (computación científica) usa páginas de 1 GiB\\
 }
 
 ## Algoritmos de Reemplazo de Páginas
@@ -1593,15 +1593,15 @@ Estado del sistema donde se dedica más tiempo a manejar page faults (cargar/des
 **Ejemplo numérico:**
 
 ```
-Sistema con 1 GB RAM, 10 procesos:
-Cada proceso necesita working set de 150 MB
-Total necesario: 10 × 150 MB = 1500 MB
-Disponible: 1000 MB
+Sistema con 1 GiB RAM, 10 procesos:
+Cada proceso necesita working set de 150 MiB
+Total necesario: 10 × 150 MiB = 1500 MiB
+Disponible: 1000 MiB
 
-Déficit: 500 MB
+Déficit: 500 MiB
 
 ¿Qué pasa?
-→ Solo ~6 procesos caben cómodamente (6 × 150 = 900 MB)
+→ Solo ~6 procesos caben cómodamente (6 × 150 = 900 MiB)
 → Los otros 4 procesos generan page faults constantemente
 → Al cargar páginas de proceso A, se quitan de proceso B
 → Proceso B genera page fault, quita páginas de proceso C
@@ -1718,7 +1718,7 @@ Baja utilización de CPU → SO agrega procesos\\
 3. **Limitar grado de multiprogramación:**
    ```
    Establecer máximo de procesos activos
-   Ej: con 8 GB RAM, límite de 20 procesos
+   Ej: con 8 GiB RAM, límite de 20 procesos
    ```
 
 **Estrategias de recuperación:**

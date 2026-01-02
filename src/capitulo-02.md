@@ -57,7 +57,7 @@ Los **Dispositivos de E/S** son las interfaces que permiten al sistema interactu
 Los componentes de la arquitectura de von Neumann no pueden funcionar de forma aislada. Los **buses** son las "autopistas" que permiten la comunicación entre CPU, memoria y dispositivos. Sin ellos, tendríamos componentes poderosos pero incapaces de colaborar.  
 El sistema de buses se divide en tres tipos especializados, cada uno con una función específica:  
 El **Bus de Datos** transporta la información real entre componentes. Su ancho, medido en bits, determina cuánta información puede transferirse simultáneamente. Un bus de 64 bits, por ejemplo, puede mover 8 bytes en cada ciclo de reloj, lo que impacta directamente en el rendimiento del sistema.  
-El **Bus de Direcciones** especifica la ubicación de memoria que se desea acceder. Su ancho determina el espacio máximo de direcciones que el sistema puede manejar. Con 32 bits podemos direccionar hasta 4GB de memoria, mientras que con 64 bits ese límite se extiende hasta 16 exabytes, una cantidad astronómica para estándares actuales.  
+El **Bus de Direcciones** especifica la ubicación de memoria que se desea acceder. Su ancho determina el espacio máximo de direcciones que el sistema puede manejar. Con 32 bits podemos direccionar hasta 4GiB de memoria, mientras que con 64 bits ese límite se extiende hasta 16 exabytes, una cantidad astronómica para estándares actuales.  
 El **Bus de Control** coordina todas las operaciones mediante señales especializadas. Señales como READ, WRITE, IRQ y RESET sincronizan las transferencias entre componentes y aseguran que cada operación se complete correctamente antes de iniciar la siguiente.  
 
 ## Registros del Procesador
@@ -634,13 +634,13 @@ Los diferentes niveles de memoria en un sistema moderno forman una pirámide don
 ```
 Registros CPU (1 ciclo, bytes)
     ↓
-Cache L1 (2-4 ciclos, KB)
+Cache L1 (2-4 ciclos, KiB)
     ↓  
-Cache L2 (10-20 ciclos, MB)
+Cache L2 (10-20 ciclos, MiB)
     ↓
-Memoria Principal RAM (100-300 ciclos, GB)
+Memoria Principal RAM (100-300 ciclos, GiB)
     ↓
-Almacenamiento Secundario (millones de ciclos, TB)
+Almacenamiento Secundario (millones de ciclos, TiB)
 ```
 
 Las implicaciones para el sistema operativo son profundas. La gestión eficiente de cache es crítica para rendimiento, ya que la diferencia entre un cache hit y un cache miss puede ser de dos órdenes de magnitud en latencia. La memoria virtual se vuelve necesaria cuando la RAM es insuficiente para todos los procesos activos. Los algoritmos de reemplazo deben optimizar para minimizar accesos al nivel más lento.  

@@ -149,25 +149,25 @@ La fragmentación es el desperdicio de memoria que no puede usarse eficientement
 
 #### Fragmentación Interna
 
-La fragmentación interna es memoria desperdiciada DENTRO de una región asignada. Ocurre cuando se asigna más memoria de la necesitada. Imaginá que un proceso necesita 19 KB pero el sistema asigna bloques de 4 KB. Se asignan 5 bloques (20 KB), desperdiciando 1 KB.
+La fragmentación interna es memoria desperdiciada DENTRO de una región asignada. Ocurre cuando se asigna más memoria de la necesitada. Imaginá que un proceso necesita 19 KiB pero el sistema asigna bloques de 4 KiB. Se asignan 5 bloques (20 KiB), desperdiciando 1 KiB.
 ```
 Bloque asignado: [===================·] 
-                  ← 19 KB usados →  ← 1 KB desperdiciado
-                  ← 20 KB totales →
+                  ← 19 KiB usados →  ← 1 KiB desperdiciado
+                  ← 20 KiB totales →
 ```
 
 Las causas principales son la asignación en bloques de tamaño fijo, políticas de alineación de memoria, y overhead de estructuras administrativas. Ocurre típicamente en particiones fijas, paginación (desperdicio en última página), y Buddy System.
 
 #### Fragmentación Externa
 
-La fragmentación externa es memoria desperdiciada ENTRE regiones asignadas. Hay suficiente memoria libre total, pero no es contigua. Por ejemplo, si tenés memoria total de 100 KB con 40 KB libres, pero en bloques de 10 KB cada uno, no podés asignar un proceso de 30 KB a pesar de tener espacio suficiente.
+La fragmentación externa es memoria desperdiciada ENTRE regiones asignadas. Hay suficiente memoria libre total, pero no es contigua. Por ejemplo, si tenés memoria total de 100 KiB con 40 KiB libres, pero en bloques de 10 KiB cada uno, no podés asignar un proceso de 30 KiB a pesar de tener espacio suficiente.
 
 ```
 Memoria: [P1][··][P2][····][P3][······][P4]
           ← libre -> ← libre ->  ← libre ->
-         10 KB    15 KB      15 KB
-         Total libre: 40 KB, pero no contiguos
-         No se puede asignar proceso de 30 KB
+         10 KiB    15 KiB      15 KiB
+         Total libre: 40 KiB, pero no contiguos
+         No se puede asignar proceso de 30 KiB
 ```
 
 Las causas son la asignación y liberación de bloques de tamaño variable, los procesos que terminan dejan huecos, y con el tiempo la memoria se "perfora" como un queso suizo. Ocurre en particiones dinámicas, segmentación, y cualquier esquema de asignación variable. La solución es la compactación (mover procesos para consolidar memoria libre), pero es costosa.  
@@ -183,40 +183,40 @@ Las primeras técnicas de gestión de memoria asignaban espacios contiguos a cad
 ### Particiones Fijas
 
 En los primeros sistemas multiprogramados, la memoria se dividía en particiones de tamaño fijo al inicio del sistema. Esta decisión de diseño priorizaba la simplicidad sobre la eficiencia.
-Imaginá un esquema de memoria con particiones fijas donde después del SO hay varias particiones de diferentes tamaños: 128 KB, 256 KB, 512 KB, y 64 KB, ocupando todo el espacio hasta 1024 KB.  
+Imaginá un esquema de memoria con particiones fijas donde después del SO hay varias particiones de diferentes tamaños: 128 KiB, 256 KiB, 512 KiB, y 64 KiB, ocupando todo el espacio hasta 1024 KiB.  
 
 El mecanismo de asignación es extremadamente simple: cuando llega un proceso, se busca una partición libre que lo contenga, el proceso ocupa toda la partición aunque no la use completamente, y al terminar, la partición queda libre para el próximo proceso.
 Las ventajas son tentadoras: implementación extremadamente simple, asignación y liberación en O(1), sin fragmentación externa, y protección fácil porque cada partición tiene base y límite fijos. Sin embargo, las desventajas son severas: fragmentación interna que puede ser brutal, número limitado de procesos fijado al inicio del sistema, procesos grandes pueden simplemente no caber, y memoria desaprovechada si hay particiones vacías.
 \begin{example}
-El problema crítico es evidente con un ejemplo: un proceso de 50 KB en una partición de 256 KB desperdicia 206 KB, lo que representa un 80% de fragmentación interna. En un sistema real, este desperdicio es inaceptable.
+El problema crítico es evidente con un ejemplo: un proceso de 50 KiB en una partición de 256 KiB desperdicia 206 KiB, lo que representa un 80% de fragmentación interna. En un sistema real, este desperdicio es inaceptable.
 \end{example}
 
 ```
 Memoria física:
-┌─────────────────┐ 0 KB
-│   SO (64 KB)    │
-├─────────────────┤ 64 KB
+┌─────────────────┐ 0 KiB
+│   SO (64 KiB)    │
+├─────────────────┤ 64 KiB
 │ Partición 1     │
-│   (128 KB)      │
-├─────────────────┤ 192 KB
+│   (128 KiB)      │
+├─────────────────┤ 192 KiB
 │ Partición 2     │
-│   (256 KB)      │
-├─────────────────┤ 448 KB
+│   (256 KiB)      │
+├─────────────────┤ 448 KiB
 │ Partición 3     │
-│   (512 KB)      │
-├─────────────────┤ 960 KB
+│   (512 KiB)      │
+├─────────────────┤ 960 KiB
 │ Partición 4     │
-│   (64 KB)       │
-└─────────────────┘ 1024 KB
+│   (64 KiB)       │
+└─────────────────┘ 1024 KiB
 ```
 
 ### Particiones Dinámicas
 
 Para resolver la fragmentación interna de las particiones fijas, se desarrollaron las particiones dinámicas: cada proceso recibe exactamente la cantidad de memoria que necesita. Esto parece la solución perfecta, pero como veremos, introduce nuevos problemas.  
 
-La evolución de la memoria con particiones dinámicas muestra el problema claramente. Al inicio, el sistema arranca con todo el espacio libre. Cuando llega el primer proceso (P1 de 100 KB), se le asigna exactamente ese espacio. Luego llegan P2 (200 KB) y P3 (150 KB), ocupando sus espacios precisos. Hasta acá todo perfecto: no hay desperdicio.  
+La evolución de la memoria con particiones dinámicas muestra el problema claramente. Al inicio, el sistema arranca con todo el espacio libre. Cuando llega el primer proceso (P1 de 100 KiB), se le asigna exactamente ese espacio. Luego llegan P2 (200 KiB) y P3 (150 KiB), ocupando sus espacios precisos. Hasta acá todo perfecto: no hay desperdicio.  
 
-El problema aparece cuando P1 termina. Queda un hueco de 100 KB entre el SO y P2. Luego P2 termina, dejando otro hueco de 200 KB. Ahora tenemos memoria libre total de 810 KB, pero fragmentada en tres bloques separados. Un proceso que necesite 400 KB no puede ejecutarse, a pesar de que hay 810 KB libres en total. Esta es la esencia de la fragmentación externa.  
+El problema aparece cuando P1 termina. Queda un hueco de 100 KiB entre el SO y P2. Luego P2 termina, dejando otro hueco de 200 KiB. Ahora tenemos memoria libre total de 810 KiB, pero fragmentada en tres bloques separados. Un proceso que necesite 400 KiB no puede ejecutarse, a pesar de que hay 810 KiB libres en total. Esta es la esencia de la fragmentación externa.  
 
 Las ventajas iniciales son claras: sin fragmentación interna, número dinámico de procesos, y uso eficiente de memoria al principio. Pero las desventajas son significativas: fragmentación externa severa con el tiempo, algoritmo de asignación más complejo, requiere compactación periódica que es costosa, y estructuras de datos para rastrear bloques libres.
 \begin{warning}
@@ -226,61 +226,61 @@ La fragmentación externa es progresiva: empeora con el tiempo de ejecución del
 ```
 t=0: Sistema arranca
 ┌──────────┐
-│    SO    │ 64 KB
+│    SO    │ 64 KiB
 ├──────────┤
-│  Libre   │ 960 KB
+│  Libre   │ 960 KiB
 └──────────┘
 
-t=1: Llega P1 (100 KB)
+t=1: Llega P1 (100 KiB)
 ┌──────────┐
 │    SO    │
 ├──────────┤
-│    P1    │ 100 KB
+│    P1    │ 100 KiB
 ├──────────┤
-│  Libre   │ 860 KB
+│  Libre   │ 860 KiB
 └──────────┘
 
-t=2: Llegan P2 (200 KB) y P3 (150 KB)
+t=2: Llegan P2 (200 KiB) y P3 (150 KiB)
 ┌──────────┐
 │    SO    │
 ├──────────┤
 │    P1    │
 ├──────────┤
-│    P2    │ 200 KB
+│    P2    │ 200 KiB
 ├──────────┤
-│    P3    │ 150 KB
+│    P3    │ 150 KiB
 ├──────────┤
-│  Libre   │ 510 KB
+│  Libre   │ 510 KiB
 └──────────┘
 
 t=3: P1 termina
 ┌──────────┐
 │    SO    │
 ├──────────┤
-│  Libre   │ 100 KB (hueco)
+│  Libre   │ 100 KiB (hueco)
 ├──────────┤
 │    P2    │
 ├──────────┤
 │    P3    │
 ├──────────┤
-│  Libre   │ 510 KB
+│  Libre   │ 510 KiB
 └──────────┘
 
 t=4: P2 termina
 ┌──────────┐
 │    SO    │
 ├──────────┤
-│  Libre   │ 100 KB
+│  Libre   │ 100 KiB
 ├──────────┤
-│  Libre   │ 200 KB (otro hueco)
+│  Libre   │ 200 KiB (otro hueco)
 ├──────────┤
 │    P3    │
 ├──────────┤
-│  Libre   │ 510 KB
+│  Libre   │ 510 KiB
 └──────────┘
 
-Total libre: 810 KB, pero fragmentado en 3 bloques
-Un proceso de 400 KB no cabe (aunque hay 810 KB libres)
+Total libre: 810 KiB, pero fragmentado en 3 bloques
+Un proceso de 400 KiB no cabe (aunque hay 810 KiB libres)
 -> Fragmentación externa
 ```
 
@@ -290,54 +290,54 @@ Cuando llega un proceso que necesita memoria, el SO debe decidir en qué bloque 
 
 #### First Fit (Primer Ajuste)
 
-El algoritmo busca secuencialmente en la lista de bloques libres y asigna el primer bloque suficientemente grande. Por ejemplo, con bloques libres de [50 KB] [200 KB] [80 KB] [300 KB], si un proceso necesita 70 KB, First Fit asigna el bloque de 200 KB, dejando [50 KB] [70 KB usado | 130 KB libre] [80 KB] [300 KB].  
+El algoritmo busca secuencialmente en la lista de bloques libres y asigna el primer bloque suficientemente grande. Por ejemplo, con bloques libres de [50 KiB] [200 KiB] [80 KiB] [300 KiB], si un proceso necesita 70 KiB, First Fit asigna el bloque de 200 KiB, dejando [50 KiB] [70 KiB usado | 130 KiB libre] [80 KiB] [300 KiB].  
 La complejidad es O(n) en el peor caso, pero rápido en promedio. Tiende a dejar bloques pequeños al inicio de la lista, lo que puede ser problemático con el tiempo.
 
 ```
-Bloques libres: [50 KB] [200 KB] [80 KB] [300 KB]
-Proceso necesita: 70 KB
+Bloques libres: [50 KiB] [200 KiB] [80 KiB] [300 KiB]
+Proceso necesita: 70 KiB
 
-First Fit asigna: Bloque de 200 KB (primero que encontró >= 70 KB)
-Resultado: [50 KB] [70 KB usado|130 KB libre] [80 KB] [300 KB]
+First Fit asigna: Bloque de 200 KiB (primero que encontró >= 70 KiB)
+Resultado: [50 KiB] [70 KiB usado|130 KiB libre] [80 KiB] [300 KiB]
 ```
 
 #### Best Fit (Mejor Ajuste)
 
-Este algoritmo busca en toda la lista de bloques libres y asigna el bloque más pequeño que sea suficiente. Con los mismos bloques del ejemplo anterior y un proceso de 70 KB, Best Fit asigna el bloque de 80 KB, dejando [50 KB] [200 KB] [70 KB usado | 10 KB libre] [300 KB].  
+Este algoritmo busca en toda la lista de bloques libres y asigna el bloque más pequeño que sea suficiente. Con los mismos bloques del ejemplo anterior y un proceso de 70 KiB, Best Fit asigna el bloque de 80 KiB, dejando [50 KiB] [200 KiB] [70 KiB usado | 10 KiB libre] [300 KiB].  
 
 La complejidad es O(n) siempre porque debe recorrer toda la lista. Minimiza el desperdicio por asignación individual, pero genera muchos bloques muy pequeños que terminan siendo inútiles.
 ```
-Bloques libres: [50 KB] [200 KB] [80 KB] [300 KB]
-Proceso necesita: 70 KB
+Bloques libres: [50 KiB] [200 KiB] [80 KiB] [300 KiB]
+Proceso necesita: 70 KiB
 
-Best Fit asigna: Bloque de 80 KB (el menor >= 70 KB)
-Resultado: [50 KB] [200 KB] [70 KB usado|10 KB libre] [300 KB]
+Best Fit asigna: Bloque de 80 KiB (el menor >= 70 KiB)
+Resultado: [50 KiB] [200 KiB] [70 KiB usado|10 KiB libre] [300 KiB]
 ```
 
 #### Worst Fit (Peor Ajuste)
 
-Contraintuitivamente, este algoritmo busca en toda la lista y asigna el bloque más grande disponible. En nuestro ejemplo, Worst Fit asignaría el bloque de 300 KB, dejando [50 KB] [200 KB] [80 KB] [70 KB usado | 230 KB libre].  
+Contraintuitivamente, este algoritmo busca en toda la lista y asigna el bloque más grande disponible. En nuestro ejemplo, Worst Fit asignaría el bloque de 300 KiB, dejando [50 KiB] [200 KiB] [80 KiB] [70 KiB usado | 230 KiB libre].  
 La complejidad es O(n) siempre, pero deja bloques grandes que son más útiles que los pequeños. En simulaciones, suele tener mejor rendimiento que Best Fit.
 ```
-Bloques libres: [50 KB] [200 KB] [80 KB] [300 KB]
-Proceso necesita: 70 KB
+Bloques libres: [50 KiB] [200 KiB] [80 KiB] [300 KiB]
+Proceso necesita: 70 KiB
 
-Worst Fit asigna: Bloque de 300 KB
-Resultado: [50 KB] [200 KB] [80 KB] [70 KB usado|230 KB libre]
+Worst Fit asigna: Bloque de 300 KiB
+Resultado: [50 KiB] [200 KiB] [80 KiB] [70 KiB usado|230 KiB libre]
 ```
 
 #### Next Fit (Siguiente Ajuste)
 
 Similar a First Fit, pero continúa la búsqueda desde donde terminó la última asignación en forma circular. Tiene complejidad O(n) en el peor caso, distribuye asignaciones más uniformemente, y evita la concentración de bloques pequeños al inicio de la memoria.
 \begin{theory}
-¿Por qué Worst Fit puede ser más eficiente que Best Fit? Best Fit genera muchos bloques MUY pequeños (1-5 KB) que son prácticamente inútiles. Worst Fit deja bloques grandes (30-50 KB) que tienen más probabilidad de ser utilizables para procesos futuros. Esto demuestra que la intuición puede fallar en sistemas complejos.
+¿Por qué Worst Fit puede ser más eficiente que Best Fit? Best Fit genera muchos bloques MUY pequeños (1-5 KiB) que son prácticamente inútiles. Worst Fit deja bloques grandes (30-50 KiB) que tienen más probabilidad de ser utilizables para procesos futuros. Esto demuestra que la intuición puede fallar en sistemas complejos.
 \end{theory}
 En la práctica, los sistemas modernos usan variantes de First Fit con optimizaciones como listas ordenadas y segregación por tamaño. La elección del algoritmo depende del patrón de uso esperado del sistema.
 
 
 ## Paginación Simple
 
-La idea central de la paginación es dividir el espacio de direcciones lógicas y la memoria física en bloques de tamaño fijo llamados páginas y marcos (frames). Una página es un bloque de memoria lógica, típicamente de 4 KB. Un marco es un bloque de memoria física del mismo tamaño que una página. La tabla de páginas es la estructura que mapea páginas a marcos.  
+La idea central de la paginación es dividir el espacio de direcciones lógicas y la memoria física en bloques de tamaño fijo llamados páginas y marcos (frames). Una página es un bloque de memoria lógica, típicamente de 4 KiB. Un marco es un bloque de memoria física del mismo tamaño que una página. La tabla de páginas es la estructura que mapea páginas a marcos.  
 
 La ventaja fundamental es que las páginas de un proceso NO necesitan estar contiguas en memoria física. Esto resuelve completamente el problema de fragmentación externa.
 Imaginá el espacio lógico de un proceso con páginas 0, 1, 2 y 3. En memoria física, la página 0 puede estar en el marco 5, la página 1 en el marco 2, la página 2 en el marco 7, y la página 3 en el marco 4. No importa que estén dispersas: la MMU traduce cada acceso correctamente.  
@@ -366,9 +366,9 @@ Espacio lógico del proceso:    Memoria física:
 
 Una dirección lógica en paginación se divide en dos campos: número de página y offset dentro de la página. Si el tamaño de página es $2^d bytes$ y el espacio lógico es $2^m bytes$, entonces una dirección lógica tiene $m bits$ divididos en: $p = m - d bits$ para número de página, y $d bits$ para offset dentro de la página.
 
-Veamos un ejemplo concreto. Con un espacio de 64 KB con páginas de 4 KB, tenemos espacio lógico de $2^{16} bytes$ (64 KB) requiriendo 16 bits de dirección.
-- Espacio lógico: $2^{16}$ bytes (64 KB) -> 16 bits de dirección
-- Tamaño de página: $2^{12}$ bytes (4 KB) -> 12 bits de offset
+Veamos un ejemplo concreto. Con un espacio de 64 KiB con páginas de 4 KiB, tenemos espacio lógico de $2^{16} bytes$ (64 KiB) requiriendo 16 bits de dirección.
+- Espacio lógico: $2^{16}$ bytes (64 KiB) -> 16 bits de dirección
+- Tamaño de página: $2^{12}$ bytes (4 KiB) -> 12 bits de offset
 - Bits para número de página: 16 - 12 = 4 bits
 - Número de páginas: $2^4$ = 16 páginas  
 
@@ -393,11 +393,11 @@ Si el tamaño de página es $2^d$ bytes y el espacio lógico es $2^m$ bytes, ent
 
 El proceso de traducción usa la tabla de páginas del proceso. El algoritmo es directo: extraés el número de página p de los bits más significativos, extraés el offset d de los bits menos significativos, buscás en la tabla de páginas $marco = tabla\_paginas[p]$, y calculás la dirección física como $DF = marco * tamaño\_pagina + d$.  
 
-Veamos un ejemplo numérico completo. Con tamaño de página de 1 KB ($1024 bytes = 2^{10}$), espacio lógico de 8 KB ($8192 bytes = 2^{13}$), tenemos 13 bits de dirección total, 3 bits de página (8 páginas), y 10 bits de offset (1024 posiciones).  
+Veamos un ejemplo numérico completo. Con tamaño de página de 1 KiB ($1024 bytes = 2^{10}$), espacio lógico de 8 KiB ($8192 bytes = 2^{13}$), tenemos 13 bits de dirección total, 3 bits de página (8 páginas), y 10 bits de offset (1024 posiciones).  
 ```
 Configuración:
-- Tamaño de página: 1 KB (1024 bytes = 2^10)
-- Espacio lógico: 8 KB (8192 bytes = 2^13)
+- Tamaño de página: 1 KiB (1024 bytes = 2^10)
+- Espacio lógico: 8 KiB (8192 bytes = 2^13)
 - Bits de dirección: 13 bits
 - Bits de página: 13 - 10 = 3 bits (8 páginas)
 - Bits de offset: 10 bits (1024 posiciones)
@@ -468,27 +468,27 @@ Esto introduce un problema de rendimiento: cada acceso a memoria requiere 2 acce
 
 ### Fragmentación Interna en Paginación
 
-Aunque la paginación elimina fragmentación externa, tiene fragmentación interna en la última página de cada proceso. Si un proceso necesita 13.5 KB con páginas de 4 KB, se le asignan 4 páginas (16 KB), desperdiciando 2.5 KB (15.6\% de fragmentación interna).  
+Aunque la paginación elimina fragmentación externa, tiene fragmentación interna en la última página de cada proceso. Si un proceso necesita 13.5 KiB con páginas de 4 KiB, se le asignan 4 páginas (16 KiB), desperdiciando 2.5 KiB (15.6\% de fragmentación interna).  
 
 ```
-Proceso necesita: 13.5 KB
-Tamaño de página: 4 KB
-Páginas asignadas: 4 páginas (16 KB)
-Fragmentación interna: 16 - 13.5 = 2.5 KB (15.6%)
+Proceso necesita: 13.5 KiB
+Tamaño de página: 4 KiB
+Páginas asignadas: 4 páginas (16 KiB)
+Fragmentación interna: 16 - 13.5 = 2.5 KiB (15.6%)
 
 ┌──────────┐
-│ Página 0 │ 4 KB (completa)
+│ Página 0 │ 4 KiB (completa)
 ├──────────┤
-│ Página 1 │ 4 KB (completa)
+│ Página 1 │ 4 KiB (completa)
 ├──────────┤
-│ Página 2 │ 4 KB (completa)
+│ Página 2 │ 4 KiB (completa)
 ├──────────┤
-│ Página 3 │ 1.5 KB usado
-│  ········│ 2.5 KB desperdiciado
+│ Página 3 │ 1.5 KiB usado
+│  ········│ 2.5 KiB desperdiciado
 └──────────┘
 ```
 
-La fragmentación promedio es de 0.5 páginas por proceso. Si la página es de 4 KB, el desperdicio promedio es 2 KB por proceso. Con 100 procesos, se desperdician 200 KB. Existe un trade-off: páginas más pequeñas reducen fragmentación interna pero aumentan el overhead de las tablas.
+La fragmentación promedio es de 0.5 páginas por proceso. Si la página es de 4 KiB, el desperdicio promedio es 2 KiB por proceso. Con 100 procesos, se desperdician 200 KiB. Existe un trade-off: páginas más pequeñas reducen fragmentación interna pero aumentan el overhead de las tablas.
 
 ## Segmentación
 
@@ -522,7 +522,7 @@ Ejemplo: (1, 250) -> segmento 1, offset 250
 
 | Aspecto | Paginación | Segmentación |
 |---------|-----------|--------------|
-| División | Tamaño fijo (4 KB) | Tamaño variable |
+| División | Tamaño fijo (4 KiB) | Tamaño variable |
 | Criterio | Técnico (hardware) | Lógico (programador) |
 | Visible al programador | No | Sí |
 | Fragmentación | Interna | Externa |
@@ -624,7 +624,7 @@ Las ventajas del esquema híbrido son claras: combina la protección y compartic
 
 El Buddy System es un algoritmo de asignación que busca balancear la velocidad de asignación con la fragmentación. Su elegancia está en su simplicidad.  
 
-El sistema funciona así: la memoria total es una potencia de 2 (por ejemplo, 256 KB). Cuando se solicita memoria, se busca el bloque más pequeño (potencia de 2) que lo contenga. Si no existe ese tamaño, se divide un bloque mayor recursivamente (splitting). Al liberar, se intenta fusionar con el buddy si también está libre (coalescing).  
+El sistema funciona así: la memoria total es una potencia de 2 (por ejemplo, 256 KiB). Cuando se solicita memoria, se busca el bloque más pequeño (potencia de 2) que lo contenga. Si no existe ese tamaño, se divide un bloque mayor recursivamente (splitting). Al liberar, se intenta fusionar con el buddy si también está libre (coalescing).  
 
 La regla del buddy es matemática, dos bloques de tamanio $2^k$ en direcciones addr1 y addr2 son buddies si:
 $$
@@ -633,50 +633,50 @@ $$
 
 Veamos la operación completa.  
 ```
-Estado inicial: 256 KB libre
+Estado inicial: 256 KiB libre
 ┌─────────────────────────────────┐
-│           256 KB                │
+│           256 KiB                │
 └─────────────────────────────────┘
 
-Solicitud: 40 KB
--> Necesita bloque de 64 KB (2^6)
+Solicitud: 40 KiB
+-> Necesita bloque de 64 KiB (2^6)
 -> Dividir 256 -> 128 + 128
 -> Dividir 128 -> 64 + 64
--> Asignar primer 64 KB
+-> Asignar primer 64 KiB
 
-Estado después de asignar 40 KB:
+Estado después de asignar 40 KiB:
 ┌───────────┬───────────┬─────────────────┐
 │ 64 (usado)│ 64 (libre)│   128 (libre)   │
 └───────────┴───────────┴─────────────────┘
 
-Solicitud: 35 KB
--> Necesita bloque de 64 KB
+Solicitud: 35 KiB
+-> Necesita bloque de 64 KiB
 -> Ya hay uno libre, asignar
 
 ┌───────────┬───────────┬─────────────────┐
 │ 64 (usado)│ 64 (usado)│   128 (libre)   │
 └───────────┴───────────┴─────────────────┘
 
-Liberar primer bloque (64 KB):
--> Su buddy (segundo 64 KB) está ocupado
+Liberar primer bloque (64 KiB):
+-> Su buddy (segundo 64 KiB) está ocupado
 -> No se puede fusionar
 
 ┌───────────┬───────────┬─────────────────┐
 │ 64 (libre)│ 64 (usado)│   128 (libre)   │
 └───────────┴───────────┴─────────────────┘
 
-Liberar segundo bloque (64 KB):
--> Su buddy (primer 64 KB) está libre
--> Fusionar en 128 KB
+Liberar segundo bloque (64 KiB):
+-> Su buddy (primer 64 KiB) está libre
+-> Fusionar en 128 KiB
 -> El nuevo 128 tiene buddy libre (otro 128)
--> Fusionar en 256 KB
+-> Fusionar en 256 KiB
 
 ┌─────────────────────────────────┐
-│           256 KB (libre)        │
+│           256 KiB (libre)        │
 └─────────────────────────────────┘
 ```
 
-Las ventajas son asignación y liberación rápidas en O(log n), coalescing automático sin escanear toda la memoria, reduce fragmentación externa comparado con particiones dinámicas, e implementación simple con listas por tamaño. Las desventajas son la fragmentación interna (siempre se asigna potencia de 2), por ejemplo un proceso de 65 KB recibe 128 KB desperdiciando 63 KB, y no es tan eficiente como paginación pura.
+Las ventajas son asignación y liberación rápidas en O(log n), coalescing automático sin escanear toda la memoria, reduce fragmentación externa comparado con particiones dinámicas, e implementación simple con listas por tamaño. Las desventajas son la fragmentación interna (siempre se asigna potencia de 2), por ejemplo un proceso de 65 KiB recibe 128 KiB desperdiciando 63 KiB, y no es tan eficiente como paginación pura.
 \begin{infobox}
 Linux usa una variante del Buddy System para asignar páginas físicas en el kernel, con bloques de hasta orden 11 (es decir, $2^{11} paginas$). Es un buen balance entre eficiencia y complejidad.
 \end{infobox}
@@ -685,7 +685,7 @@ Linux usa una variante del Buddy System para asignar páginas físicas en el ker
 
 Cuando el espacio de direcciones es muy grande, la tabla de páginas se vuelve enorme. Este es un problema serio en sistemas modernos.  
 
-En un sistema de 32 bits con páginas de 4 KB, hay $2^{32} = 4 GB$ de direcciones posibles, lo que significa $2^{32} / 2^{12} = 2^{20}$ 1 millón de páginas posibles. Si cada entrada ocupa 4 bytes, el tamaño de la tabla es 4 MB por proceso. Con 100 procesos, necesitaríamos 400 MB solo en tablas de páginas, lo cual es inaceptable.  
+En un sistema de 32 bits con páginas de 4 KiB, hay $2^{32} = 4 GiB$ de direcciones posibles, lo que significa $2^{32} / 2^{12} = 2^{20}$ 1 millón de páginas posibles. Si cada entrada ocupa 4 bytes, el tamaño de la tabla es 4 MiB por proceso. Con 100 procesos, necesitaríamos 400 MiB solo en tablas de páginas, lo cual es inaceptable.  
 
 La solución es paginar la tabla de páginas misma, creando una jerarquía de múltiples niveles.
 
@@ -703,7 +703,7 @@ La ventaja es enorme: si un proceso no usa ciertas regiones de memoria, las tabl
 └──────────────┴──────────────┴──────────────┘
 ```
 
-En un sistema de 32 bits con páginas de 4 KB, podés usar 10 bits para directorio (1024 entradas), 10 bits para página (1024 entradas por tabla nivel 2), y 12 bits para offset (4096 bytes). Si un proceso usa solo 4 MB, requiere 1 entrada en directorio y 1 tabla de nivel 2 (1024 entradas), totalizando $(1024 + 1024) * 4 bytes = 8 KB$, versus 4 MB en tabla plana.
+En un sistema de 32 bits con páginas de 4 KiB, podés usar 10 bits para directorio (1024 entradas), 10 bits para página (1024 entradas por tabla nivel 2), y 12 bits para offset (4096 bytes). Si un proceso usa solo 4 MiB, requiere 1 entrada en directorio y 1 tabla de nivel 2 (1024 entradas), totalizando $(1024 + 1024) * 4 bytes = 8 KiB$, versus 4 MiB en tabla plana.
 
 ```
 Dirección de 32 bits:
@@ -714,7 +714,7 @@ Dirección de 32 bits:
 
 Directorio: 2^10 = 1024 entradas
 Cada tabla nivel 2: 2^10 = 1024 entradas
-Offset: 2^12 = 4096 bytes (4 KB)
+Offset: 2^12 = 4096 bytes (4 KiB)
 ```
 
 #### Paginación de Tres Niveles
@@ -725,7 +725,7 @@ Para espacios de direcciones de 64 bits, se requieren más niveles. La direcció
 │  (p1)  │  (p2)  │  (p3)  │     (d)      │
 └────────┴────────┴────────┴──────────────┘
 ```
-Por ejemplo, x86-64 con páginas de 4 KB usa direcciones de 48 bits (no se usan los 64 completos), divididas en 9 bits para cada uno de cuatro niveles (PML4, PDPT, PD, PT), más 12 bits de offset. Esto crea cuatro niveles de traducción: Page Map Level 4 (PML4), Page Directory Pointer Table (PDPT), Page Directory (PD), y Page Table (PT).
+Por ejemplo, x86-64 con páginas de 4 KiB usa direcciones de 48 bits (no se usan los 64 completos), divididas en 9 bits para cada uno de cuatro niveles (PML4, PDPT, PD, PT), más 12 bits de offset. Esto crea cuatro niveles de traducción: Page Map Level 4 (PML4), Page Directory Pointer Table (PDPT), Page Directory (PD), y Page Table (PT).
 
 ```
 Dirección de 48 bits (no se usan los 64 completos):
@@ -766,7 +766,7 @@ El problema crítico es que la búsqueda es O(n) donde n es la cantidad de marco
 ```
 Hash(PID, página) -> índice en tabla hash -> cadena de colisiones -> entrada
 ```
-Las ventajas son que el tamaño de tabla es proporcional a memoria física (no a lógica). Un sistema con 4 GB de RAM y páginas de 4 KB tiene 1M marcos, entonces 1M entradas, versus potencialmente millones por proceso. Es un ahorro masivo en sistemas con muchos procesos. Las desventajas son que la búsqueda es más lenta incluso con hash, la compartición de páginas es complicada, y no es totalmente compatible con memoria virtual tradicional.  
+Las ventajas son que el tamaño de tabla es proporcional a memoria física (no a lógica). Un sistema con 4 GiB de RAM y páginas de 4 KiB tiene 1M marcos, entonces 1M entradas, versus potencialmente millones por proceso. Es un ahorro masivo en sistemas con muchos procesos. Las desventajas son que la búsqueda es más lenta incluso con hash, la compartición de páginas es complicada, y no es totalmente compatible con memoria virtual tradicional.  
 
 Este esquema se usó en PowerPC, IA-64 (Itanium), y algunas versiones de AIX.
 
@@ -780,41 +780,41 @@ El algoritmo implica identificar todos los bloques libres, mover procesos hacia 
 
 ```
 Antes de compactación:
-┌──────┐ 0 KB
+┌──────┐ 0 KiB
 │  SO  │
-├──────┤ 64 KB
-│  P1  │ (50 KB)
-├──────┤ 114 KB
-│ Libre│ (30 KB)
-├──────┤ 144 KB
-│  P2  │ (80 KB)
-├──────┤ 224 KB
-│ Libre│ (40 KB)
-├──────┤ 264 KB
-│  P3  │ (60 KB)
-├──────┤ 324 KB
-│ Libre│ (700 KB)
-└──────┘ 1024 KB
+├──────┤ 64 KiB
+│  P1  │ (50 KiB)
+├──────┤ 114 KiB
+│ Libre│ (30 KiB)
+├──────┤ 144 KiB
+│  P2  │ (80 KiB)
+├──────┤ 224 KiB
+│ Libre│ (40 KiB)
+├──────┤ 264 KiB
+│  P3  │ (60 KiB)
+├──────┤ 324 KiB
+│ Libre│ (700 KiB)
+└──────┘ 1024 KiB
 
-Total libre: 770 KB (fragmentado)
+Total libre: 770 KiB (fragmentado)
 
 Después de compactación:
-┌──────┐ 0 KB
+┌──────┐ 0 KiB
 │  SO  │
-├──────┤ 64 KB
-│  P1  │ (50 KB)
-├──────┤ 114 KB
-│  P2  │ (80 KB)
-├──────┤ 194 KB
-│  P3  │ (60 KB)
-├──────┤ 254 KB
-│ Libre│ (770 KB)
-└──────┘ 1024 KB
+├──────┤ 64 KiB
+│  P1  │ (50 KiB)
+├──────┤ 114 KiB
+│  P2  │ (80 KiB)
+├──────┤ 194 KiB
+│  P3  │ (60 KiB)
+├──────┤ 254 KiB
+│ Libre│ (770 KiB)
+└──────┘ 1024 KiB
 
-Total libre: 770 KB (contiguo)
+Total libre: 770 KiB (contiguo)
 ```
 
-Los costos son considerables: copiar todos los procesos en memoria es muy lento, hay que detener la ejecución durante la compactación, actualizar estructuras del SO, y en un sistema con 1 GB ocupado, esto puede tomar varios segundos.
+Los costos son considerables: copiar todos los procesos en memoria es muy lento, hay que detener la ejecución durante la compactación, actualizar estructuras del SO, y en un sistema con 1 GiB ocupado, esto puede tomar varios segundos.
 \begin{warning}
 La compactación solo es factible si se usa binding en tiempo de ejecución. Con binding en compilación o carga, es imposible mover procesos. Con registros base/límite o paginación, solo hay que actualizar los registros y la MMU hace transparente el movimiento para el proceso.
 \end{warning}
@@ -870,7 +870,7 @@ El bit NX (No-eXecute) es fundamental para seguridad moderna. Previene ataques d
 ### Compartición de Memoria
 
 Los sistemas modernos permiten que múltiples procesos compartan páginas de memoria para código compartido (múltiples procesos ejecutando el mismo programa), librerías compartidas (libc.so, libpthread.so, etc.), y comunicación entre procesos mediante segmentos de memoria compartida.  
-En código compartido, dos procesos ejecutando el mismo programa pueden apuntar al mismo marco físico para su segmento de código (con permisos read-only), mientras mantienen datos y stack privados en marcos separados. Si 100 procesos ejecutan bash (1 MB de código), sin compartición se necesitarían 100 MB de código en RAM. Con compartición, se necesita 1 MB de código más 100 MB de datos privados, ahorrando 99 MB.
+En código compartido, dos procesos ejecutando el mismo programa pueden apuntar al mismo marco físico para su segmento de código (con permisos read-only), mientras mantienen datos y stack privados en marcos separados. Si 100 procesos ejecutan bash (1 MiB de código), sin compartición se necesitarían 100 MiB de código en RAM. Con compartición, se necesita 1 MiB de código más 100 MiB de datos privados, ahorrando 99 MiB.
 
 ```
 Proceso A (PID=100):          Proceso B (PID=200):
@@ -1069,7 +1069,7 @@ Este ejemplo muestra cómo simular una tabla de páginas simple en C.
 #include <stdint.h>
 #include <stdbool.h>
 
-#define PAGE_SIZE 1024      // 1 KB por página
+#define PAGE_SIZE 1024      // 1 KiB por página
 #define PAGE_BITS 10        // log2(1024) = 10 bits
 #define NUM_PAGES 16        // 16 páginas lógicas
 #define NUM_FRAMES 32       // 32 marcos físicos
@@ -1221,7 +1221,7 @@ int main() {
     
     // Calcular fragmentación interna
     printf("--- Análisis de fragmentación ---\n");
-    uint32_t logical_size = 3500;  // Proceso necesita 3.5 KB
+    uint32_t logical_size = 3500;  // Proceso necesita 3.5 KiB
     uint32_t pages_needed = (logical_size + PAGE_SIZE - 1) / PAGE_SIZE;
     uint32_t allocated = pages_needed * PAGE_SIZE;
     uint32_t internal_frag = allocated - logical_size;
@@ -1295,8 +1295,8 @@ Este ejemplo demuestra la estructura de tabla de páginas, la traducción de dir
 ### Ejercicio Simple: Traducción de Dirección Lógica
 
 Un sistema usa paginación simple con las siguientes características:
-- Tamaño de memoria lógica: 32 KB
-- Tamaño de página: 2 KB
+- Tamaño de memoria lógica: 32 KiB
+- Tamaño de página: 2 KiB
 
 Tabla de páginas del proceso:
 ```
@@ -1316,10 +1316,10 @@ Página 3 -> Marco 4
 Calculamos la cantidad de bits
 
 ```
-Memoria lógica: 32 KB = 32 * 1024 = 32768 bytes = 2^15 bytes
+Memoria lógica: 32 KiB = 32 * 1024 = 32768 bytes = 2^15 bytes
 -> Se necesitan 15 bits para direccionar toda la memoria lógica
 
-Tamaño de página: 2 KB = 2 * 1024 = 2048 bytes = 2^11 bytes
+Tamaño de página: 2 KiB = 2 * 1024 = 2048 bytes = 2^11 bytes
 -> Se necesitan 11 bits para el offset
 
 Bits para página = Bits totales - Bits de offset
@@ -1394,7 +1394,7 @@ DF = 2952₁₀ = 101110001000₂
 
 Se sabe que la dirección lógica 12345 se traduce a la dirección física 28729, y que la página donde está 12345 se mapea al marco 7.  
 1. ¿Cuál es el tamaño de página del sistema?
-2. ¿Cuántos bits se usan para el número de página si el espacio lógico es de 64 KB?
+2. ¿Cuántos bits se usan para el número de página si el espacio lógico es de 64 KiB?
 3. ¿A qué dirección física se traduce la dirección lógica 15000 sabiendo que su página se mapea al marco 5?
 
 *Solución:*
@@ -1443,7 +1443,7 @@ DF debería ser = 7 * 4096 + 57 = 28672 + 57 = 28729 ok!
 
 *Verificación:*
 ```
-Tamaño de página = 4096 bytes = 4 KB = 2^12 bytes
+Tamaño de página = 4096 bytes = 4 KiB = 2^12 bytes
 
 DL = 12345
   = 12345 ÷ 4096 = 3 con resto 57
@@ -1455,7 +1455,7 @@ DF = 7 * 4096 + 57 = 28672 + 57 = 28729
 *Parte 2: Bits para número de página*
 
 ```
-Espacio lógico: 64 KB = 65536 bytes = 2^16 bytes
+Espacio lógico: 64 KiB = 65536 bytes = 2^16 bytes
 -> Se necesitan 16 bits de dirección total
 
 Tamaño de página: 4096 bytes = 2^12 bytes
@@ -1520,16 +1520,16 @@ DF = 23192₁₀ = 101101010011000₂
 ```
 
 *Respuestas finales:*
-1. Tamaño de página: 4096 bytes (4 KB)
+1. Tamaño de página: 4096 bytes (4 KiB)
 2. Bits para número de página: 4 bits (permite 16 páginas)
 3. Dirección física de 15000: 23192 bytes
 
 *Diagrama resumen del ejercicio:*
 
 ```
-Sistema con páginas de 4 KB:
+Sistema con páginas de 4 KiB:
 
-Espacio Lógico (64 KB):        Memoria Física:
+Espacio Lógico (64 KiB):        Memoria Física:
 ┌──────────────┐ Página 0      ┌──────────────┐ Marco 0
 │              │                │              │
 ├──────────────┤ Página 1      ├──────────────┤ Marco 1
@@ -1594,11 +1594,11 @@ Un checklist para ejercicios de traducción debe incluir: identificar el tamaño
 Algunas preguntas para profundizar tu comprensión: ¿Por qué los sistemas modernos NO usan particiones dinámicas a pesar de no tener fragmentación interna? Si la paginación elimina fragmentación externa, ¿por qué no se usan siempre páginas de 256 bytes para minimizar fragmentación interna? ¿Cómo afecta el tamaño de página al rendimiento del TLB? ¿Por qué la tabla de páginas invertida no se popularizó a pesar de ahorrar memoria? En un sistema con 100 procesos, ¿cuál es más eficiente: 100 tablas de páginas o una tabla invertida con hash?  
 
 ### Ejercicios Propuestos
-Ejercicio 1: Un sistema tiene páginas de 8 KB y espacio lógico de 256 KB. Si la dirección lógica 50000 se traduce a la dirección física 90000, ¿en qué marco está mapeada la página correspondiente?  
+Ejercicio 1: Un sistema tiene páginas de 8 KiB y espacio lógico de 256 KiB. Si la dirección lógica 50000 se traduce a la dirección física 90000, ¿en qué marco está mapeada la página correspondiente?  
 
-Ejercicio 2: Calculá la fragmentación interna promedio en un sistema con páginas de 4 KB si los procesos tienen tamaños aleatorios uniformemente distribuidos entre 1 KB y 100 KB.  
+Ejercicio 2: Calculá la fragmentación interna promedio en un sistema con páginas de 4 KiB si los procesos tienen tamaños aleatorios uniformemente distribuidos entre 1 KiB y 100 KiB.  
 
-Ejercicio 3: Compará el overhead de memoria para tablas de páginas en paginación simple de 1 nivel, paginación de 2 niveles, y tabla invertida. Asumí espacio lógico de 4 GB, páginas de 4 KB, y entrada de tabla de 4 bytes.  
+Ejercicio 3: Compará el overhead de memoria para tablas de páginas en paginación simple de 1 nivel, paginación de 2 niveles, y tabla invertida. Asumí espacio lógico de 4 GiB, páginas de 4 KiB, y entrada de tabla de 4 bytes.  
 
 Ejercicio 4: Diseñá la estructura de una tabla de páginas que soporte protección R/W/X, páginas compartidas entre procesos, copy-on-write, y páginas en disco (memoria virtual).  
 

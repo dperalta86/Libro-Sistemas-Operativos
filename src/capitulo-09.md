@@ -799,7 +799,7 @@ for (int i = 0; i < total_bloques; i++) {
 bitmap[bloque / 8] &= ~(1 << (bloque % 8));
 ```
 
-El bitmap es extremadamente compacto —solo 1 bit por bloque— y buscar bloques contiguos es relativamente fácil (buscamos secuencias de bits en 0). Para un disco de 500 GB con bloques de 4 KiB, tenemos 131.072.000 bloques, y el bitmap ocupa aproximadamente 16 MB. Este overhead es razonable y el bitmap típicamente se mantiene cacheado en memoria.
+El bitmap es extremadamente compacto —solo 1 bit por bloque— y buscar bloques contiguos es relativamente fácil (buscamos secuencias de bits en 0). Para un disco de 500 GiB con bloques de 4 KiB, tenemos 131.072.000 bloques, y el bitmap ocupa aproximadamente 16 MiB. Este overhead es razonable y el bitmap típicamente se mantiene cacheado en memoria.
 
 ### Método 2: Lista Enlazada de Bloques Libres
 
@@ -1006,7 +1006,7 @@ Las tres variantes de FAT difieren principalmente en el tamaño de las entradas 
 FAT12 dominó la era de los disquetes de 1.44 MiB en los años 1980 y 1990. FAT16 fue el estándar para discos duros pequeños hasta 2 GiB en MS-DOS y Windows 95. FAT32, introducido con Windows 95 OSR2 en 1996, sigue siendo el estándar actual en pendrives y tarjetas SD por su compatibilidad universal.
 
 \begin{warning}
-Aunque una partición FAT32 puede ser de 2 TB, el sistema NO puede almacenar archivos individuales mayores a 4 GiB. Esta limitación proviene del campo \texttt{file\_size} de 32 bits en la entrada de directorio: $2^{32}$ bytes = 4 GiB exactos. Intentar copiar un archivo de 5 GiB a un pendrive FAT32 fallará, independientemente del espacio libre disponible.
+Aunque una partición FAT32 puede ser de 2 TiB, el sistema NO puede almacenar archivos individuales mayores a 4 GiB. Esta limitación proviene del campo \texttt{file\_size} de 32 bits en la entrada de directorio: $2^{32}$ bytes = 4 GiB exactos. Intentar copiar un archivo de 5 GiB a un pendrive FAT32 fallará, independientemente del espacio libre disponible.
 \end{warning}
 
 ### Ejemplo de Operación: Lectura de Archivo
@@ -1139,7 +1139,7 @@ La estructura completa del inodo es:
 struct ext2_inode {
     uint16_t i_mode;          // Tipo de archivo y permisos
     uint16_t i_uid;           // User ID del propietario
-    uint32_t i_size;          // Tamaño en bytes (límite 4 GB en EXT2)
+    uint32_t i_size;          // Tamaño en bytes (límite 4 GiB en EXT2)
     uint32_t i_atime;         // Tiempo de último acceso
     uint32_t i_ctime;         // Tiempo de creación/cambio de metadatos
     uint32_t i_mtime;         // Tiempo de última modificación de datos
@@ -1686,7 +1686,7 @@ En la cátedra se enfocan en FAT y EXT2, pero es importante conocer la existenci
 **Año:** 2006  
 **Creador:** Microsoft
 
-Creado para dispositivos de almacenamiento flash de gran capacidad (SD cards >32 GB, pendrives grandes).
+Creado para dispositivos de almacenamiento flash de gran capacidad (SD cards >32 GiB, pendrives grandes).
 
 \textcolor{teal!60!black}{\textbf{Mejoras sobre FAT32:}\\
 - Elimina límite de 4 GiB para archivos individuales (usa 64 bits)\\
@@ -1695,7 +1695,7 @@ Creado para dispositivos de almacenamiento flash de gran capacidad (SD cards >32
 - Mejor para flash (menos escrituras que NTFS)\\
 }
 
-**Uso típico:** Tarjetas SD de >32 GB, discos externos USB
+**Uso típico:** Tarjetas SD de >32 GiB, discos externos USB
 
 **Sistema operativo:** Windows (Vista SP1+), macOS (10.6.5+), Linux (con driver)
 
