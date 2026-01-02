@@ -1,6 +1,6 @@
 # Introducción
 
-Bienvenido a **Introducción a los Sistemas Operativos**, un libro colaborativo diseñado específicamente para estudiantes de Ingeniería que enfrentan una de las materias más desafiantes y fascinantes de su carrera.
+Bienvenido a **Introducción a los Sistemas Operativos**, un libro colaborativo diseñado específicamente para estudiantes de Ingeniería que enfrentan una de las materias más desafiantes y fascinantes de su carrera.  
 
 ## ¿Qué vas a encontrar en este libro?
 
@@ -29,12 +29,9 @@ Luego analizá la técnica: cómo se implementa realmente lo que acabás de apre
 Finalmente, practicá con casos reales usando los ejercicios tipo parcial que incluimos, y hacé la síntesis final integrando todo con el panorama completo del sistema operativo.
 
 \begin{excerpt}
-**Licencia y Filosofía Colaborativa**
-
+\textbt{Licencia y Filosofía Colaborativa}
 Este libro se distribuye bajo Creative Commons BY-SA 4.0, lo que significa que es libre de usar, modificar y redistribuir. Es un proyecto creado dentro de la comunidad académica para la comunidad académica. Podés reutilizarlo, modificarlo, distribuirlo sin ningún problema de copyright. Encontrá el detalle de la licencia en: https://creativecommons.org/licenses/by-sa/4.0/
 \end{excerpt}
-
----
 
 ## Introducción a los Sistemas Operativos
 
@@ -53,7 +50,7 @@ Todo sistema operativo moderno, desde el que corre en tu teléfono hasta el que 
 El primer pilar es la **gestión de procesos**. ¿Cómo puede tu computadora ejecutar el navegador, el reproductor de música y el editor de texto "al mismo tiempo" si solo tiene una CPU? La respuesta está en la capacidad del sistema operativo de crear procesos, programar su ejecución, coordinar su interacción y terminarlos cuando ya no son necesarios. Esta ilusión de simultaneidad es uno de los trucos más elegantes de la computación moderna.
 
 \begin{highlight}
-Un **proceso** es un programa en ejecución. No es solo el código, sino también el estado completo de esa ejecución: variables, memoria asignada, archivos abiertos, posición en el código. El sistema operativo mantiene toda esta información y la restaura cada vez que le toca el turno al proceso.
+Un proceso es un programa en ejecución. No es solo el código, sino también el estado completo de esa ejecución: variables, memoria asignada, archivos abiertos, posición en el código. El sistema operativo mantiene toda esta información y la restaura cada vez que le toca el turno al proceso.
 \end{highlight}
 
 El segundo pilar es la **gestión de memoria**. Con múltiples programas ejecutándose, ¿cómo se decide quién usa qué porción de memoria? ¿Qué pasa cuando se agota? ¿Cómo evitamos que un programa corrupto escriba en la memoria de otro? El sistema operativo debe distribuir este recurso crítico, protegerlo contra accesos indebidos, y optimizar su uso para que el sistema completo funcione eficientemente.
@@ -98,7 +95,7 @@ La primera razón es la *transparencia*. A diferencia de sistemas propietarios d
 
 \begin{theory}
 Unix fue diseñado en los años 70 con una filosofía específica: "cada cosa hace una cosa bien". Esta simplicidad conceptual, donde funciones complejas se construyen componiendo herramientas simples, hace que sea más fácil entender el sistema como un todo. Muchos sistemas modernos han abandonado esta filosofía en favor de características más complejas, pero Unix/Linux mantiene estos principios en su núcleo.
-\end{theory>
+\end{theory}
 
 Los *estándares abiertos* son otra ventaja. POSIX (Portable Operating System Interface) define interfaces estándar que hacen que el código sea portable entre diferentes sistemas Unix-like. Esto significa que lo que aprendés sobre Linux es aplicable a BSD, macOS, y otros sistemas. Esta estandarización también facilita el aprendizaje porque podés confiar en que ciertos comportamientos son consistentes.
 
@@ -113,11 +110,12 @@ En este libro recorreremos el sistema operativo desde sus cimientos hasta sus as
 Los primeros capítulos establecen los **fundamentos**. Comenzamos con arquitectura de computadores porque para entender cómo funciona un sistema operativo necesitás entender el hardware que gestiona. Después introducimos el concepto de proceso, que es la abstracción fundamental sobre la que se construye todo lo demás.
 
 \begin{infobox}
-**Estructura del Libro:**
-- **Capítulos 1-2**: Fundamentos - Arquitectura de computadores y concepto de proceso
-- **Capítulos 3-6**: Concurrencia - Planificación, hilos, sincronización e interbloqueos
-- **Capítulos 7-8**: Memoria - Gestión de memoria real y virtual
-- **Capítulo 9**: Almacenamiento - Sistemas de archivos
+Estructura del Libro:\\
+- Capítulos 1-2: Fundamentos - Arquitectura de computadores y concepto de proceso\\
+- Capítulos 3-6: Concurrencia - Planificación, hilos, sincronización e interbloqueos\\
+- Capítulos 7-8: Memoria - Gestión de memoria real y virtual\\
+- Capítulo 9: Almacenamiento - Sistemas de archivos\\
+- Capitulo 10: Dispositivos I/O\\
 \end{infobox}
 
 La sección de **concurrencia** es el corazón del libro. Acá estudiamos cómo el sistema operativo crea la ilusión de múltiples actividades simultáneas: cómo planifica qué proceso se ejecuta en cada momento, cómo los hilos permiten paralelismo dentro de un proceso, cómo se sincronizan accesos a recursos compartidos, y cómo se previenen y resuelven interbloqueos. Esta sección es particularmente importante porque los problemas de concurrencia están entre los más sutiles y difíciles de la programación de sistemas.

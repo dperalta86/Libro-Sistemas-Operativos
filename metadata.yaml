@@ -3,8 +3,8 @@ title: ""
 author: ""
 date: ""
 subject: "Sistemas Operativos"
-keywords: [Sistemas Operativos, Operative systems, Example]
-subtitle: ""
+keywords: [Sistemas Operativos, Operating Systems, Unix, Linux, Procesos, Memoria, Concurrencia]
+subtitle: "Una guía práctica con enfoque en Unix/Linux"
 lang: "es"
 titlepage: true
 titlepage-text-color: "FFFFFF"
@@ -17,22 +17,21 @@ documentclass: scrbook
 toc: true
 toc-own-page: true
 toc-title: "Índice de Contenidos"
-toc-depth: 3
+toc-depth: 2
 
 # Configuración de página
 page-background: ""
 page-background-opacity: 1
-geometry: "left=3cm,right=3cm,top=3.5cm,bottom=3.5cm"
+geometry: "left=3cm,right=2.5cm,top=3.5cm,bottom=3.5cm"
 fontsize: "11pt"
 
 # Headers y footers Eisvogel
 header-left: "Daniel Peralta"
 header-center: ""
-header-right: "Introducción a los Sistemas Operativos"
+header-right: "\\leftmark"
 footer-left: ""
-footer-center: "Página \\thepage"
+footer-center: "\\thepage"
 footer-right: ""
-
 listings-disable-line-numbers: false
 code-block-font-size: "\\footnotesize"
 listings-no-page-break: false
@@ -40,13 +39,75 @@ book: true
 classoption: "twoside,openright"
 papersize: "a4"
 openright: true
-  
-# Páginas adicionales (sin frontmatter/mainmatter)
+
+# Páginas adicionales
 include-before: |
   \newpage
   \thispagestyle{empty}
   \null\vfill
   \newpage
+  \thispagestyle{empty}
+  \null\vfill
+    \begin{center}
+    {\Large\textbf{Introducción a los Sistemas Operativos}}
+  \end{center}
+  \vspace{1.5cm}
+  \noindent{Este libro se distribuye bajo licencia Creative Commons BY-SA 4.0, sos libre de compartir, copiar, redistribuir y adaptar este material 
+  para cualquier propósito, incluso comercialmente.\\[0.5em]
+  Más información: \texttt{https://creativecommons.org/licenses/by-sa/4.0/}\\[2em]
+  Código fuente, erratas y actualizaciones disponibles en:\\
+  \texttt{[https://github.com/dperalta86/Libro-Sistemas-Operativos]}\\[1em]
+  Para reportar errores o sugerir mejoras, por favor abrí un issue
+  en el repositorio o contactame directamente.\\[2em]
+  Este libro surge en el marco de la materia Sistemas Operativos
+  de la carrera de Ingeniería en Sistemas de Información
+  Universidad Tecnológica Nacional - Facultad Regional Buenos Aires (UTN-FRBA)\\[2em]}
+
+  \noindent\textit{Nota: Este es un material independiente creado por un estudiante, 
+  no constituye material oficial de la cátedra ni de la UTN-FRBA.\\[2em]}
+  \vfill
+  \begin{center}
+    \textbf{Autor:} Daniel Peralta\\
+    \textbf{Versión:} 1.0 (Enero 2026)\\[1em]
+  \end{center}
+  \newpage
+
+  \thispagestyle{empty}
+  \null\vfill
+  \begin{center}
+    {\Large\textbf{Cómo Usar Este Libro}}
+  \end{center}
+  \vspace{1cm}
+  \noindent{Estructura\\[0.5em]
+  Cada capítulo está diseñado para leerse de forma secuencial, ya que los conceptos 
+  se construyen progresivamente. Sin embargo, podés usar el índice para consultar 
+  temas específicos como referencia.\\[0.5em]
+  
+  Convenciones Visuales\\[0.5em]
+  A lo largo del libro encontrarás bloques de color que destacan información específica:\\
+  
+  \begin{itemize}
+    \item \textbf{Conceptos clave:} Definiciones fundamentales y términos importantes
+    \item \textbf{Ejemplos:} Casos prácticos y aplicaciones concretas
+    \item \textbf{Advertencias:} Errores comunes y aspectos críticos
+    \item \textbf{Teoría:} Fundamentos académicos y conceptos profundos
+    \item \textbf{Información adicional:} Contexto extra y datos curiosos
+  \end{itemize}
+  Código Fuente\\[0.5em]
+  Todos los ejemplos de código son funcionales y pueden compilarse y 
+  los comandos y syscalls están comentados línea por línea.\\
+  Se recomienda tener acceso a un sistema Unix/Linux para experimentar.\\
+  
+  Prerequisitos\\[0.5em]
+  Se asume conocimiento básico de:\\
+  \begin{itemize}
+    \item Programación en C
+    \item Arquitectura de computadores
+    \item Línea de comandos Unix/Linux
+  \end{itemize}}
+  \vfill
+  \newpage
+
   \thispagestyle{empty}
   \null\vfill
   \begin{center}
@@ -58,20 +119,17 @@ include-before: |
     con un enfoque tanto teórico como práctico. Mi intención no es reemplazar las clases\\
     ni los apuntes, sino ofrecer una guía clara que pueda servir de apoyo al momento\\
     de estudiar, repasar o preparar exámenes.\\[1em]
-
     Quiero compartirles también que, al momento de escribir estas páginas, \\
     todavía sigo siendo estudiante, sigo aprendiendo, cometiendo errores y descubriendo\\
-    nuevas formas de entender estos temas. Por eso, más que un "manual cerrado”,\\
+    nuevas formas de entender estos temas. Por eso, más que un "manual cerrado",\\
     este libro es una invitación a investigar, conocer y aprender.\\[1em]
-
     Si te resulta útil para aclarar dudas, ordenar ideas o ganar confianza en la materia,\\
     entonces habrá cumplido su propósito.\\[2em]
-
     \textbf{¡Muchos éxitos en la cursada!}
   \end{center}
   \vfill
-  
   \newpage
+
   \thispagestyle{empty}
   \null\vfill
   \vfill

@@ -14,7 +14,9 @@ $(SRC_DIR)/capitulo-05.md \
 $(SRC_DIR)/capitulo-06.md \
 $(SRC_DIR)/capitulo-07.md \
 $(SRC_DIR)/capitulo-08.md \
-$(SRC_DIR)/capitulo-09.md
+$(SRC_DIR)/capitulo-09.md \
+$(SRC_DIR)/capitulo-10.md \
+$(SRC_DIR)/apendice.md
 
 # Archivos de configuración
 METADATA = metadata.yaml
