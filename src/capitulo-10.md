@@ -1609,22 +1609,22 @@ close(fd);
     - Driver específico maneja hardware particular
     - VFS en Linux abstrae diferentes file systems
 
-20. **Capas del subsistema I/O:**
-    ```
-    Aplicación
-      ↓ syscall
-    File System
-      ↓
-    Block Layer / Cache
-      ↓
-    Device Driver
-      ↓
-    Hardware Controller
-      ↓
-    Dispositivo
-    ```
+20. **Capas del subsistema I/O:**  
 
----
+  ```
+  Aplicación
+    | syscall
+  File System
+    |
+  Block Layer / Cache
+    |
+  Device Driver
+    |
+  Hardware Controller
+    |
+  Dispositivo
+  ```
+
 
 ## 11. Preparación para Parcial
 
