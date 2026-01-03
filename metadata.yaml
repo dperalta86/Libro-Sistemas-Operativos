@@ -78,12 +78,9 @@ include-before: |
     {\Large\textbf{Cómo Usar Este Libro}}
   \end{center}
   \vspace{1cm}
-  \noindent{Estructura\\[0.5em]
-  Cada capítulo está diseñado para leerse de forma secuencial, ya que los conceptos 
+  \noindent{Cada capítulo está diseñado para leerse de forma secuencial, ya que los conceptos 
   se construyen progresivamente. Sin embargo, podés usar el índice para consultar 
-  temas específicos como referencia.\\[0.5em]
-  
-  Convenciones Visuales\\[0.5em]
+  temas específicos como referencia.\\
   A lo largo del libro encontrarás bloques de color que destacan información específica:\\
     - Conceptos clave: Definiciones fundamentales y términos importantes\\
     - Ejemplos: Casos prácticos y aplicaciones concretas\\
@@ -91,16 +88,15 @@ include-before: |
     - Teoría: Fundamentos académicos y conceptos profundos\\
     - Información adicional: Contexto extra y datos curiosos\\[0.5em]
 
-  Código Fuente\\[0.5em]
   Todos los ejemplos de código son funcionales y pueden compilarse y 
-  los comandos y syscalls están comentados línea por línea.\\
+  los comandos y syscalls están comentados línea por línea. 
   Se recomienda tener acceso a un sistema Unix/Linux para experimentar.\\
   
   Prerequisitos\\[0.5em]
   Se asume conocimiento básico de:\\
-    - Programación en C
-    - Arquitectura de computadores
-    - Línea de comandos Unix/Linux
+    - Programación en C\\
+    - Arquitectura de computadores\\
+    - Línea de comandos Unix/Linux}
   \vfill
   \newpage
 

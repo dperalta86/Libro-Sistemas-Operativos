@@ -25,7 +25,7 @@ Al finalizar este capítulo, el estudiante será capaz de:
 ### ¿Por qué necesitamos entender la arquitectura?
 Imaginá que querés entender cómo funciona un auto. Podrías aprender a manejarlo sin saber nada del motor, pero si quieres ser mecánico, necesitas entender pistones, válvulas, y transmisión.
 Con los sistemas operativos pasa lo mismo. Podés usar una computadora sin entender qué hay "debajo del capó", pero para diseñar, optimizar o debuggear un SO, necesitas entender el hardware que administra. 
-Esta comprensión no es opcional: es el fundamento sobre el cual construiremos todos los conceptos posteriores.  
+Esta comprensión no es opcional: es el fundamento sobre el cual se construyen todos los conceptos posteriores.  
 
 ### Los problemas que resuelve esta arquitectura  
 
@@ -115,6 +115,8 @@ Resultados transferidos a registro destino → PSW actualizado → CPU lista par
 Se verifica interrupción → si hay ISR: guarda contexto, salta a rutina de servicio → al terminar, retorno al ciclo normal.
 \end{minipage}
 \end{center}
+\vfill
+\newpage
 
 
 ## Sistema de Interrupciones
@@ -397,30 +399,29 @@ Este procedimiento asegura la correcta continuidad de los procesos, pero introdu
 
 \begin{center}
 \begin{minipage}{0.52\linewidth}
-\textbf{Fases del Context Switch en Sistemas Unix (detalle)} \\[2mm]
+\textbf{Fases del Context Switch en Sistemas Unix} \\[2mm]
 
-\textcolor{blue!50!black}{\textbf{Fase Inicial - Ejecución Normal:}\\
-\textbf{0.} P₀ ejecuta en modo usuario → Estado normal usando su espacio de direcciones y time slice vigente.\\[2mm]
-}
+\textbf{Fase Inicial - Ejecución Normal:}\\
+\textbf{0.} P₀ ejecuta en modo usuario → Estado normal usando su espacio de direcciones y time slice vigente.\\[1mm]
 
 \textcolor{orange!70!black}{\textbf{Detección del Evento [Hardware]:}\\
 \textbf{1.} Se dispara evento → Timer interrupt, IRQ de E/S o trap por syscall/exception\\
 \textbf{2.} Cambio automático a modo kernel → CPU guarda PC y PSW/EFLAGS, cambia a stack de kernel\\
-\textbf{3.} Búsqueda en vector/IDT → Hardware obtiene dirección del handler apropiado\\[2mm]
+\textbf{3.} Búsqueda en vector/IDT → Hardware obtiene dirección del handler apropiado\\[1mm]
 }
 
-\textcolor{violet!60!black}{\textbf{Guardar Estado [Software]:}\\
+\textcolor{blue!50!black}{\textbf{Guardar Estado [Software]:}\\
 \textbf{4.} Prólogo del handler → Kernel salva registros volátiles, arma frame de interrupción\\
 \textbf{5.} Decisión de reschedule → Marca need\_resched según tipo de evento\\
 \textbf{6.} Guardar contexto de P₀ → Registros GPR, SP, FP, TLS; FPU/SIMD en forma lazy\\
-\textbf{7.} Contabilidad y señales → Actualiza uso de CPU, entrega señales pendientes\\[2mm]
+\textbf{7.} Contabilidad y señales → Actualiza uso de CPU, entrega señales pendientes\\[1mm]
 }
 
-\textcolor{teal!60!black}{\textbf{Selección y Carga [Software]:}\\
+\textcolor{blue!50!black}{\textbf{Selección y Carga [Software]:}\\
 \textbf{8.} Actualizar colas y estado → Mueve P₀ de running → ready/blocked; ajusta prioridad\\
 \textbf{9.} Scheduler elige P₁ → Aplica política de planificación (CFS, prioridades, afinidad CPU)\\
 \textbf{10.} Preparar espacio de P₁ → Carga CR3/tablas de páginas; puede requerir TLB flush\\
-\textbf{11.} Recargar contexto de P₁ → Restaura registros, SP, FP, TLS, stack de usuario\\[2mm]
+\textbf{11.} Recargar contexto de P₁ → Restaura registros, SP, FP, TLS, stack de usuario\\[1mm]
 }
 \end{minipage}%
 \hspace{0.04\linewidth}%
@@ -431,15 +432,18 @@ Este procedimiento asegura la correcta continuidad de los procesos, pero introdu
 
 \vspace{2mm}
 
-\textcolor{green!40!black}{\textbf{\\Retorno a Ejecución [Hardware]:}\\
+\textcolor{orange!70!black}{\textbf{Retorno a Ejecución [Hardware]:}\\
 \textbf{12.} Epílogo y retorno → Prepara iret/sysret, re-habilita interrupciones\\
 \textbf{13.} Kernel → modo usuario → CPU restaura PSW/EFLAGS y PC, salta a P₁\\
 \textbf{14.} P₁ ejecuta en modo usuario → Continúa hasta el próximo evento\\[2mm]
 }
 
-\textcolor{red!60!gray}{\textbf{Overhead inevitable:}\\
-Acceso a memoria para guardar/restaurar registros → Invalidación de TLB y caches → Lógica extra del planificador → Sistemas I/O-bound generan más context switches que CPU-bound.\\
-}
+\begin{warning}
+\textbf{Overhead: }\emph{El costo inevitable del cambio de contexto}\\
+Cada cambio de contexto tiene un precio en rendimiento que no podemos evitar. Primero está el acceso a memoria para guardar y restaurar todos los registros del procesador, una operación que, aunque rápida, no es instantánea. Pero el impacto va más allá: cuando cambiamos de proceso, la TLB (Translation Lookaside Buffer) y las cachés del procesador quedan invalidadas porque contienen datos del proceso anterior, forzando al nuevo proceso a "cargar" estas estructuras nuevamente desde cero.
+\end{warning}
+A esto se suma la lógica del planificador mismo: decidir qué proceso ejecutar siguiente, actualizar estadísticas, verificar prioridades. Todo esto consume ciclos de CPU que podrían estar haciendo trabajo útil.
+Particularmente crítico es entender que los sistemas I/O-bound (que pasan mucho tiempo esperando entrada/salida) generan significativamente más cambios de contexto que los sistemas CPU-bound (que hacen cálculos intensivos). Esto es porque cada operación de I/O típicamente bloquea el proceso, forzando un context switch. Un servidor web manejando miles de conexiones puede estar cambiando de contexto miles de veces por segundo.
 
 
 ### Introducción a los Sistemas Operativos
@@ -457,17 +461,17 @@ Sus principales tareas incluyen lanzar el Init Program Loader durante el arranqu
 ### Principales Tareas del Sistema Operativo
 
 El sistema operativo moderno es un software extraordinariamente complejo que debe manejar múltiples responsabilidades simultáneamente. Veamos cada una de sus áreas principales:  
-La *gestión de procesos* involucra crear nuevos procesos cuando un programa necesita ejecutarse, planificar cuál proceso debe usar la CPU en cada momento, y terminar procesos de manera ordenada cuando finalizan. Además, debe proporcionar mecanismos de comunicación entre procesos que los permitan colaborar, y manejar la sincronización para evitar condiciones de carrera y deadlocks.  
+La **gestión de procesos** involucra crear nuevos procesos cuando un programa necesita ejecutarse, planificar cuál proceso debe usar la CPU en cada momento, y terminar procesos de manera ordenada cuando finalizan. Además, debe proporcionar mecanismos de comunicación entre procesos que los permitan colaborar, y manejar la sincronización para evitar condiciones de carrera y deadlocks.  
 
-La *gestión de memoria* requiere asignar bloques de memoria a procesos cuando la necesitan y liberarla cuando ya no la usan. Para maximizar el uso de la RAM limitada, implementa memoria virtual que permite usar disco como extensión de la RAM, y protege los espacios de memoria de cada proceso para que uno no pueda corromper accidentalmente (o maliciosamente) la memoria de otro.  
+La **gestión de memoria** requiere asignar bloques de memoria a procesos cuando la necesitan y liberarla cuando ya no la usan. Para maximizar el uso de la RAM limitada, implementa memoria virtual que permite usar disco como extensión de la RAM, y protege los espacios de memoria de cada proceso para que uno no pueda corromper accidentalmente (o maliciosamente) la memoria de otro.  
 
-La *gestión de almacenamiento* organiza los archivos en sistemas de archivos jerárquicos, controla el acceso a dispositivos de almacenamiento físico como discos y SSDs, e implementa políticas de respaldo y recuperación para proteger contra pérdida de datos.  
+La **gestión de almacenamiento** organiza los archivos en sistemas de archivos jerárquicos, controla el acceso a dispositivos de almacenamiento físico como discos y SSDs, e implementa políticas de respaldo y recuperación para proteger contra pérdida de datos.  
 
-La *gestión de E/S* debe controlar la enorme variedad de dispositivos que pueden conectarse al sistema, desde teclados y ratones hasta impresoras 3D y sensores especializados. Proporciona una interfaz uniforme que abstrae las diferencias entre dispositivos, y implementa técnicas como buffering, caching y spooling para maximizar la eficiencia.  
+La **gestión de E/S** debe controlar la enorme variedad de dispositivos que pueden conectarse al sistema, desde teclados y ratones hasta impresoras 3D y sensores especializados. Proporciona una interfaz uniforme que abstrae las diferencias entre dispositivos, y implementa técnicas como buffering, caching y spooling para maximizar la eficiencia.  
 
-Los aspectos de *seguridad y protección* incluyen autenticar usuarios para verificar identidades, controlar qué usuarios pueden acceder a qué recursos y con qué privilegios, y proteger procesos entre sí y proteger al sistema operativo mismo de procesos maliciosos.  
+Los aspectos de **seguridad y protección** incluyen autenticar usuarios para verificar identidades, controlar qué usuarios pueden acceder a qué recursos y con qué privilegios, y proteger procesos entre sí y proteger al sistema operativo mismo de procesos maliciosos.  
 
-Finalmente, *la interfaz de usuario* puede tomar la forma de una línea de comandos (CLI) para usuarios avanzados, interfaces gráficas (GUI) para usuarios generales, o APIs bien diseñadas para programadores que necesitan acceder a servicios del sistema.
+Finalmente, **la interfaz de usuario** puede tomar la forma de una línea de comandos (CLI) para usuarios avanzados, interfaces gráficas (GUI) para usuarios generales, o APIs bien diseñadas para programadores que necesitan acceder a servicios del sistema.
 
 ### System Calls (Llamadas al Sistema)
 
@@ -586,7 +590,10 @@ La modularidad facilita agregar, quitar, o actualizar componentes. Querer probar
 El rendimiento sufre debido al overhead de IPC entre componentes. Una operación simple puede requerir múltiples cambios de contexto y múltiples mensajes. La complejidad de diseño e implementación es considerablemente mayor: diseñar un buen sistema de IPC eficiente es extremadamente difícil.
 \end{warning}
 
-*Ejemplos:* Minix (el sistema usado para enseñar sistemas operativos), QNX (usado en sistemas embebidos críticos), seL4 (kernel formalmente verificado), y GNU Hurd (aún en desarrollo después de décadas).
+*Ejemplos:* Minix (el sistema usado para enseñar sistemas operativos), QNX (usado en sistemas embebidos críticos), seL4 (kernel formalmente verificado), y GNU Hurd (aún en desarrollo después de décadas).  
+
+*Enfoques Híbridos:*
+La realidad es que la mayoría de sistemas operativos modernos no son puramente monolíticos ni microkernels puros, sino que combinan elementos de ambos enfoques según convenga. Windows NT usa un microkernel modificado pero mueve algunos servicios críticos de performance al kernel. macOS combina el microkernel Mach con componentes monolíticos de BSD. Linux, aunque principalmente monolítico, usa módulos cargables que pueden agregarse y removerse dinámicamente.  
 
 **Comparación Práctica:** 
 
@@ -600,8 +607,6 @@ El rendimiento sufre debido al overhead de IPC entre componentes. Una operación
 | Simplicidad | Alta | Baja |
 | Tiempo de desarrollo | Menor | Mayor |
 
-*Enfoques Híbridos:*
-La realidad es que la mayoría de sistemas operativos modernos no son puramente monolíticos ni microkernels puros, sino que combinan elementos de ambos enfoques según convenga. Windows NT usa un microkernel modificado pero mueve algunos servicios críticos de performance al kernel. macOS combina el microkernel Mach con componentes monolíticos de BSD. Linux, aunque principalmente monolítico, usa módulos cargables que pueden agregarse y removerse dinámicamente.  
 
 ## Análisis Técnico (Leelo sólo por curiosidad...)
 Esta sección profundiza en aspectos más técnicos que, si bien no son esenciales para un primer entendimiento, te darán una apreciación más profunda de la complejidad involucrada. Podés leerla por curiosidad o saltearla y volver más adelante.  
