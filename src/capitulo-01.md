@@ -4,7 +4,7 @@ Bienvenido a **Introducción a los Sistemas Operativos**, un libro colaborativo 
 
 ## ¿Qué vas a encontrar en este libro?
 
-Este no es otro "manual básico" de sistemas operativos. Es un material didáctico creado con un enfoque práctico que busca conectar la teoría rigurosa con la implementación real. A lo largo de estos capítulos, vas a encontrar conceptos explicados desde lo concreto hacia lo abstracto, porque siempre es más fácil entender una abstracción cuando primero viste cómo funciona en la práctica.
+Este no es otro "manual básico" ni resumen, es un material didáctico creado con un enfoque práctico que busca conectar la teoría rigurosa con la implementación real. A lo largo de estos capítulos, vas a encontrar conceptos explicados desde lo concreto hacia lo abstracto, porque siempre es más fácil entender una abstracción cuando primero viste cómo funciona en la práctica.
 
 El libro combina rigor académico sin caer en complejidad innecesaria. Cada definición teórica viene acompañada de ejemplos reales, y las conexiones entre teoría y práctica están explícitamente señaladas. El principal enfoque es NO asumimir que "ya lo sabés" ni que "es obvio", creo que estos temas son densos y merecen explicaciones claras.
 
@@ -115,15 +115,17 @@ Estructura del Libro:\\
 - Capítulos 3-6: Concurrencia - Planificación, hilos, sincronización e interbloqueos\\
 - Capítulos 7-8: Memoria - Gestión de memoria real y virtual\\
 - Capítulo 9: Almacenamiento - Sistemas de archivos\\
-- Capitulo 10: Dispositivos I/O\\
+- Capitulo 10: I/O - Gestión de Dispositivos\\
 \end{infobox}
 
 La sección de **concurrencia** es el corazón del libro. Acá estudiamos cómo el sistema operativo crea la ilusión de múltiples actividades simultáneas: cómo planifica qué proceso se ejecuta en cada momento, cómo los hilos permiten paralelismo dentro de un proceso, cómo se sincronizan accesos a recursos compartidos, y cómo se previenen y resuelven interbloqueos. Esta sección es particularmente importante porque los problemas de concurrencia están entre los más sutiles y difíciles de la programación de sistemas.
 
 La **gestión de memoria** empieza con lo básico: cómo se asigna y libera memoria, cómo se protegen los espacios de direcciones de diferentes procesos. Después avanzamos hacia memoria virtual, una de las abstracciones más elegantes de la computación moderna, que hace que cada proceso "vea" su propio espacio de direcciones continuo e independiente, sin importar cómo esté realmente organizada la memoria física.
 
-Finalmente, el capítulo de **sistemas de archivos** cierra el ciclo mostrando cómo toda la información que los procesos manipulan en memoria puede persistirse en almacenamiento permanente. Acá conectamos todos los conceptos anteriores: procesos que acceden a archivos, memoria que se mapea desde archivos, planificación que debe considerar operaciones de I/O, y sincronización para accesos concurrentes al sistema de archivos.
+El capítulo de **sistemas de archivos** muestra cómo toda la información que los procesos manipulan en memoria puede persistirse en almacenamiento permanente. Acá conectamos muchos conceptos anteriores: procesos que acceden a archivos, memoria que se mapea desde archivos, y sincronización para accesos concurrentes al sistema de archivos.  
 
-Cada tema se construye deliberadamente sobre los anteriores. No podés entender memoria virtual sin entender procesos, no podés entender sincronización sin entender concurrencia, y no podés entender sistemas de archivos sin entender todas las abstracciones anteriores. Por eso es importante seguir el orden, aunque después puedas volver a capítulos específicos para referencia o repaso.
+Finalmente, la **gestión de I/O y dispositivos** cierra el círculo completando el cuarto pilar fundamental. Este capítulo integra todo lo anterior: procesos que esperan por operaciones de entrada/salida, planificación que debe considerar dispositivos lentos vs. rápidos, memoria que se usa como buffer para I/O, y la compleja interacción entre el sistema operativo y el hardware heterogéneo. Entender I/O es entender cómo el sistema operativo realmente se comunica con el mundo exterior.  
+
+Cada tema se construye deliberadamente sobre los anteriores. No podés entender memoria virtual sin entender procesos, no podés entender sincronización sin entender concurrencia, no podés entender sistemas de archivos sin entender gestión de memoria, y no podés entender I/O sin comprender cómo todos estos subsistemas interactúan. Por eso es importante seguir el orden, aunque después puedas volver a capítulos específicos para referencia o repaso.  
 
 Al final de este recorrido, vas a tener una comprensión integral de cómo funciona realmente el software más importante de tu computadora: ese conjunto de abstracciones, políticas y mecanismos que transforman metal y silicio en una máquina útil, segura y eficiente.

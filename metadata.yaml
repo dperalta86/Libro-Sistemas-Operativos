@@ -85,14 +85,12 @@ include-before: |
   
   Convenciones Visuales\\[0.5em]
   A lo largo del libro encontrarás bloques de color que destacan información específica:\\
-  
-  \begin{itemize}
-    \item \textbf{Conceptos clave:} Definiciones fundamentales y términos importantes
-    \item \textbf{Ejemplos:} Casos prácticos y aplicaciones concretas
-    \item \textbf{Advertencias:} Errores comunes y aspectos críticos
-    \item \textbf{Teoría:} Fundamentos académicos y conceptos profundos
-    \item \textbf{Información adicional:} Contexto extra y datos curiosos
-  \end{itemize}
+    - Conceptos clave: Definiciones fundamentales y términos importantes\\
+    - Ejemplos: Casos prácticos y aplicaciones concretas\\
+    - Advertencias: Errores comunes y aspectos críticos\\
+    - Teoría: Fundamentos académicos y conceptos profundos\\
+    - Información adicional: Contexto extra y datos curiosos\\[0.5em]
+
   Código Fuente\\[0.5em]
   Todos los ejemplos de código son funcionales y pueden compilarse y 
   los comandos y syscalls están comentados línea por línea.\\
@@ -100,11 +98,9 @@ include-before: |
   
   Prerequisitos\\[0.5em]
   Se asume conocimiento básico de:\\
-  \begin{itemize}
-    \item Programación en C
-    \item Arquitectura de computadores
-    \item Línea de comandos Unix/Linux
-  \end{itemize}}
+    - Programación en C
+    - Arquitectura de computadores
+    - Línea de comandos Unix/Linux
   \vfill
   \newpage
 
