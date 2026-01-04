@@ -1,16 +1,5 @@
 # Introducción y Arquitectura de Computadores
 
-
-
-
-
-
-
-
-
-
-
-
 ## Objetivos de Aprendizaje
 
 Al finalizar este capítulo, el estudiante será capaz de:
@@ -48,10 +37,11 @@ La característica distintiva de la arquitectura de von Neumann es que \textit{p
 Esta arquitectura se compone de cuatro subsistemas principales que trabajan en conjunto. La **CPU** (Unidad Central de Procesamiento) es el cerebro del sistema, conteniendo la Unidad de Control que decodifica y ejecuta instrucciones, la Unidad Aritmético-Lógica que realiza operaciones matemáticas y lógicas, y un conjunto de registros que proporcionan almacenamiento ultrarrápido dentro del procesador mismo.  
 La **Memoria Principal** (RAM) almacena tanto programas como datos de forma temporal. Su característica de acceso directo y aleatorio significa que cualquier ubicación puede ser accedida en tiempo constante, pero su naturaleza volátil implica que todo su contenido se pierde al apagar el sistema.  
 El **Almacenamiento Secundario** complementa a la RAM proporcionando persistencia. Los discos duros, SSD y otros medios de almacenamiento son significativamente más lentos que la RAM, pero mantienen la información incluso sin energía eléctrica y ofrecen capacidades mucho mayores.
-Los **Dispositivos de E/S** son las interfaces que permiten al sistema interactuar con el mundo exterior: teclado, mouse, pantalla, tarjetas de red, y una variedad de periféricos especializados.  
+Los **Dispositivos de E/S** son las interfaces que permiten al sistema interactuar con el mundo exterior: teclado, mouse, pantalla, tarjetas de red, y una variedad de periféricos especializados. 
+\vfill
+\newpage 
 
-
-![Diagrama de un Computador](src/images/capitulo-01/01.png){ width=350 height=265 style="display: block; margin: auto;" }  
+![Diagrama de la arquitectura básica de una computadora, basado en el modelo de von Neumann, donde se muestran los principales componentes del sistema y su interconexión: CPU, memoria principal y dispositivos de entrada/salida.](src/images/capitulo-01/01.png)
 
 ## Buses de Comunicación
 Los componentes de la arquitectura de von Neumann no pueden funcionar de forma aislada. Los **buses** son las "autopistas" que permiten la comunicación entre CPU, memoria y dispositivos. Sin ellos, tendríamos componentes poderosos pero incapaces de colaborar.  
@@ -87,15 +77,17 @@ Los flags de sistema controlan aspectos avanzados de la ejecución. El I/O Privi
 \begin{center}
 \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap01-psw_register.png}
 \end{center}  
+\vfill
+\newpage
 
 ### Ciclo de Instrucción
 
 \begin{center}
-\begin{minipage}{0.55\linewidth}
+\begin{minipage}{0.45\linewidth}
     \includegraphics[width=0.8\linewidth,keepaspectratio]{src/diagrams/cap01-cicloInstruccion.png}
 \end{minipage}%
 \hspace{0.05\linewidth}%
-\begin{minipage}{0.35\linewidth}
+\begin{minipage}{0.45\linewidth}
 \textbf{Fase 1: FETCH} \\
 PC apunta a próxima instrucción → se carga en IR → PC se incrementa automáticamente. \\[2mm]
 
@@ -108,16 +100,13 @@ Si la instrucción requiere datos: dirección en bus → dato desde memoria → 
 \textbf{Fase 4: EXECUTE} \\
 ALU ejecuta la operación → actualización de registros y flags → resultados a memoria si aplica. \\[2mm]
 
+\end{minipage}
+\end{center}
 \textbf{Fase 5: WRITE BACK} \\
 Resultados transferidos a registro destino → PSW actualizado → CPU lista para nuevo ciclo. \\[2mm]
 
 \textbf{Fase 0: CHECK INTERRUPT} \\
 Se verifica interrupción → si hay ISR: guarda contexto, salta a rutina de servicio → al terminar, retorno al ciclo normal.
-\end{minipage}
-\end{center}
-\vfill
-\newpage
-
 
 ## Sistema de Interrupciones
 Las interrupciones son posiblemente el mecanismo de hardware más importante para un sistema operativo. Sin ellas, el SO no podría mantener control sobre el sistema ni implementar multitasking efectivo.  
@@ -360,12 +349,12 @@ En **Modo Usuario** (user mode), el procesador opera con un subconjunto restring
 
 \begin{infobox}
 Esta separación de modos es la base de la seguridad y estabilidad del sistema. Sin ella, cualquier programa podría crashear la máquina o acceder a datos privados de otros procesos. Es la razón por la que un navegador web con errores puede cerrarse sin afectar al resto del sistema.
-\end{infobox}
-
-Pero surge una pregunta natural: si las aplicaciones no pueden acceder al hardware directamente, ¿cómo escriben a disco, muestran gráficos en pantalla, o envían datos por la red? La respuesta son las system calls, el puente controlado entre modo usuario y modo kernel que veremos en detalle más adelante.  
+\end{infobox} 
 
 ### Cambio de Procesos
 Cuándo por algún motivo existe un cambio de proceso en ejecución (los motivos se verán en detalle mas adelante), se realizan varias tareas que son "transparentes" para el usuario final.  
+
+![Diagrama del cambio de contexto entre procesos, donde el sistema operativo guarda el estado del proceso en ejecución en su PCB y restaura el estado de otro proceso para continuar su ejecución.](src/images/capitulo-01/03.png)
 
 \begin{center}
 \begin{minipage}{0.45\linewidth}
@@ -595,9 +584,7 @@ El rendimiento sufre debido al overhead de IPC entre componentes. Una operación
 *Enfoques Híbridos:*
 La realidad es que la mayoría de sistemas operativos modernos no son puramente monolíticos ni microkernels puros, sino que combinan elementos de ambos enfoques según convenga. Windows NT usa un microkernel modificado pero mueve algunos servicios críticos de performance al kernel. macOS combina el microkernel Mach con componentes monolíticos de BSD. Linux, aunque principalmente monolítico, usa módulos cargables que pueden agregarse y removerse dinámicamente.  
 
-**Comparación Práctica:** 
-
-![Comparacion distintos kernel](src/images/capitulo-01/02.png){ width=440px height=260px }  
+![Comparación de las principales arquitecturas de núcleo de un sistema operativo: kernel monolítico, microkernel y kernel multicapa, destacando la organización de sus componentes y su relación con el hardware.](src/images/capitulo-01/02.png)
 
 | Aspecto | Monolítico | Microkernel |
 |---------|------------|-------------|

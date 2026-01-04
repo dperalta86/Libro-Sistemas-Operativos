@@ -39,6 +39,8 @@ book: true
 classoption: "twoside,openright"
 papersize: "a4"
 openright: true
+mainfontfallback:
+  - "Noto Color Emoji:mode=harf"
 
 # Páginas adicionales
 include-before: |
