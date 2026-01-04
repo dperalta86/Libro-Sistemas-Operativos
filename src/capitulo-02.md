@@ -354,7 +354,7 @@ Esta separación de modos es la base de la seguridad y estabilidad del sistema. 
 ### Cambio de Procesos
 Cuándo por algún motivo existe un cambio de proceso en ejecución (los motivos se verán en detalle mas adelante), se realizan varias tareas que son "transparentes" para el usuario final.  
 
-![Diagrama del cambio de contexto entre procesos, donde el sistema operativo guarda el estado del proceso en ejecución en su PCB y restaura el estado de otro proceso para continuar su ejecución.](src/images/capitulo-01/03.png){ width=640px height=411px style="display: block; margin: auto;" }
+![Diagrama del cambio de contexto entre procesos, donde el sistema operativo guarda el estado del proceso en ejecución en su PCB y restaura el estado de otro proceso para continuar su ejecución.](src/images/capitulo-01/03.png){ width=580px height=370px style="display: block; margin: auto;" }
 
 \begin{center}
 \begin{minipage}{0.45\linewidth}
