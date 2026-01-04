@@ -1085,7 +1085,8 @@ El costo es mayor write penalty (6 operaciones por escritura en vez de 4) y mayo
 Uso: Almacenamiento empresarial crítico, arrays grandes (8+ discos) donde la probabilidad de fallo doble durante reconstrucción es significativa.
 \end{excerpt}
 
-## 8. Buffering y Caching
+## Buffering y Caching
+El subsistema de I/O no solo maneja dispositivos; también implementa técnicas de software para mejorar el rendimiento y manejar la asincronía entre componentes de diferentes velocidades.
 
 ### Buffering
 
@@ -1093,8 +1094,7 @@ Uso: Almacenamiento empresarial crítico, arrays grandes (8+ discos) donde la pr
 \emph{Buffer:}
 Área de memoria temporal usada para almacenar datos durante transferencias entre componentes de diferente velocidad o cuando hay desincronización temporal.
 \end{infobox}
-
-**Tipos de buffering:**
+Los buffers son esenciales porque los productores y consumidores de datos rara vez operan exactamente a la misma velocidad. Pensá en un buffer como un tanque de agua entre dos tuberías de diferente diámetro: suaviza las variaciones de flujo.
 
 **1. Simple Buffer:**
 ```
@@ -1104,7 +1104,7 @@ Mientras Productor llena el buffer, Consumidor espera
 Cuando buffer está lleno, Productor espera mientras Consumidor procesa
 ```
 
-**Problema:** Solo uno puede trabajar a la vez (no hay concurrencia)
+Este es el esquema más simple: un solo buffer. El problema es obvio: solo uno puede trabajar a la vez. Cuando el productor está llenando el buffer, el consumidor debe esperar. Cuando el consumidor está procesando, el productor debe esperar. No hay concurrencia real.
 
 **2. Double Buffering:**
 ```
@@ -1117,9 +1117,7 @@ Productor llena Buffer 2
 Luego intercambian (swap)
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventaja:}\\
-Permite overlap: Productor y Consumidor trabajan en paralelo, mejorando throughput significativamente\\
-}
+Double buffering es una mejora elegante: mientras el consumidor procesa los datos de un buffer, el productor ya está llenando el otro. Cuando ambos terminan, simplemente intercambian roles. Esto permite overlap real: ambos trabajan en paralelo.
 
 **Ejemplo numérico:**
 ```
@@ -1133,6 +1131,7 @@ Con double buffer:
   Tiempo_total = max(10ms, 15ms) = 15ms por buffer
   Mejora = 25/15 = 1.67× más rápido
 ```
+En este ejemplo, double buffering mejora el throughput en 67%. Para dispositivos reales donde la diferencia de velocidad es mayor, las mejoras pueden ser aún más dramáticas.
 
 **3. Circular Buffer (Ring Buffer):**
 ```
@@ -1145,7 +1144,7 @@ Consumer lee desde read_ptr
 Ambos avanzan circularmente
 ```
 
-**Gestión del ring buffer:**
+El ring buffer extiende la idea de double buffering a N buffers organizados circularmente. Es ampliamente usado en drivers de dispositivos de alta velocidad.
 ```c
 #define BUFFER_SIZE 8
 char buffer[BUFFER_SIZE];
@@ -1171,63 +1170,99 @@ char consume() {
 }
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas del ring buffer:}\\
-- Múltiples buffers permiten mayor concurrencia\\
-- Suaviza ráfagas (bursts) de datos\\
-- Usado extensivamente en drivers de red y audio\\
-}
+\begin{highlight}
+Las ventajas del ring buffer son poderosas para I/O de alta velocidad:\\
 
-**Uso de buffering:**
+- Múltiples buffers permiten mayor concurrencia y paralelismo\\
+- Suaviza ráfagas (bursts) de datos: si llega un burst rápido, se almacena en múltiples buffers mientras el consumidor procesa a su ritmo\\
+- Usado extensivamente en drivers de red (para paquetes entrantes), audio (para evitar stuttering), y video streaming\\x
+- Permite que productor y consumidor operen a velocidades muy diferentes sin bloqueos frecuentes
+\end{highlight}
 
-Disco → memoria (buffer cache)
-Tarjeta de red → memoria (ring buffers para paquetes)
-Teclado → aplicación (input buffer)
-Audio/video streaming (evita stuttering)
+Casos de uso reales:
+
+- **Disco → memoria:** Buffer cache mantiene bloques recientemente leídos  
+- **Tarjeta de red → memoria:** Ring buffers de paquetes entrantes/salientes  
+- **Teclado → aplicación:** Input buffer para keystrokes (por eso podés seguir escribiendo aunque la app esté ocupada)  
+- **Audio/video streaming:** Buffers para prevenir stuttering ante variaciones de red  
+
 
 ### Caching
+
 \begin{infobox}
 \emph{Cache:}
 Copia de datos frecuentemente accedidos almacenada en un medio más rápido para acelerar accesos futuros.
 \end{infobox}
 
-### Diferencia buffer vs cache:
+Un cache es fundamentalmente diferente de un buffer. Un buffer almacena datos *en tránsito* temporalmente (hay una sola copia, moviéndose). Un cache almacena una *copia duplicada* de datos que también existen en su ubicación original (hay dos copias: la rápida en cache, la lenta en origen).
 
-Buffer: Almacenamiento temporal durante transferencia (datos en tránsito, una sola copia)  
-Cache: Copia de datos para acceso rápido (datos duplicados, permanecen en origen)  
+**Diferencia conceptual:**
+```
+Buffer:
+  Datos en tránsito
+  Almacenamiento temporal
+  Una sola copia (moviéndose)
+  Propósito: suavizar diferencias de velocidad
 
-### Ejemplo - Buffer cache del SO:
+Cache:
+  Datos duplicados
+  Almacenamiento persistente (mientras esté en cache)
+  Dos copias (origen + cache)
+  Propósito: acelerar accesos repetidos
+```
+
+**Ejemplo: Buffer cache del sistema operativo**
 ```
 Aplicación solicita read(fd, buffer, 4096)
 
 1. SO verifica buffer cache:
    - ¿Bloque ya en cache? → Retornar inmediatamente (cache hit)
+     Tiempo: ~100 nanosegundos (acceso a RAM)
+   
    - ¿No en cache? → Leer de disco y cachear (cache miss)
+     Tiempo: ~10 milisegundos (acceso a disco)
 
 2. Al escribir write(fd, buffer, 4096):
    - Escribir en cache (write-back)
-   - Marcar como "dirty"
+   - Marcar bloque como "dirty" (modificado)
    - Eventualmente flush a disco (asíncrono)
+   - Retornar inmediatamente a la aplicación
 ```
+
+\begin{theory}
+El buffer cache del sistema operativo es uno de los componentes más críticos para el rendimiento. Un cache hit evita un acceso a disco completo (~10ms), reemplazándolo por un acceso a RAM (~100ns). Esto es una aceleración de 100.000×.
+
+Con un hit rate típico de 90-95% en sistemas con suficiente RAM, la mayoría de los accesos a "disco" realmente se sirven desde memoria, haciendo que el sistema se sienta muchísimo más rápido de lo que los discos realmente son.
+\end{theory}
 
 **Beneficios del buffer cache:**
 
-- Reduce accesos a disco (órdenes de magnitud más rápido)\
-- Permite write coalescing: múltiples escrituras pequeñas se agrupan\
-- Mejora throughput general del sistema\
-- Hit rate típico: 85-95 por ciento en sistemas con suficiente RAM\
+- *Reduce dramáticamente accesos a disco:* 100.000× más rápido servir desde RAM
+- *Write coalescing:* Múltiples escrituras pequeñas al mismo bloque se agrupan en una sola escritura física
+- *Read-ahead:* Al leer un bloque, el SO predice que probablemente querrás los siguientes y los precarga
+- *Mejora throughput general:* Menos tiempo esperando I/O = más tiempo ejecutando código útil
 
+**Hit rate típico:** 85-95% en sistemas de escritorio con 8-16 GB RAM, puede llegar a 98-99% en servidores con cientos de GB dedicados a cache.
 
-### Políticas de reemplazo de cache:
+**Políticas de reemplazo de cache:**
 
-- LRU (Least Recently Used): Reemplazar bloque menos usado recientemente
-- LFU (Least Frequently Used): Reemplazar bloque menos usado en total
-- Clock: Aproximación eficiente de LRU
+Cuando el cache está lleno y necesitás agregar un nuevo bloque, ¿cuál removés? Varias estrategias:
+
+- *LRU (Least Recently Used):* Reemplazar el bloque que hace más tiempo no se usó. Asume que lo que usaste recientemente probablemente lo uses pronto. Muy efectivo en práctica.
+
+- *LFU (Least Frequently Used):* Reemplazar el bloque que menos veces se ha usado en total. Asume que algunos bloques son "calientes" (frecuentemente usados) y deben mantenerse.
+
+- *Clock (Second Chance):* Aproximación eficiente de LRU. Usa un bit de "referencia" y una mano de reloj que recorre el cache. Cuando se necesita reemplazo, la mano avanza hasta encontrar un bloque con bit = 0, dándole "segunda oportunidad" a los que tienen bit = 1.
+
+Linux modernos usan variantes sofisticadas como *LRU de dos listas* (activa e inactiva) que balancea entre recencia y frecuencia.
 
 ### Spooling
 \begin{infobox}
 \emph{Spooling (Simultaneous Peripheral Operations On-Line):}
-Técnica donde se almacena la salida de varios procesos en disco antes de enviarla a un dispositivo lento (como impresora).
+Técnica donde se almacena la salida de varios procesos en disco antes de enviarla a un dispositivo lento y dedicado (como una impresora).
 \end{infobox}
+
+Spooling es una técnica clásica para manejar dispositivos dedicados lentos. El ejemplo canónico es la impresión.
 
 ### Ejemplo - Print spooler:
 ```
@@ -1239,10 +1274,21 @@ Cada proceso escribe su documento al spool inmediatamente (rápido)
 Print daemon envía a impresora secuencialmente (lento)
 ```
 
-**Ventaja:** Los procesos no esperan a que termine la impresión (pueden continuar inmediatamente)
-**Ubicación típica en Linux:** /var/spool/cups/ para impresoras
+Sin spooling, cada proceso tendría que esperar a que la impresora terminara completamente antes de continuar. Con spooling, el proceso escribe al spool (típicamente toma segundos) y puede continuar inmediatamente. El print daemon maneja la tarea lenta de imprimir en background.
+
+**Ventajas:**  
+- Procesos no bloquean esperando dispositivo lento  
+- Múltiples procesos pueden "usar" el dispositivo simultáneamente (sus trabajos se encolan)  
+- Permite priorización y reordenamiento de trabajos  
+- Facilita cancelación de trabajos antes de que se procesen  
+
+**Ubicación típica en Linux:** `/var/spool/cups/` para impresoras, `/var/spool/mail/` para correo saliente.
+
+Spooling es usado no solo para impresoras, sino también para correo saliente, faxes, y cualquier dispositivo dedicado lento donde querés desacoplar la generación de datos de su procesamiento.
 
 ## Caso de Estudio: I/O en Linux
+Linux proporciona una implementación completa y sofisticada del subsistema de I/O. Veamos cómo estructura este complejo componente.
+
 ### Arquitectura de I/O en Linux
 Linux implementa un subsistema de I/O en capas:
 ```
@@ -1262,9 +1308,13 @@ Hardware Controller
     |
 Dispositivo Físico
 ```
+Cada capa tiene responsabilidades específicas. El *VFS* (Virtual File System) proporciona la abstracción que permite que todas las operaciones de archivo sean uniformes, sin importar si el archivo está en ext4, NTFS, o incluso NFS remoto. El *Block Layer* maneja el scheduling de I/O, request merging, y coordina el page cache. Los *Device Drivers* específicos traducen comandos genéricos a secuencias específicas de hardware.
+
+Esta arquitectura en capas permite que agregar soporte para un nuevo file system (digamos, BTRFS) no requiera modificar ningún device driver, y viceversa: agregar soporte para un nuevo tipo de disco (digamos, NVMe) no requiere modificar ningún file system.
 
 ### Archivos Especiales en /dev
-Linux representa dispositivos como archivos especiales en `/dev`:
+Una de las ideas más elegantes de Unix/Linux es *"todo es un archivo"*. Los dispositivos se representan como archivos especiales en `/dev`:
+
 ```
 $ ls -l /dev/
 brw-rw---- 1 root disk 8,  0 Dec 30 10:00 sda   # Disco completo
@@ -1274,11 +1324,11 @@ crw-rw-rw- 1 root tty  5,  0 Dec 30 10:00 tty   # Terminal
 crw------- 1 root root 10, 1 Dec 30 10:00 psaux # Mouse PS/2
 ```
 
-**Tipos de archivos especiales:**
-- `b` (block): Dispositivos de bloque (discos, particiones)
-- `c` (character): Dispositivos de carácter (terminales, puertos serie)
+El primer carácter indica el tipo:  
+- `b` (block): Dispositivos de bloque (discos, particiones)  
+- `c` (character): Dispositivos de carácter (terminales, puertos serie)  
 
-**Major y Minor numbers:**
+Los dos números importantes son el *major* y *minor number*:
 ```
 brw-rw---- 1 root disk 8, 1 Dec 30 10:00 sda1
                          ^  ^
@@ -1288,28 +1338,34 @@ brw-rw---- 1 root disk 8, 1 Dec 30 10:00 sda1
 Major number: identifica el driver (8 = SCSI/SATA disk)
 Minor number: identifica el dispositivo específico (1 = primera partición)
 ```
+
+El kernel usa el major number para determinar qué driver debe manejar las operaciones en ese dispositivo. El driver usa el minor number para saber cuál de sus dispositivos se está accediendo.  
+Esta abstracción permite que escribir a `/dev/sda1` sea idéntico sintácticamente a escribir a cualquier archivo regular. El kernel se encarga de rutear la operación al driver correcto.
+
 ### Schedulers de I/O en Linux
 
-Linux provee varios schedulers de disco que se pueden cambiar dinámicamente:
+Linux provee varios schedulers de disco que se pueden cambiar dinámicamente según las necesidades del sistema. Cada uno implementa diferentes estrategias de los algoritmos que vimos.
 
-**CFQ (Completely Fair Queuing):**
-- Default en kernels antiguos
-- Similar a round-robin entre procesos
-- Busca fairness
+**CFQ (Completely Fair Queuing):**  
+- Default en kernels antiguos  
+- Similar a round-robin entre procesos  
+- Busca fairness  
 
-**Deadline:**
-- Garantiza tiempo máximo de espera
-- Usa read deadline y write deadline
-- Bueno para sistemas de tiempo real
+**Deadline:**  
+- Garantiza tiempo máximo de espera  
+- Usa read deadline y write deadline  
+- Bueno para sistemas de tiempo real  
 
-**Noop (No Operation):**
-- Solo merge de requests consecutivos
-- Mínimo overhead
-- Óptimo para SSDs (que no tienen seek time)
+**Noop (No Operation):**  
+- Solo merge de requests consecutivos  
+- Mínimo overhead  
+- Óptimo para SSDs (que no tienen seek time)  
 
-**mq-deadline / BFQ / Kyber:**
-- Schedulers modernos para dispositivos multi-cola (NVMe)
-- Aprovechan paralelismo de SSDs modernos
+**mq-deadline / BFQ / Kyber:**  
+- Schedulers modernos para dispositivos multi-cola (NVMe)  
+- Aprovechan paralelismo de SSDs modernos  
+
+Ver y cambiar el scheduler (dinámicamente):
 
 ```bash
 # Ver scheduler actual
@@ -1319,15 +1375,17 @@ $ cat /sys/block/sda/queue/scheduler
 # Cambiar scheduler
 $ echo bfq > /sys/block/sda/queue/scheduler
 ```
+La elección del scheduler puede tener impacto significativo en workloads específicos. Para SSDs, `noop` o `none` típicamente dan mejor rendimiento porque el overhead del scheduling es desperdicio. Para HDDs con carga mixta, `mq-deadline` o `bfq` típicamente son mejores.
 
 ### ioctl: Operaciones Específicas de Dispositivo
 
 \begin{infobox}
 \emph{ioctl (Input/Output Control):}
-Syscall que permite ejecutar operaciones específicas de un dispositivo que no son read/write estándar.
+Syscall que permite ejecutar operaciones específicas de un dispositivo que no son read/write estándar. Es la "puerta trasera" para control de dispositivo.
 \end{infobox}
+No todas las operaciones de dispositivo son simplemente leer o escribir datos. A veces necesitás configurar parámetros, obtener información del dispositivo, o ejecutar comandos especiales. `ioctl` es el syscall catch-all para estas operaciones.
 
-**Ejemplo conceptual:**
+Ejemplo conceptual:
 ```c
 #include <sys/ioctl.h>
 
@@ -1346,134 +1404,78 @@ printf("Block size: %d bytes\n", block_size);
 close(fd);
 ```
 
-**Uso típico de ioctl:**
-- Configurar baudrate en puerto serie
-- Cambiar resolución de terminal
-- Obtener información de geometría de disco
-- Controlar dispositivos especializados
+**Uso típico de ioctl:**  
+- Configurar baudrate en puerto serie  
+- Cambiar resolución y modos de color en terminal  
+- Obtener geometría de disco (cilindros, heads, sectores)  
+- Controlar volumen en dispositivos de audio  
+- Configurar parámetros de captura de video  
+- Enviar comandos SCSI raw a discos  
+- Prácticamente cualquier operación específica de dispositivo  
 
----
+Cada driver define sus propios códigos de ioctl. Por ejemplo, `BLKGETSIZE64` es específico de block devices, mientras que `TCGETS` es específico de terminales. Esta flexibilidad hace que ioctl sea tremendamente poderoso pero también algo caótico: no hay una interfaz uniforme como con read/write.
+
 
 ## 10. Síntesis y Puntos Clave
 
 ### Conceptos Fundamentales
 
-1. **Complejidad del I/O**
-   - Enorme diversidad de dispositivos (velocidades, interfaces, protocolos)
-   - Rangos de velocidad: 6 órdenes de magnitud (teclado vs SSD NVMe)
-   - Necesidad de abstracción (device independence)
+El *subsistema de I/O* enfrenta una complejidad única en el sistema operativo: debe coordinar una enorme diversidad de dispositivos con rangos de velocidad que van de 6 órdenes de magnitud (desde teclados a 10 bytes/seg hasta SSDs NVMe a 7 GB/seg). La necesidad de abstracción (device independence) permite que las aplicaciones usen interfaces uniformes sin preocuparse por los detalles de cada dispositivo.  
+Los dispositivos se clasifican por **transferencia** (bloque, carácter, red) y por **acceso** (compartibles, dedicados). Los controladores de dispositivo actúan como interfaz entre el bus del sistema y el dispositivo físico, y el driver del SO interactúa con el controlador, no directamente con el dispositivo.
 
-2. **Clasificación de dispositivos**
-   - **Por transferencia:** Bloque, Carácter, Red
-   - **Por acceso:** Compartibles, Dedicados
-   - **Controladores:** Interfaz entre bus y dispositivo físico
+Las tres *técnicas de I/O* representan una evolución en eficiencia:
 
-3. **Técnicas de I/O**
-   - **Polling:** CPU espera activamente (busy-wait) → simple pero ineficiente
-   - **Interrupciones:** Dispositivo avisa cuando termina → mejor uso de CPU
-   - **DMA:** Transferencia directa sin CPU → óptimo para bloques grandes
+**Polling:** CPU espera activamente (busy-wait). Simple pero extremadamente ineficiente. Solo útil si el dispositivo responde en < 100 ciclos.  
+**Interrupciones:** Dispositivo avisa cuando termina. Mucho mejor uso de CPU, pero overhead de context switch en cada evento. Ideal para eventos esporádicos y transferencias pequeñas.  
+**DMA:** Transferencia directa sin CPU. Óptimo para bloques grandes. Es obligatorio en dispositivos modernos de alta velocidad.
 
-### Estructura del Disco
+### Estructura y Rendimiento de Discos:
+La geometría física del disco (plato → pista → sector → cilindro) determina fundamentalmente su rendimiento. El tiempo de acceso total se descompone en:
+$$
+T_{total}​=T_{seek}​+T_{rotacional}​+T_{transferencia}
+$$
+Valores típicos en HDD de 7200 RPM:  
 
-4. **Geometría física**
-   - **Plato → Pista → Sector** (512B o 4KiB)
-   - **Cilindro:** Pistas alineadas verticalmente
-   - **Cabeza:** Una por superficie (se mueven juntas)
-
-5. **Tiempo de acceso = Seek + Rotacional + Transferencia**
-   ```
-   T_seek:         8-12 ms (promedio en HDD)
-   T_rotacional:   4.17 ms (promedio a 7200 RPM)
-   T_transferencia: ~0.03 ms por sector (despreciable)
-   
-   Conclusión: Seek y rotación DOMINAN el tiempo
-   ```
-
-6. **Localidad espacial es crítica**
-   - Leer 10 sectores consecutivos: ~13 ms
-   - Leer 10 sectores dispersos: ~130 ms (10× más lento)
+Seek promedio: ~9 ms  
+Latencia rotacional promedio: ~4.17 ms  
+Transferencia de 4 KiB: ~0.027 ms (despreciable)  
+Leer 10 sectores consecutivos toma apenas más tiempo que leer 1 sector (13.44 ms vs 13.2 ms), pero leer 10 sectores dispersos toma 10× más (132 ms). Esta es la razón fundamental por la que necesitamos algoritmos de scheduling de disco.
 
 ### Scheduling de Disco
 
-7. **Objetivo:** Minimizar movimiento del brazo (seek time)
+El objetivo del disk scheduling es minimizar el movimiento del brazo. Los algoritmos principales son:
 
-8. **Algoritmos básicos:**
-   - **FCFS:** Simple, justo, pero ineficiente (no optimiza movimiento)
-   - **SSTF:** Greedy, mejor throughput, pero puede causar starvation
-
-9. **Algoritmos tipo SCAN:**
-   - **SCAN:** Elevator, va hasta el final y vuelve
-   - **C-SCAN:** Circular, más fair (vuelve al inicio sin atender)
-   - **LOOK:** Solo hasta última solicitud (no hasta extremo)
-   - **C-LOOK:** Combinación óptima en práctica
-
-10. **Algoritmos avanzados:**
-    - **FSCAN:** Congela cola durante SCAN → previene starvation
-    - **N-STEP-SCAN:** Procesa máximo N solicitudes por vez → latencia acotada
-
-### Fórmulas Clave
-
-11. **Latencia rotacional promedio:**
-    ```
-    T_rot_avg = (60 / RPM) / 2 segundos
-    
-    7200 RPM: 4.17 ms
-    10000 RPM: 3.0 ms
-    ```
-
-12. **Movimiento en algoritmos:**
-    - Sumar distancias absolutas entre cilindros consecutivos
-    - SSTF típicamente da 60-70% del movimiento de FCFS
-    - LOOK es 10-20% mejor que SCAN
+FCFS: Simple, justo, pero muy ineficiente
+SSTF: Greedy, mejor throughput, pero puede causar starvation
+SCAN/C-SCAN: Tipo "ascensor", sin starvation
+LOOK/C-LOOK: Optimización de SCAN (no va hasta extremos innecesariamente)
+FSCAN/N-STEP: Variantes que congelan la cola para prevenir starvation
 
 ### RAID
+RAID combina múltiples discos para mejorar rendimiento y/o confiabilidad:  
 
-13. **RAID 0 (Striping):**
-    ```
-    Capacidad: N × C
-    Tolerancia: 0 discos
-    Uso: Máximo rendimiento, datos no críticos
-    ```
+RAID 0 (Striping): Capacidad = $N × C$, Tolerancia = 0 discos, Uso = máximo rendimiento  
+RAID 1 (Mirroring): Capacidad = $C (50%)$, Tolerancia = N-1 discos, Uso = datos críticos  
+RAID 5 (Paridad): Capacidad = $(N-1) × C$, Tolerancia = 1 disco, Uso = balance óptimo  
 
-14. **RAID 1 (Mirroring):**
-    ```
-    Capacidad: C (50%)
-    Tolerancia: N-1 discos
-    Uso: Datos críticos, alta confiabilidad
-    ```
-
-15. **RAID 5 (Paridad distribuida):**
-    ```
-    Capacidad: (N-1) × C
-    Tolerancia: 1 disco
-    Paridad: XOR permite reconstrucción
-    Uso: Balance rendimiento/capacidad/confiabilidad
-    ```
-
-16. **Propiedad XOR para recuperación:**
-    ```
-    Si A XOR B XOR C = Paridad
-    Entonces: A = B XOR C XOR Paridad
-    ```
+*Propiedad XOR para recuperación:*  
+```
+Si A XOR B XOR C = Paridad
+Entonces: A = B XOR C XOR Paridad
+```
 
 ### Software de I/O
 
-17. **Buffering:**
-    - **Simple:** Un buffer, productor/consumidor se bloquean
-    - **Doble:** Overlap, uno se llena mientras otro se procesa
-    - **Circular:** N buffers en anillo, máximo throughput
+*Buffering vs Caching:*  
+- Buffer: Datos en tránsito, temporal, una copia  
+- Cache: Datos duplicados, persistente (en cache), dos copias
 
-18. **Caching vs Buffering:**
-    - **Buffer:** Datos en tránsito (temporal)
-    - **Cache:** Copia para acceso rápido (duplicado)
-    - **Buffer cache del SO:** Mejora dramáticamente rendimiento de disco
+**Double buffering** permite overlap: mientras el consumidor procesa un buffer, el productor llena el otro. Mejora típica: 50-100% en throughput.  
+**Ring buffers** extienden esto a N buffers circularmente, suavizando bursts y permitiendo máxima concurrencia.  
+**Buffer cache del SO** es crítico: un hit evita acceso a disco (~10ms → ~100ns), aceleración de 100.000×. Hit rate típico: 85-95%.  
+**Device Independence:** Aplicaciones usan interfaz uniforme (read/write), drivers específicos manejan hardware particular, VFS abstrae diferentes file systems.
 
-19. **Device Independence:**
-    - Aplicación usa interfaz uniforme (read/write)
-    - Driver específico maneja hardware particular
-    - VFS en Linux abstrae diferentes file systems
-
-20. **Capas del subsistema I/O:**  
+**Capas del subsistema I/O:**  
 
   ```
   Aplicación
@@ -1488,64 +1490,6 @@ close(fd);
     |
   Dispositivo
   ```
-
-
-## 11. Preparación para Parcial
-
-### Temas de Alta Probabilidad
-
-1. **Comparación de técnicas de I/O:**
-   - Polling vs Interrupciones vs DMA
-   - Ventajas/desventajas de cada una
-   - Cuándo usar cada técnica
-
-2. **Cálculo de tiempos de acceso:**
-   - Dado RPM, seek time, calcular tiempo total
-   - Diferencia entre acceso secuencial vs aleatorio
-   - Impacto de localidad espacial
-
-3. **Ejercicio de scheduling de disco:**
-   - Aplicar 4-6 algoritmos a una cola dada
-   - Calcular movimiento total del brazo
-   - Comparar eficiencia y fairness
-
-4. **RAID:**
-   - Calcular capacidad útil dados N discos
-   - Tolerancia a fallos de cada nivel
-   - Ventajas/desventajas de RAID 0, 1, 5
-
-5. **Conceptos teóricos:**
-   - Definir: buffer, cache, spooling, DMA, cylinder
-   - Diferencia bloque vs carácter
-   - Por qué I/O es complejo
-
-### Estrategia para Ejercicios de Scheduling
-
-**Paso 1:** Escribir datos del problema
-```
-Cola: [solicitudes]
-Posición inicial: X
-Dirección inicial (si aplica): UP/DOWN
-Rango disco: [0, MAX]
-```
-
-**Paso 2:** Para cada algoritmo, dibujar la secuencia
-```
-Ejemplo SSTF desde 50:
-50 → 62 (más cercano) → 64 → ...
-
-Anotar distancia en cada salto
-```
-
-**Paso 3:** Sumar distancias
-```
-Movimiento = |A-B| + |B-C| + |C-D| + ...
-```
-
-**Paso 4:** Comparar resultados
-- Identificar algoritmo más eficiente (menor movimiento)
-- Identificar algoritmo más fair (sin starvation)
-- Balance: LOOK/C-LOOK suelen ser óptimos
 
 ### Errores Comunes a Evitar
 
@@ -1615,55 +1559,22 @@ LOOK/C-LOOK son mejor balance en la práctica
    ```
 3. Para paridad XOR: aplicar bit a bit, recordar propiedad asociativa
 
-### Checklist Pre-Examen
-
-- [ ] Sé explicar polling, interrupciones y DMA
-- [ ] Conozco ventajas/desventajas de cada técnica de I/O
-- [ ] Entiendo estructura física del disco (platos, pistas, cilindros, sectores)
-- [ ] Puedo calcular tiempo de acceso (seek + rotacional + transferencia)
-- [ ] Sé aplicar los 8 algoritmos de scheduling de disco
-- [ ] Puedo calcular movimiento total del brazo para cada algoritmo
-- [ ] Entiendo cuándo usar SSTF vs LOOK vs C-LOOK
-- [ ] Conozco RAID 0, 1, 5 (capacidad, tolerancia, uso)
-- [ ] Sé calcular paridad con XOR y cómo recuperar datos
-- [ ] Entiendo diferencia entre buffer, cache y spooling
-- [ ] Conozco capas del subsistema de I/O
-
----
-
 ## 12. Conexiones con Otros Capítulos
 
-### Capítulo 1: Introducción
-- Interrupciones (mencionadas en intro) se usan extensivamente en I/O
-- DMA es un caso especial de hardware especializado
-- Modos de operación (kernel/user) críticos para I/O protegido
+El I/O no existe en aislamiento. Se conecta profundamente con todos los componentes del sistema operativo que estudiamos anteriormente.  
 
-### Capítulo 2: Procesos
-- Procesos se bloquean esperando I/O (estado BLOCKED)
-- Context switch ocurre cuando proceso espera disco
-- Syscalls read/write interactúan con scheduler de procesos
-
-### Capítulo 3: Planificación
-- I/O-bound vs CPU-bound processes
-- Algoritmos de scheduling de CPU consideran I/O burst
-- Prioridad mayor para procesos interactivos (mucho I/O)
-
-### Capítulo 5: Sincronización
-- Drivers usan locks para proteger estructuras compartidas
-- Race conditions posibles en cola de I/O
-- Interrupt handlers deben ser thread-safe
-
-### Capítulo 7-8: Memoria
-- Buffer cache reside en memoria RAM
-- Page cache unificado con buffer cache en Linux
-- Memory-mapped I/O usa espacio de direcciones virtual
-- Swap es I/O a disco para memoria virtual
-
-### Capítulo 9: File Systems
-- File systems dependen completamente del subsistema de I/O
-- Bloques del FS se mapean a sectores del disco
-- Algoritmos de scheduling afectan rendimiento del FS
-- RAID implementado bajo el FS (block device layer)
+**Capítulo 1: Introducción**  
+Las interrupciones que mencionamos al principio del curso se usan extensivamente en I/O. Cada vez que un disco completa una operación, genera una interrupción. DMA es un caso especial de hardware especializado que trabaja junto con el mecanismo de interrupciones. Los modos de operación (kernel/user) son críticos para I/O protegido: solo el kernel puede acceder directamente a dispositivos.  
+**Capítulo 2: Procesos**  
+Los procesos se bloquean esperando I/O (transición a estado BLOCKED). Cuando solicitás leer un archivo, tu proceso se bloquea hasta que el disco complete la operación. El context switch ocurre precisamente aquí: mientras esperás I/O, otro proceso usa la CPU. Las syscalls read/write que vimos interactúan directamente con el scheduler de procesos.  
+**Capítulo 3: Planificación de CPU**  
+La distinción entre procesos I/O-bound y CPU-bound es fundamental. Los procesos I/O-bound pasan la mayoría del tiempo esperando I/O y tienen bursts de CPU cortos. Los algoritmos de scheduling de CPU consideran estos I/O bursts para dar mejor servicio interactivo. Típicamente, procesos I/O-bound reciben mayor prioridad para mejorar responsiveness.  
+**Capítulo 5: Sincronización**  
+Los drivers de dispositivos usan locks para proteger estructuras compartidas como las colas de I/O. Son posibles race conditions si múltiples CPUs acceden a la cola simultáneamente. Los interrupt handlers deben ser thread-safe porque pueden ejecutarse en cualquier momento, interrumpiendo código del kernel que podría estar accediendo a las mismas estructuras.  
+**Capítulo 7-8: Memoria** 
+El buffer cache reside en memoria RAM. En Linux modernos, el page cache y el buffer cache están unificados. Memory-mapped I/O usa directamente el espacio de direcciones virtual para acceder a dispositivos. El swap (memoria virtual usando disco) es fundamentalmente una operación de I/O: cuando hay page fault y la página está en swap, el SO debe leerla desde disco.  
+**Capítulo 9: File Systems**  
+Los file systems dependen completamente del subsistema de I/O. Los bloques lógicos del file system se mapean a sectores físicos del disco mediante la geometría. Los algoritmos de scheduling que estudiamos afectan directamente el rendimiento del file system: leer un archivo fragmentado es mucho más lento que uno contiguo. RAID típicamente se implementa por debajo del file system, en el block device layer.
 
 **Ejemplo integrador:**
 
@@ -1687,9 +1598,9 @@ Aplicación llama read(fd, buf, 4096):
 
 ### Ejercicio 1: Técnicas de I/O
 
-**Pregunta:** Un dispositivo de red recibe paquetes de 1500 bytes a una tasa de 100 Mbps. ¿Qué técnica de I/O recomendarías: polling, interrupciones o DMA? Justificar.
+Un dispositivo de red recibe paquetes de 1500 bytes a una tasa de 100 Mbps. ¿Qué técnica de I/O recomendarías: polling, interrupciones o DMA? Justificar.
 
-**Respuesta esperada:**
+*Respuesta:*
 - Calcular frecuencia de paquetes: ~8333 paquetes/seg
 - Polling: CPU 100% ocupada verificando → inviable
 - Interrupciones: ~8333 interrupciones/seg → overhead alto
@@ -1698,12 +1609,12 @@ Aplicación llama read(fd, buf, 4096):
 
 ### Ejercicio 2: Tiempos de Acceso
 
-**Pregunta:** Disco de 10000 RPM, seek promedio 6 ms, transferencia 200 MiB/s. Calcular tiempo para leer 100 sectores de 512 bytes:
+Se tiene un disco de 10000 RPM, seek promedio 6 ms, transferencia 200 MiB/s. Calcular tiempo para leer 100 sectores de 512 bytes:
 
 a) Consecutivos en la misma pista
 b) Dispersos aleatoriamente
 
-**Respuesta:**
+*Respuesta:*
 ```
 Latencia rotacional = (60/10000)/2 = 3 ms
 
@@ -1718,7 +1629,7 @@ b) Dispersos:
 
 ### Ejercicio 3: RAID Capacity
 
-**Pregunta:** Tienes 6 discos de 2 TiB cada uno. Calcular capacidad útil para:
+Se tienen 6 discos de 2 TiB cada uno. Calcular capacidad útil para:
 
 a) RAID 0
 b) RAID 1
@@ -1735,9 +1646,9 @@ c) RAID 5: (6-1) × 2 TiB = 10 TiB (1 disco de paridad distribuida)
 
 ### Ejercicio 4: Scheduling Avanzado
 
-**Pregunta:** Cola: [25, 179, 58, 120, 77, 190, 13, 85], posición: 100, dirección: DOWN, disco [0-199]. Calcular movimiento para LOOK y C-LOOK.
+Teniendo los siguientes datos, Cola: [25, 179, 58, 120, 77, 190, 13, 85], posición: 100, dirección: DOWN, disco [0-199]. Calcular movimiento para LOOK y C-LOOK.
 
-**Respuesta:**
+*Respuesta:*
 ```
 LOOK (DOWN luego UP):
 100 → 85 → 77 → 58 → 25 → 13 (fin de DOWN) → 120 → 179 → 190
@@ -1751,5 +1662,3 @@ Movimiento: 15+8+19+33+12+177+11+59 = 334
 ---
 
 Este capítulo completó la visión integral del sistema operativo: gestión de procesos, memoria, file systems, y ahora I/O. Entender cómo el SO coordina la CPU, RAM y dispositivos periféricos es esencial para comprender el funcionamiento completo de un sistema de computación moderno.
-
-El próximo paso natural sería profundizar en temas avanzados como virtualización, contenedores, o sistemas distribuidos, pero con estos 10 capítulos ya tenemos una base sólida en los fundamentos de sistemas operativos a nivel de ingeniería.
