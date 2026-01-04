@@ -14,7 +14,7 @@ Al finalizar este capítulo, el estudiante será capaz de:
 - Explicar el rol de buffering y caching en el subsistema de I/O
 - Resolver ejercicios tipo parcial sobre scheduling de disco y tiempos de acceso
 
-## 1. Introducción: ¿Por qué es complejo el I/O?
+## Introducción: ¿Por qué es complejo el I/O?
 
 En los capítulos anteriores estudiamos la gestión de procesos, memoria y file systems. Todos estos componentes dependen críticamente del subsistema de entrada/salida para funcionar: los procesos necesitan leer datos del disco, la memoria virtual requiere swap a disco, y los file systems almacenan archivos en dispositivos físicos. Ahora llegamos a uno de los componentes más fascinantes y complejos del sistema operativo.  
 El subsistema de I/O enfrenta un desafío único: debe coordinar la comunicación entre la CPU (que opera a gigahertz) y dispositivos que van desde teclados lentos hasta SSDs ultrarrápidos. Esta brecha de velocidad puede ser de seis órdenes de magnitud. Imaginate tratar de coordinar una conversación donde una persona habla a velocidad normal y la otra tarda un año en responder cada palabra.
@@ -48,7 +48,7 @@ Conjunto de componentes del sistema operativo responsables de gestionar la comun
 El subsistema de I/O persigue cinco objetivos principales. Primero, la abstracción o independencia de dispositivo: ocultar las diferencias entre dispositivos mediante interfaces uniformes, para que tu programa pueda usar `read()` tanto con un archivo en disco como con datos de red. Segundo, la eficiencia: maximizar el throughput y minimizar la latencia, aprovechando al máximo las capacidades del hardware. Tercero, la compartición: permitir que múltiples procesos accedan concurrentemente a dispositivos compartibles de manera segura y coordinada.  
 El cuarto objetivo es la protección: prevenir que procesos no autorizados accedan directamente a dispositivos críticos (imaginate si cualquier programa pudiera leer o escribir arbitrariamente en tu disco). Finalmente, el manejo de errores: detectar y recuperarse de fallos de hardware, que son inevitables en dispositivos mecánicos y electrónicos.
 
-## 2. Hardware de I/O
+## Hardware de I/O
 Antes de entender cómo el sistema operativo gestiona el I/O, necesitamos comprender el hardware subyacente. Los dispositivos no son todos iguales, y sus diferencias fundamentales determinan cómo el SO debe interactuar con ellos.
 
 ### Tipos de Dispositivos
@@ -107,7 +107,7 @@ En **Port-Mapped I/O** (o I/O Aislado), existe un espacio de direcciones separad
 
 La mayoría de los sistemas modernos usan exclusivamente Memory-Mapped I/O porque permite usar toda la potencia del caché de CPU y las optimizaciones del pipeline para accesos a dispositivos.
 
-## 3. Técnicas de I/O
+## Técnicas de I/O
 
 Ahora que entendemos el hardware, podemos explorar cómo el sistema operativo gestiona las operaciones de I/O. Existen tres técnicas principales, cada una con trade-offs significativos en eficiencia, complejidad y uso de CPU. La evolución histórica de estas técnicas refleja la búsqueda constante por minimizar el desperdicio de ciclos de CPU.  
 
@@ -286,7 +286,7 @@ Usá interrupciones para eventos esporádicos y transferencias pequeñas (menos 
 Usá DMA para transferencias mayores a 1 KiB o dispositivos rápidos. Es obligatorio para discos y redes modernas.
 \end{excerpt}
 
-## 4. Discos Magnéticos: Estructura y Rendimiento
+## Discos Magnéticos: Estructura y Rendimiento
 
 Aunque los SSDs han ganado popularidad, los discos duros (HDD) siguen siendo ampliamente usados para almacenamiento masivo debido a su bajo costo por gigabyte. Más importante aún, comprender su estructura física es esencial para entender el rendimiento del I/O y por qué los algoritmos de scheduling de disco son necesarios.
 
@@ -370,7 +370,7 @@ $$
 T_{total} = T_{seek} + T_{rotacional} + T_{transferencia}
 $$
 
-#### 1. Tiempo de Seek (Búsqueda)
+#### Tiempo de Seek (Búsqueda)
 
 El seek time es el tiempo que tarda el brazo actuador en mover las cabezas desde su posición actual hasta el cilindro destino. Es una operación mecánica: el brazo debe acelerar, recorrer la distancia, y decelerar precisamente en el cilindro correcto.  
 
@@ -387,7 +387,7 @@ Los modelos físicos del seek time son interesantes. Un modelo simple lineal ser
 
 Para cálculos en este libro, utilizaremos el seek promedio simplificado de aproximadamente 9 ms en discos de 7200 RPM, a menos que el problema especifique otra cosa.
 
-#### 2. Latencia Rotacional
+#### Latencia Rotacional
 
 Una vez que las cabezas están posicionadas en el cilindro correcto, debemos esperar a que el sector deseado rote bajo la cabeza. Los platos giran a velocidad constante, medida en RPM (revoluciones por minuto).
 El tiempo para una revolución completa es simplemente:
@@ -408,7 +408,7 @@ $$
 La latencia rotacional es una limitación física fundamental del disco. No puede mejorarse con algoritmos inteligentes de scheduling. Es simplemente una consecuencia de la velocidad de rotación del motor. La única forma de reducirla es comprar un disco más rápido (o usar un SSD, que no tiene partes móviles y por tanto no tiene latencia rotacional).
 \end{warning}
 
-#### 3. Tiempo de Transferencia
+#### Tiempo de Transferencia
 
 Una vez que el sector está bajo la cabeza, los datos deben transferirse entre el disco y el controlador. Este tiempo depende de la tasa de transferencia del disco y la cantidad de datos:
 
@@ -416,15 +416,15 @@ $$
 T_{transferencia} = (bytes a transferir) / (tasa de transferencia)
 $$
 
-```
 Tasa de transferencia típica:
+```
 - HDD interno SATA: 100 - 200 MiB/s
 - HDD externo USB 3.0: 80 - 120 MiB/s
 - SSD SATA: 500 - 600 MiB/s
 - SSD NVMe: 3000 - 7000 MiB/s
 ```
 
-**Ejemplo de cálculo:**
+*Ejemplo de cálculo:*
 
 Transferir 4 KiB (un bloque) en HDD a 150 MiB/s:
 ```
@@ -433,7 +433,10 @@ T_transferencia = 4096 bytes / (150 × 10^6 bytes/seg)
                 = 0.027 ms
 ```
 
-**Observación crítica:** Para HDDs, el tiempo de transferencia es DESPRECIABLE comparado con seek y rotación.
+\begin{theory}
+Una observación crítica: para discos duros, el tiempo de transferencia es completamente despreciable comparado con seek y rotación. Transferir 4 KiB toma 0.027 ms, mientras que seek + rotación combinados toman ~13 ms. El tiempo de transferencia es menos del 0.2% del total.
+Esta es la razón fundamental por la que la localidad espacial es tan importante para el rendimiento de discos: el costo está en llegar al dato, no en transferirlo una vez que lo encontraste.
+\end{theory}
 
 ### Ejercicio: Cálculo de Tiempo de Acceso
 
@@ -447,17 +450,16 @@ Se tiene un disco duro con las siguientes características:
 
 Calcular el tiempo total para leer:
 
-**a)** Un sector aleatorio del disco
+a) Un sector aleatorio del disco
 
-**b)** 10 sectores consecutivos en la misma pista
+b) 10 sectores consecutivos en la misma pista
 
-**c)** 10 sectores dispersos aleatoriamente en el disco
+c) 10 sectores dispersos aleatoriamente en el disco
 
----
 
 **Solución:**
 
-**Paso 1: Calcular componentes base**
+Primero, calculemos los componentes base que usaremos repetidamente:
 
 ```
 Latencia rotacional promedio:
@@ -467,7 +469,7 @@ Tiempo de transferencia por sector:
 T_trans_sector = 4096 bytes / (150 × 10^6 bytes/seg) = 0.000027 seg ≈ 0.027 ms
 ```
 
-**a) Un sector aleatorio:**
+*a) Un sector aleatorio:*
 
 ```
 T_total = T_seek + T_rot + T_trans
@@ -475,9 +477,9 @@ T_total = T_seek + T_rot + T_trans
         = 13.197 ms ≈ 13.2 ms
 ```
 
-**b) 10 sectores consecutivos en la misma pista:**
+*b) 10 sectores consecutivos en la misma pista:*
 
-Después del primer seek, los sectores están contiguos:
+Aquí está la parte interesante. Los sectores están contiguos en la misma pista, así que después del primer seek y la espera rotacional inicial, los siguientes 9 sectores pasan bajo la cabeza inmediatamente. Solo pagamos el costo de transferencia para cada uno:
 ```
 T_total = T_seek + T_rot + (10 × T_trans_sector)
         = 9 ms + 4.17 ms + (10 × 0.027 ms)
@@ -485,13 +487,14 @@ T_total = T_seek + T_rot + (10 × T_trans_sector)
         = 13.44 ms
 ```
 
-\textcolor{blue!50!black}{\textbf{Observación:}\\
-Leer 10 sectores consecutivos es apenas más lento que leer 1 sector (13.44 ms vs 13.2 ms) porque el seek y la rotación dominan completamente.\\
-}
+\begin{excerpt}
+Observación sorprendente: leer 10 sectores consecutivos toma apenas 0.24 ms más que leer 1 sector (13.44 ms vs 13.2 ms). ¿Por qué? Porque el seek y la rotación dominan completamente. Una vez que llegaste al lugar correcto, leer más datos es casi gratis.\\
+Esta es la razón por la que los sistemas operativos modernos implementan prefetching: cuando pedís leer un bloque, el SO aprovecha y lee los bloques siguientes también, porque el costo marginal es despreciable.
+\end{excerpt}
 
-**c) 10 sectores dispersos aleatoriamente:**
+*c) 10 sectores dispersos aleatoriamente:*
 
-Cada sector requiere seek + rotación + transferencia:
+Cada sector requiere su propio seek completo, rotación completa, y transferencia:
 ```
 T_total = 10 × (T_seek + T_rot + T_trans_sector)
         = 10 × 13.2 ms
@@ -506,22 +509,19 @@ T_total = 10 × (T_seek + T_rot + T_trans_sector)
 | 10 sectores consecutivos | 13.44 ms (1.02× más lento) |
 | 10 sectores dispersos | 132 ms (10× más lento) |
 
-\textcolor{teal!60!black}{\textbf{Conclusión crítica:}\\
-La localidad espacial es FUNDAMENTAL para el rendimiento de discos. Leer bloques consecutivos es órdenes de magnitud más rápido que accesos aleatorios.\\
-}
+\begin{warning}
+Conclusión crítica para el diseño de sistemas:
+La localidad espacial es fundamental para el rendimiento de discos magnéticos. Leer bloques consecutivos es órdenes de magnitud más rápido que accesos aleatorios dispersos. Los algoritmos de scheduling de disco existen precisamente para maximizar esta localidad.
+\end{warning}
 
----
+## Scheduling de I/O: Algoritmos de Disco
 
-## 5. Scheduling de I/O: Algoritmos de Disco
-
-Los sistemas operativos mantienen una **cola de solicitudes de I/O** pendientes. El orden en que se atienden estas solicitudes impacta dramáticamente el rendimiento.
-
+Los sistemas operativos mantienen una cola de solicitudes de I/O pendientes. En un sistema activo, pueden llegar docenas o cientos de solicitudes por segundo. El orden en que se atienden estas solicitudes tiene un impacto dramático en el rendimiento total del sistema.
 \begin{infobox}
 \emph{Disk Scheduling:}
 Algoritmos que determinan el orden en que se atienden las solicitudes de I/O a disco, con el objetivo de minimizar el seek time total y maximizar el throughput.
 \end{infobox}
-
-**Escenario típico:**
+Consideremos un escenario típico que usaremos para todos nuestros ejemplos:
 
 ```
 Cola de solicitudes pendientes: [98, 183, 37, 122, 14, 124, 65, 67]
@@ -529,11 +529,11 @@ Posición actual de la cabeza: cilindro 53
 Rango del disco: 0 - 199 cilindros
 ```
 
-El objetivo es minimizar el **movimiento total del brazo** (suma de distancias recorridas).
+Nuestro objetivo es simple pero crucial: minimizar el movimiento total del brazo, que es la suma de todas las distancias recorridas en cilindros. ¿Por qué? Porque el seek time es el componente dominante del tiempo de acceso, como vimos en la sección anterior.
 
 ### Algoritmo 1: FCFS (First-Come, First-Served)
 
-**Concepto:** Atender las solicitudes en el orden de llegada (FIFO).
+El algoritmo más simple: atender las solicitudes en el orden exacto de llegada, como una cola FIFO en el supermercado.
 
 **Secuencia:**
 ```
@@ -545,23 +545,13 @@ Movimiento total:
 = 640 cilindros
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Muy simple de implementar (cola FIFO)\\
-- Justo: todas las solicitudes se atienden en orden\\
-- No hay starvation\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- No optimiza el movimiento del brazo\\
-- Movimiento total muy alto (ida y vuelta constante)\\
-- Rendimiento muy pobre\\
-}
-
-**Uso:** Casi nunca en sistemas reales
+Observá cómo el brazo salta de un lado al otro del disco constantemente: 53→98 (derecha), 98→183 (más derecha), 183→37 (salto enorme a la izquierda), 37→122 (derecha otra vez). Es un movimiento caótico e ineficiente.  
+La ventaja de FCFS es su simplicidad: implementación trivial con una cola FIFO, es perfectamente justo (todas las solicitudes se atienden en orden), y no hay riesgo de starvation (inanición, donde una solicitud espera indefinidamente).  
+Sin embargo, las desventajas son severas: no optimiza el movimiento del brazo en absoluto, el movimiento total es muy alto con ese zigzag constante, y el rendimiento es pobre comparado con algoritmos más inteligentes. FCFS casi nunca se usa en sistemas reales.
 
 ### Algoritmo 2: SSTF (Shortest Seek Time First)
 
-**Concepto:** Atender primero la solicitud más cercana a la posición actual (greedy).
+Un enfoque greedy: siempre atender la solicitud más cercana a la posición actual. Es el equivalente a optimizar localmente en cada decisión.
 
 **Secuencia:**
 ```
@@ -588,23 +578,16 @@ Movimiento total:
 12 + 2 + 30 + 23 + 84 + 24 + 2 + 59 = 236 cilindros
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Reduce significativamente el movimiento total\\
-- Throughput mejor que FCFS\\
-- Intuitivo y fácil de implementar\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- PUEDE causar starvation: solicitudes en extremos pueden esperar indefinidamente\\
-- Si llegan solicitudes constantemente en el centro, las de los extremos nunca se atienden\\
-- No es óptimo globalmente (greedy local)\\
-}
-
-**Uso:** Común en sistemas con baja carga de I/O
+SSTF reduce el movimiento de 640 a 236 cilindros (63% de reducción). El throughput mejora significativamente, y la implementación sigue siendo relativamente simple: solo necesitás una lista ordenada o un heap.
+\begin{warning}
+Sin embargo, SSTF tiene un problema serio: puede causar starvation. Imaginá que constantemente llegan solicitudes en el centro del disco (cilindro 100). Una solicitud en el cilindro 5 podría esperar indefinidamente, porque siempre habrá solicitudes más cercanas a la posición actual.
+Este no es un problema teórico. En sistemas con mucha carga de I/O, las solicitudes en los extremos del disco pueden experimentar latencias muy altas o incluso nunca ser atendidas.
+\end{warning}
+SSTF es común en sistemas con baja o media carga de I/O, donde la probabilidad de starvation es baja y se prioriza el throughput.
 
 ### Algoritmo 3: SCAN (Elevator Algorithm)
 
-**Concepto:** El brazo se mueve en una dirección hasta el final, atendiendo todas las solicitudes en el camino, luego invierte la dirección.
+SCAN resuelve el problema de starvation de SSTF usando una estrategia inspirada en ascensores: el brazo se mueve en una dirección hasta el final del disco, atendiendo todas las solicitudes en el camino, luego invierte la dirección y hace lo mismo.
 
 **Secuencia (asumiendo dirección inicial hacia arriba):**
 ```
@@ -622,22 +605,16 @@ Movimiento total:
 = 331 cilindros
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- No hay starvation: eventualmente pasa por todos los cilindros\\
-- Movimiento más predecible que SSTF\\
-- Buen throughput\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Movimiento innecesario hasta el final del disco\\
-- Latencia no uniforme: solicitudes recién llegadas en dirección opuesta esperan más\\
-}
-
-**Uso:** Ascensores reales, algunos sistemas operativos antiguos
+El nombre "Elevator Algorithm" es perfecto: pensá en cómo funciona un ascensor moderno. No va inmediatamente al piso que pediste; primero completa todos los pedidos en su dirección actual, luego da la vuelta.
+\begin{highlight}
+Las ventajas de SCAN son importantes: no hay starvation porque eventualmente el brazo pasa por todos los cilindros, el movimiento es más predecible que SSTF, y el throughput sigue siendo bueno. Es un buen balance entre eficiencia y fairness.
+\end{highlight}
+La desventaja es que hay movimiento innecesario hasta el extremo del disco. En nuestro ejemplo, no había ninguna solicitud entre 183 y 199, pero el brazo se movió hasta allí de todos modos. Además, las solicitudes que acaban de llegar en la dirección opuesta deben esperar todo un barrido completo del disco.  
+SCAN era usado en ascensores reales y en algunos sistemas operativos antiguos. Las variantes modernas (LOOK y C-LOOK) mejoran sobre esta idea básica.
 
 ### Algoritmo 4: C-SCAN (Circular SCAN)
 
-**Concepto:** Como SCAN, pero al llegar al final, salta inmediatamente al inicio sin atender solicitudes en el camino de vuelta.
+C-SCAN mejora la fairness de SCAN tratando al disco como una estructura circular: al llegar al final, el brazo salta inmediatamente al inicio sin atender solicitudes en el camino de vuelta, luego continúa en la dirección original.
 
 **Secuencia:**
 ```
@@ -655,23 +632,14 @@ Movimiento total:
 = 12 + 2 + 31 + 24 + 2 + 59 + 16 + 199 + 14 + 23
 = 382 cilindros
 ```
+La idea clave es que C-SCAN trata a todos los cilindros más uniformemente. Las solicitudes en el extremo inferior no tienen que esperar todo el viaje de ida y vuelta; el brazo regresa rápidamente al inicio y las atiende. Esto proporciona una latencia más uniforme y predecible que SCAN.  
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Latencia más uniforme que SCAN\\
-- Trata a todos los cilindros más equitativamente\\
-- No hay starvation\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Movimiento total mayor que SCAN\\
-- Salto al inicio es desperdicio de movimiento\\
-}
-
-**Uso:** Sistemas con alta carga de I/O donde se prioriza fairness
+El costo es que el movimiento total es mayor que SCAN (382 vs 331), porque ese salto de 199 a 0 cuenta como movimiento completo del disco. Sin embargo, en sistemas con alta carga de I/O distribuida uniformemente, esta desventaja se compensa con la mejor fairness.  
+C-SCAN es usado en sistemas donde se prioriza la consistencia de latencia sobre el throughput puro.
 
 ### Algoritmo 5: LOOK
 
-**Concepto:** Como SCAN, pero solo va hasta la última solicitud en esa dirección (no hasta el final del disco).
+LOOK es una optimización obvia de SCAN: ¿para qué ir hasta el extremo del disco si no hay solicitudes ahí? El brazo solo va hasta la última solicitud en esa dirección, luego invierte.
 
 **Secuencia:**
 ```
@@ -687,17 +655,12 @@ Movimiento total:
 12 + 2 + 31 + 24 + 2 + 59 + 146 + 23 = 299 cilindros
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Elimina movimiento innecesario de SCAN\\
-- Mejor throughput que SCAN\\
-- Sigue sin starvation\\
-}
-
-**Uso:** Versión mejorada de SCAN, más usado en práctica
+La mejora sobre SCAN es clara: 299 cilindros vs 331, una reducción del 10%. Eliminamos ese movimiento desperdiciado de 183 a 199. El brazo "mira" (look) hacia adelante, ve que no hay más solicitudes, y da la vuelta inteligentemente.  
+LOOK mantiene todas las ventajas de SCAN (sin starvation, predecible, buen throughput) y elimina su principal desventaja (movimiento innecesario). Es generalmente superior a SCAN en todos los aspectos y es una de las opciones más populares en sistemas operativos modernos.
 
 ### Algoritmo 6: C-LOOK (Circular LOOK)
 
-**Concepto:** Como C-SCAN, pero solo va hasta la última solicitud y salta a la primera solicitud (no a los extremos absolutos).
+C-LOOK combina las ideas de C-SCAN y LOOK: solo va hasta la última solicitud en la dirección actual, luego salta a la primera solicitud pendiente (no necesariamente al extremo del disco), y continúa en la dirección original.
 
 **Secuencia:**
 ```
@@ -714,17 +677,12 @@ Movimiento total:
 12 + 2 + 31 + 24 + 2 + 59 + 169 + 23 = 322 cilindros
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Combina ventajas de C-SCAN y LOOK\\
-- Latencia uniforme\\
-- Sin movimiento innecesario\\
-}
-
-**Uso:** Variante popular en sistemas Linux
+C-LOOK ofrece un excelente balance. Combina la latencia uniforme de C-SCAN con la eliminación de movimiento innecesario de LOOK. Es más eficiente que C-SCAN (322 vs 382 cilindros) pero mantiene su fairness superior a SCAN/LOOK.  
+Este algoritmo es una variante muy popular en sistemas Linux modernos, a menudo implementado como parte del scheduler mq-deadline.
 
 ### Algoritmo 7: FSCAN (Freeze SCAN)
 
-**Concepto:** Divide la cola en dos sublistas. Procesa una lista con SCAN mientras congela (freeze) las nuevas solicitudes en la segunda lista.
+FSCAN introduce un concepto nuevo: divide la cola en dos sublistas y las procesa por separado. Esto previene que solicitudes nuevas "se cuelen" y retrasen solicitudes antiguas.
 
 **Funcionamiento:**
 ```
@@ -748,22 +706,15 @@ Al terminar Queue1:
   Ejecutar SCAN sobre estos
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Previene starvation de solicitudes lejanas\\
-- Tiempo de espera acotado: máximo 2 ciclos de SCAN\\
-- Mejor fairness que SCAN simple\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Más complejo de implementar (dos colas)\\
-- Latencia puede ser mayor para solicitudes nuevas\\
-}
-
-**Uso:** Sistemas que requieren garantías de tiempo de respuesta
+\begin{theory}
+La idea detrás de FSCAN es prevenir starvation de una manera diferente a SCAN. En SCAN puro, si constantemente llegan nuevas solicitudes, algunas solicitudes antiguas podrían ser "empujadas" continuamente. FSCAN garantiza que cada solicitud se procesa dentro de dos ciclos de SCAN como máximo: en el peor caso, llegás justo después de que tu Queue comenzó a procesarse, así que esperás ese ciclo completo más el siguiente.
+\end{theory}
+Las ventajas son claras: previene starvation de solicitudes lejanas, el tiempo de espera está acotado (máximo 2 ciclos), y ofrece mejor fairness que SCAN simple. Las desventajas son la mayor complejidad de implementación (dos colas a mantener) y potencialmente mayor latencia para solicitudes nuevas (deben esperar al siguiente ciclo incluso si están cerca de la posición actual).  
+FSCAN es usado en sistemas que requieren garantías de tiempo de respuesta, como sistemas de tiempo real.
 
 ### Algoritmo 8: N-STEP-SCAN
 
-**Concepto:** Similar a FSCAN, pero la cola se divide en sublistas de máximo N solicitudes.
+N-STEP-SCAN es similar a FSCAN pero más granular: la cola se divide en sublistas de máximo N solicitudes cada una.
 
 **Funcionamiento:**
 ```
@@ -789,18 +740,11 @@ Al terminar Grupo1, procesar Grupo2
 Nuevas solicitudes forman Grupo3
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Limita el tamaño del batch (N)\\
-- Tiempo de espera más predecible que FSCAN\\
-- Configurable: N pequeño = más responsive, N grande = más throughput\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Requiere tuning del parámetro N\\
-- Implementación compleja\\
-}
-
-**Uso:** Sistemas de tiempo real donde se necesita acotar latencias
+El parámetro N permite un trade-off configurable. Con N pequeño (por ejemplo, N=10), el sistema es más responsive: cada batch se procesa rápidamente, pero puede haber más movimiento del brazo porque los grupos son pequeños. Con N grande (por ejemplo, N=100), hay más oportunidad de optimizar el movimiento dentro de cada batch, mejorando throughput, pero las solicitudes pueden esperar más porque los batches son grandes.
+\begin{highlight}
+Las ventajas incluyen tiempo de espera predecible (máximo ceil(K/N) ciclos para K solicitudes), el parámetro N es configurable según las necesidades del sistema, y ofrece un balance ajustable entre responsiveness y throughput. Las desventajas son que requiere tuning del parámetro N para cada sistema específico, y la implementación es más compleja que algoritmos simples.
+\end{highlight}
+N-STEP-SCAN es usado en sistemas de tiempo real donde se necesita acotar las latencias máximas con precisión.
 
 ### Comparación de Algoritmos
 
@@ -815,14 +759,15 @@ Nuevas solicitudes forman Grupo3
 | FSCAN | ~300 | No | Buena | Alta |
 | N-STEP | ~300 | No | Muy buena | Alta |
 
-**Recomendaciones:**
-- **SSTF:** Sistemas con baja carga, prioridad en throughput
-- **LOOK/C-LOOK:** Default en muchos sistemas modernos (buen balance)
-- **FSCAN/N-STEP:** Sistemas de tiempo real o con garantías de latencia
+\begin{excerpt}
+Recomendaciones prácticas:\\
+SSTF: Sistemas con baja carga de I/O donde la prioridad es throughput puro y starvation es improbable.\\
+LOOK/C-LOOK: Default en muchos sistemas modernos. Ofrecen el mejor balance entre throughput, fairness y complejidad de implementación.\\
+FSCAN/N-STEP: Sistemas de tiempo real o con garantías estrictas de latencia máxima.\\
+FCFS: Prácticamente nunca en la práctica, excepto como componente interno de algoritmos más complejos.
+\end{excerpt}
 
----
-
-## 6. Ejercicio Integrador: Scheduling de Disco
+## Ejercicio Integrador: Scheduling de Disco
 
 **Enunciado:**
 
@@ -842,13 +787,11 @@ d) C-SCAN
 e) LOOK
 f) C-LOOK
 
-**Indicar también cuál algoritmo es más eficiente en este caso.**
-
----
+Indicar también cuál algoritmo es más eficiente en este caso.
 
 **Solución:**
 
-**a) FCFS:**
+a) FCFS:
 
 ```
 Secuencia: 50 → 95 → 180 → 34 → 119 → 11 → 123 → 62 → 64
@@ -859,7 +802,7 @@ Movimiento:
 = 644 cilindros
 ```
 
-**b) SSTF:**
+b) SSTF:
 
 ```
 Desde 50, elegir más cercano:
@@ -869,7 +812,7 @@ Movimiento total:
 12 + 2 + 30 + 23 + 84 + 24 + 4 + 57 = 236 cilindros
 ```
 
-**c) SCAN:**
+c) SCAN:
 
 ```
 Desde 50, dirección UP, atender todas hasta el final, luego DOWN:
@@ -881,7 +824,7 @@ Movimiento:
 = 337 cilindros
 ```
 
-**d) C-SCAN:**
+d) C-SCAN:
 
 ```
 Desde 50, UP hasta el final, saltar al inicio, continuar UP:
@@ -891,7 +834,7 @@ Movimiento:
 12 + 2 + 31 + 24 + 4 + 57 + 19 + 199 + 11 + 23 = 382 cilindros
 ```
 
-**e) LOOK:**
+e) LOOK:
 
 ```
 Desde 50, UP hasta última solicitud (180), luego DOWN:
@@ -901,7 +844,7 @@ Movimiento:
 12 + 2 + 31 + 24 + 4 + 57 + 146 + 23 = 299 cilindros
 ```
 
-**f) C-LOOK:**
+f) C-LOOK:
 
 ```
 Desde 50, UP hasta 180, saltar a primera solicitud pendiente (11), continuar UP:
@@ -913,34 +856,34 @@ Movimiento:
 
 **Resumen:**
 
-| Algoritmo | Movimiento total |
-|-----------|------------------|
-| FCFS | 644 |
-| SSTF | 236 ⭐ |
-| SCAN | 337 |
-| C-SCAN | 382 |
-| LOOK | 299 |
-| C-LOOK | 322 |
+| Algoritmo | Movimiento total | Observaciones |
+|-----------|------------------|---------------|
+| FCFS | 644 | Peor caso |
+| SSTF | 236 | Minimo movimiento |
+| SCAN | 337 | |
+| C-SCAN | 382 | |
+| LOOK | 299 | Buen balance |
+| C-LOOK | 322 | |
 
-\textcolor{blue!50!black}{\textbf{Respuesta:}\\
-El algoritmo más eficiente en este caso es \textbf{SSTF} con 236 cilindros de movimiento. Sin embargo, SSTF puede causar starvation. El mejor balance eficiencia/fairness lo ofrece \textbf{LOOK} con 299 cilindros.\\
-}
+\begin{highlight}
+Respuesta:\\
+El algoritmo más eficiente en términos de movimiento puro es SSTF con 236 cilindros. Sin embargo, debemos recordar que SSTF puede causar starvation en sistemas con alta carga.\\
+El mejor balance entre eficiencia y fairness lo ofrece LOOK con 299 cilindros: solo 27% más movimiento que SSTF, pero con garantía de no starvation y comportamiento más predecible.\\
+En un sistema real de producción, típicamente elegiríamos LOOK o C-LOOK sobre SSTF.
+\end{highlight}
 
----
+## RAID (Redundant Array of Independent Disks)
 
-## 7. RAID (Redundant Array of Independent Disks)
-
-RAID es una técnica que combina múltiples discos físicos en una unidad lógica para mejorar rendimiento, confiabilidad, o ambos.
-
+RAID es una tecnología fascinante que surgió de una pregunta simple: ¿qué pasa si combinamos múltiples discos baratos para crear algo mejor que un disco caro? La respuesta resultó ser compleja y multifacética.
 \begin{infobox}
 \emph{RAID:}
 Tecnología que utiliza múltiples discos trabajando en conjunto para proporcionar mayor rendimiento (mediante paralelismo) y/o mayor confiabilidad (mediante redundancia).
 \end{infobox}
+La idea central es que múltiples discos operando en paralelo pueden superar las limitaciones de un disco individual. RAID puede mejorar el rendimiento (leyendo/escribiendo en paralelo), mejorar la confiabilidad (duplicando datos), o ambas cosas. Sin embargo, diferentes "niveles" de RAID hacen diferentes trade-offs.
 
 ### RAID 0: Striping (sin redundancia)
 
-**Concepto:** Los datos se dividen en bloques que se distribuyen (stripe) entre todos los discos.
-
+RAID 0 es el más simple: los datos se dividen en bloques que se distribuyen (stripe) uniformemente entre todos los discos. Es como repartir un mazo de cartas entre varios jugadores.
 ```
 Archivo dividido en bloques: A1, A2, A3, A4, A5, A6
 
@@ -950,34 +893,36 @@ Disco 1: [A2] [A4] [A6]
 Lectura/escritura en paralelo
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Rendimiento máximo: throughput se multiplica por N discos\\
-- Capacidad total = suma de todos los discos\\
-- Simple de implementar\\
-}
+Las ventajas de RAID 0 son impresionantes para ciertas aplicaciones:  
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- CERO redundancia: falla de un disco = pérdida total de datos\\
-- Menos confiable que un disco individual\\
-}
+- Rendimiento máximo: el throughput se multiplica por N discos (en el caso ideal)  
+- Capacidad total = suma de todos los discos (no se desperdicia nada)  
+- Implementación simple y eficiente
+- Latencia reducida para archivos grandes
 
-**Cálculos:**
+Para edición de video 4K o rendering 3D, donde necesitás throughput sostenido de varios GiB/s, RAID 0 es ideal.  
+\begin{warning}
+Sin embargo, RAID 0 tiene una desventaja catastrófica: cero redundancia. Si cualquier disco falla, perdés todos los datos del array completo. Peor aún, la probabilidad de fallo aumenta: si cada disco tiene 1% de probabilidad de fallar en un año, con 4 discos en RAID 0, la probabilidad de que al menos uno falle es aproximadamente 4%.
+RAID 0 hace que tu sistema sea menos confiable que un disco individual. El nombre "RAID" es casi irónico aquí, ya que no hay redundancia en absoluto.
+\end{warning}
+
+Cálculos para RAID 0
 ```
 N discos de C capacidad cada uno:
 Capacidad útil = N × C
 Rendimiento lectura/escritura = N × velocidad_disco
 ```
 
-**Ejemplo:**
+Ejemplo práctico:  
 - 4 discos de 1 TiB cada uno
 - Capacidad útil: 4 TiB
 - Si 1 disco falla: pérdida total
 
-**Uso:** Aplicaciones que requieren máximo rendimiento y tienen backups externos (edición de video, caches)
+**Uso típico:** Aplicaciones que requieren máximo rendimiento y tienen backups robustos externos: edición de video profesional, rendering 3D, caches de alto rendimiento, ambientes de desarrollo donde los datos no son críticos.
 
 ### RAID 1: Mirroring (espejo completo)
 
-**Concepto:** Cada dato se duplica completamente en dos (o más) discos.
+RAID 1 toma el enfoque opuesto: cada dato se duplica completamente en dos (o más) discos. Es la técnica más antigua de redundancia: simplemente mantener dos copias idénticas.
 
 ```
 Archivo: A1, A2, A3, A4
@@ -986,35 +931,33 @@ Disco 0: [A1] [A2] [A3] [A4]
 Disco 1: [A1] [A2] [A3] [A4]  (copia exacta)
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Confiabilidad alta: tolera falla de N-1 discos\\
-- Rendimiento de lectura mejorado (leer de cualquier disco)\\
-- Recuperación simple: disco espejo es copia exacta\\
-}
+Cada escritura va a ambos discos síncronamente. Las lecturas pueden venir de cualquier disco, lo que permite balance de carga.  
+Las ventajas de RAID 1 son claras para datos críticos:
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Capacidad útil = 50 por ciento (mitad se usa para espejo)\\
-- Costo alto: necesitas el doble de discos\\
-- Escritura no más rápida (debe escribir en ambos)\\
-}
+- Confiabilidad alta: tolera la falla de N-1 discos (con 2 discos, tolerás 1 falla).  
+- Rendimiento de lectura mejorado: podés leer de cualquier disco, efectivamente duplicando el throughput de lectura.  
+- Recuperación trivial: el disco espejo es una copia exacta, simplemente copiás y listo.  
+- Sin cálculos complejos: no hay overhead de paridad o reconstrucción  
+Para bases de datos críticas o servidores de producción, RAID 1 ofrece la máxima tranquilidad.  
+Las desventajas son económicas: capacidad útil = 50% (la mitad se usa para el espejo), costo alto (necesitás el doble de discos para la misma capacidad útil), y la escritura no es más rápida (debe completarse en ambos discos, aunque en paralelo).
 
-**Cálculos:**
+Cálculos:
 ```
 N discos de C capacidad cada uno (N par):
 Capacidad útil = (N / 2) × C = C (con 2 discos)
 Tolerancia a fallos = N/2 discos pueden fallar
 ```
 
-**Ejemplo:**
-- 2 discos de 1 TiB cada uno
-- Capacidad útil: 1 TiB
-- Si 1 disco falla: datos siguen accesibles
+Ejemplo:  
+- 2 discos de 1 TiB cada uno  
+- Capacidad útil: 1 TiB  
+- Si 1 disco falla: datos siguen accesibles  
 
-**Uso:** Datos críticos (bases de datos, servidores), donde la confiabilidad es prioritaria
+**Uso típico:** Datos críticos donde la pérdida sería catastrófica: bases de datos transaccionales, servidores de archivos corporativos, sistemas operativos de servidores de producción, cualquier escenario donde la confiabilidad es más importante que el costo.
 
 ### RAID 5: Striping con Paridad Distribuida
 
-**Concepto:** Los datos y la paridad se distribuyen entre todos los discos. La paridad permite reconstruir datos si falla un disco.
+RAID 5 es el nivel más interesante conceptualmente: combina el rendimiento de RAID 0 con redundancia, pero de manera más eficiente que RAID 1. Los datos y la paridad se distribuyen entre todos los discos.
 
 ```
 4 discos, bloques A1-A6:
@@ -1026,8 +969,7 @@ Disco 3: [Parity(A1,A2,A3)] [A6] [...]
 
 Paridad se calcula con XOR
 ```
-
-**Cálculo de Paridad con XOR:**
+La clave está en cómo se calcula la paridad usando la operación XOR (Exclusive OR).
 
 \begin{infobox}
 \emph{XOR (Exclusive OR):}
@@ -1050,9 +992,9 @@ A2 = A1 XOR A3 XOR Paridad
    = 11001100 ✓ (recuperado)
 ```
 
-**Propiedad clave del XOR:** `A XOR B XOR C XOR ... XOR Parity = 0`, por lo tanto cualquier elemento puede recuperarse.
+Propiedad clave del XOR: `A XOR B XOR C XOR ... XOR Parity = 0`, por lo tanto cualquier elemento puede recuperarse.  
 
-**Tabla de verdad XOR:**
+Tabla de verdad XOR:
 ```
 A | B | A XOR B
 --|---|-------
@@ -1088,21 +1030,30 @@ D1 = D0 XOR D2 XOR Paridad
    = 11010110 XOR 01110011 XOR 00000000
    = 10100101 ✓
 ```
+Este cálculo se hace a nivel de bloque completo (típicamente 512 bytes o 4 KiB). Cada bit de la paridad protege la posición correspondiente en todos los bloques de datos.  
+\begin{theory}
+La ventaja de RAID 5 es que distribuye la paridad. A diferencia de tener un disco dedicado solo a paridad (lo que crearía un cuello de botella), la paridad se esparce entre todos los discos. Esto significa que todas las escrituras se distribuyen uniformemente, evitando que un disco se desgaste más rápido que los otros.
+\end{theory}
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Buena capacidad: (N-1)/N de espacio útil\\
-- Tolerancia a fallos: 1 disco puede fallar\\
-- Rendimiento de lectura excelente (paralelismo)\\
-- Más eficiente que RAID 1 en espacio\\
-}
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Escritura más lenta (debe calcular y actualizar paridad)\\
-- Recuperación lenta ante falla\\
-- NO tolera falla de 2 discos simultáneos\\
-}
+\begin{highlight}
+Las ventajas de RAID 5 crean un balance excelente:\\
+- Buena capacidad: (N-1)/N de espacio útil (75% con 4 discos, 80% con 5 discos)\\
+- Tolerancia a fallos: cualquier disco puede fallar sin pérdida de datos\\
+- Rendimiento de lectura excelente: N discos leyendo en paralelo\\
+- Costo/beneficio superior a RAID 1: más capacidad útil con la misma protección\\
+\\
+Para servidores de archivos o NAS domésticos/empresariales, RAID 5 es a menudo la elección óptima.
+\end{highlight}
+\begin{warning}
+Las desventajas de RAID 5 son sutiles pero importantes:\\
+- Escritura más lenta: cada escritura requiere: (1) leer bloques viejos, (2) calcular nueva paridad, (3) escribir datos y paridad. Esto se llama "write penalty" y típicamente hace que escrituras sean 4× operaciones en vez de 1×.\\
+- Recuperación lenta: reconstruir un disco requiere leer todos los otros discos y calcular cada bloque faltante con XOR.\\
+- Vulnerable durante reconstrucción: si un segundo disco falla mientras estás reconstruyendo el primero, perdés todo. Con discos grandes (multi-TB), la reconstrucción puede tomar días.\\
+NO tolera fallas simultáneas de 2+ discos
+\end{warning}
 
-**Cálculos:**
+Cálculos:
 ```
 N discos de C capacidad cada uno (N ≥ 3):
 Capacidad útil = (N - 1) × C
@@ -1110,14 +1061,14 @@ Espacio para paridad = 1 × C (distribuido)
 Tolerancia a fallos = 1 disco
 ```
 
-**Ejemplo:**
-- 4 discos de 1 TiB cada uno
-- Capacidad útil: 3 TiB (75%)
-- Espacio de paridad: 1 TiB
-- Si 1 disco falla: datos recuperables
-- Si 2 discos fallan: pérdida total
+Ejemplo práctico:  
+- 4 discos de 1 TiB cada uno  
+- Capacidad útil: 3 TiB (75%)  
+- Espacio de paridad: 1 TiB  
+- Si 1 disco falla: datos recuperables  
+- Si 2 discos fallan: pérdida total  
 
-**Uso:** Servidores, NAS, almacenamiento empresarial (balance entre rendimiento, capacidad y confiabilidad)
+**Uso típico:** NAS (Network Attached Storage) domésticos y empresariales, servidores de archivos, almacenamiento general donde se busca balance entre rendimiento, capacidad y confiabilidad. Es el "sweet spot" para muchas aplicaciones.
 
 ### Comparación de RAID
 
@@ -1127,12 +1078,12 @@ Tolerancia a fallos = 1 disco
 | RAID 1 | 2 | C (50%) | N-1 | Bueno (N×) | Normal (1×) | Datos críticos |
 | RAID 5 | 3 | (N-1) × C | 1 | Excelente | Medio (paridad) | Servidores, NAS |
 
-**Nota sobre RAID 6:**  
-RAID 6 es similar a RAID 5 pero con doble paridad (P y Q), tolerando falla de 2 discos.  
-$Capacidad útil = (N-2) × C$. Más lento en escritura pero más seguro.  
-Uso: almacenamiento empresarial crítico.
-
----
+\begin{excerpt}
+\textbf{Nota sobre RAID 6:}\\
+RAID 6 extiende RAID 5 con doble paridad (bloques P y Q usando diferentes algoritmos matemáticos). Capacidad útil = (N-2) × C. Tolera la falla de 2 discos simultáneos, lo que es crítico con discos modernos de múltiples TB donde la reconstrucción puede tomar días.\\
+El costo es mayor write penalty (6 operaciones por escritura en vez de 4) y mayor complejidad de cálculo de paridad Q (usa aritmética de campos de Galois en vez de simple XOR).\\
+Uso: Almacenamiento empresarial crítico, arrays grandes (8+ discos) donde la probabilidad de fallo doble durante reconstrucción es significativa.
+\end{excerpt}
 
 ## 8. Buffering y Caching
 
