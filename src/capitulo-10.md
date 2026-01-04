@@ -14,26 +14,18 @@ Al finalizar este capítulo, el estudiante será capaz de:
 - Explicar el rol de buffering y caching en el subsistema de I/O
 - Resolver ejercicios tipo parcial sobre scheduling de disco y tiempos de acceso
 
----
-
 ## 1. Introducción: ¿Por qué es complejo el I/O?
 
-En los capítulos anteriores estudiamos la gestión de procesos, memoria y file systems. Todos estos componentes **dependen críticamente** del subsistema de entrada/salida para funcionar: los procesos necesitan leer datos del disco, la memoria virtual requiere swap a disco, y los file systems almacenan archivos en dispositivos físicos.
+En los capítulos anteriores estudiamos la gestión de procesos, memoria y file systems. Todos estos componentes dependen críticamente del subsistema de entrada/salida para funcionar: los procesos necesitan leer datos del disco, la memoria virtual requiere swap a disco, y los file systems almacenan archivos en dispositivos físicos. Ahora llegamos a uno de los componentes más fascinantes y complejos del sistema operativo.  
+El subsistema de I/O enfrenta un desafío único: debe coordinar la comunicación entre la CPU (que opera a gigahertz) y dispositivos que van desde teclados lentos hasta SSDs ultrarrápidos. Esta brecha de velocidad puede ser de seis órdenes de magnitud. Imaginate tratar de coordinar una conversación donde una persona habla a velocidad normal y la otra tarda un año en responder cada palabra.
 
 ### Desafíos del I/O
 
-El subsistema de I/O es uno de los componentes más complejos de un sistema operativo por varias razones:
-
-\textcolor{red!60!gray}{\textbf{Complejidad del I/O:}\\
-- Enorme variedad de dispositivos: discos, teclados, impresoras, tarjetas de red, GPUs, sensores\\
-- Cada dispositivo tiene interfaces y protocolos diferentes\\
-- Rangos de velocidad extremadamente amplios: teclado (10 bytes/seg) vs SSD NVMe (7 GiB/seg)\\
-- Necesidad de sincronización entre CPU y dispositivos lentos\\
-- Confiabilidad crítica: pérdida de datos en disco es catastrófica\\
-- Compatibilidad: drivers para múltiples dispositivos y versiones\\
-}
-
-**Ejemplo de diversidad:**
+\begin{warning}
+\textbf{Complejidad del I/O:}
+El subsistema de I/O debe manejar una enorme variedad de dispositivos: discos, teclados, impresoras, tarjetas de red, GPUs, sensores. Cada uno tiene interfaces y protocolos diferentes, con rangos de velocidad extremadamente amplios (desde 10 bytes/seg de un teclado hasta 7 GB/seg de un SSD NVMe). Además, necesita sincronización precisa entre CPU y dispositivos lentos, confiabilidad crítica (la pérdida de datos en disco es catastrófica), y compatibilidad con múltiples dispositivos y versiones de drivers.
+\end{warning}
+Para ilustrar esta diversidad, considerá la siguiente tabla de dispositivos típicos:
 ```
 Dispositivo         Velocidad típica      Características
 ---------------------------------------------------------
@@ -45,6 +37,7 @@ SSD NVMe            3-7 GiB/seg            Bloques, latencia baja
 Tarjeta de red      100 Mbps - 100 Gbps   Paquetes, tiempo real
 GPU                 100+ GiB/seg           Paralelo masivo
 ```
+La diferencia entre un teclado y un SSD NVMe es la misma que existe entre caminar (5 km/h) y viajar a 30.000 km/h. El sistema operativo debe hacer que todos estos dispositivos funcionen juntos de manera coordinada.
 
 ### Objetivos del Subsistema de I/O
 
@@ -52,51 +45,31 @@ GPU                 100+ GiB/seg           Paralelo masivo
 \emph{Subsistema de I/O:}
 Conjunto de componentes del sistema operativo responsables de gestionar la comunicación entre el CPU/memoria y los dispositivos periféricos, proporcionando abstracción, eficiencia y confiabilidad.
 \end{infobox}
-
-**Objetivos principales:**
-
-1. **Abstracción (Device Independence):** Ocultar diferencias entre dispositivos mediante interfaces uniformes
-2. **Eficiencia:** Maximizar throughput y minimizar latencia
-3. **Compartición:** Permitir acceso concurrente a dispositivos compartibles
-4. **Protección:** Prevenir acceso no autorizado a dispositivos
-5. **Manejo de errores:** Detectar y recuperarse de fallos de hardware
-
----
+El subsistema de I/O persigue cinco objetivos principales. Primero, la abstracción o independencia de dispositivo: ocultar las diferencias entre dispositivos mediante interfaces uniformes, para que tu programa pueda usar `read()` tanto con un archivo en disco como con datos de red. Segundo, la eficiencia: maximizar el throughput y minimizar la latencia, aprovechando al máximo las capacidades del hardware. Tercero, la compartición: permitir que múltiples procesos accedan concurrentemente a dispositivos compartibles de manera segura y coordinada.  
+El cuarto objetivo es la protección: prevenir que procesos no autorizados accedan directamente a dispositivos críticos (imaginate si cualquier programa pudiera leer o escribir arbitrariamente en tu disco). Finalmente, el manejo de errores: detectar y recuperarse de fallos de hardware, que son inevitables en dispositivos mecánicos y electrónicos.
 
 ## 2. Hardware de I/O
+Antes de entender cómo el sistema operativo gestiona el I/O, necesitamos comprender el hardware subyacente. Los dispositivos no son todos iguales, y sus diferencias fundamentales determinan cómo el SO debe interactuar con ellos.
 
 ### Tipos de Dispositivos
 
-Los dispositivos de I/O se clasifican según varias dimensiones:
+Los dispositivos de I/O se clasifican según varias dimensiones, siendo las más importantes la unidad de transferencia y el modo de acceso.
 
 #### Por Unidad de Transferencia
 
-**Dispositivos de Bloque:**
-- Transfieren datos en bloques de tamaño fijo (típicamente 512 bytes - 4 KiB)
-- Soportan acceso aleatorio (seek a cualquier bloque)
-- Direccionables: cada bloque tiene una dirección
-- **Ejemplos:** Discos duros (HDD), SSDs, CD-ROMs, cintas magnéticas
+Los dispositivos de bloque transfieren datos en bloques de tamaño fijo, típicamente entre 512 bytes y 4 KiB. Estos dispositivos soportan acceso aleatorio mediante seek: podés saltar a cualquier bloque sin tener que leer todos los anteriores. Cada bloque tiene una dirección única, lo que permite el direccionamiento directo. Los ejemplos clásicos son discos duros (HDD), SSDs, CD-ROMs y cintas magnéticas. Estos dispositivos son los que típicamente asociamos con "almacenamiento persistente".  
 
-**Dispositivos de Carácter:**
-- Transfieren datos como stream de caracteres
-- Generalmente no soportan seek (solo secuencial)
-- **Ejemplos:** Teclados, mice, puertos serie, impresoras
+En contraste, los **dispositivos de carácter** transfieren datos como un flujo continuo de bytes individuales. Generalmente no soportan seek, solo acceso secuencial: los datos llegan en orden y deben procesarse en ese orden. Pensá en ellos como un río de información que fluye constantemente. 
 
-**Dispositivos de Red:**
-- Categoría especial: transfieren paquetes
-- No son estrictamente de bloque ni de carácter
-- **Ejemplos:** Tarjetas Ethernet, WiFi, módems
+Ejemplos incluyen teclados, mice, puertos serie e impresoras. Cuando presionás una tecla, ese carácter llega inmediatamente y no tiene sentido "buscar" la tecla anterior.  
+
+Existe una categoría especial: los dispositivos de red. Estos no son estrictamente de bloque ni de carácter, sino que transfieren paquetes de tamaño variable. Cada paquete es una unidad independiente con headers, datos y checksums. Las tarjetas Ethernet, WiFi y módems caen en esta categoría.
 
 #### Por Modo de Acceso
 
-**Compartibles (Sharable):**
-- Pueden ser usados por múltiples procesos concurrentemente
-- Requieren sincronización
-- **Ejemplos:** Discos, tarjetas de red
+Los **dispositivos compartibles (sharables)** pueden ser usados por múltiples procesos concurrentemente, aunque requieren sincronización cuidadosa para evitar condiciones de carrera. Los discos son el ejemplo paradigmático: cientos de procesos pueden leer y escribir simultáneamente, y el sistema operativo coordina estos accesos mediante locks y colas. Las tarjetas de red también son compartibles, multiplexando paquetes de diferentes conexiones.  
 
-**Dedicados (Dedicated):**
-- Solo un proceso a la vez
-- **Ejemplos:** Impresoras (sin spooling), cintas magnéticas
+Los dispositivos dedicados solo permiten un proceso a la vez. Las impresoras (sin spooling) son el ejemplo clásico: si un proceso está imprimiendo, los demás deben esperar. Las cintas magnéticas también requieren acceso exclusivo, ya que son inherentemente secuenciales.
 
 ### Controladores de Dispositivo
 
@@ -104,21 +77,16 @@ Los dispositivos de I/O se clasifican según varias dimensiones:
 \emph{Controlador de Dispositivo (Device Controller):}
 Componente de hardware que actúa como interfaz entre el bus del sistema y el dispositivo físico. Contiene registros y lógica para controlar el dispositivo.
 \end{infobox}
-
-**Arquitectura típica:**
+Un concepto crucial que a menudo se malentiende: el sistema operativo no interactúa directamente con el dispositivo físico, sino con su controlador. El controlador es un chip especializado que habla dos idiomas: por un lado, entiende el protocolo del bus del sistema (PCIe, SATA, USB), y por otro, sabe cómo manejar las peculiaridades electrónicas del dispositivo específico.  
+La arquitectura típica se ve así:
 
 ```
 CPU/Memoria <---> Bus del Sistema <---> Controlador <---> Dispositivo
                                         (Controller)       (Device)
 ```
 
-El controlador contiene:
-- **Registros de control:** CPU escribe comandos aquí
-- **Registros de estado:** CPU lee el estado del dispositivo
-- **Registros de datos:** Buffers para transferencia de datos
-- **Lógica interna:** Ejecuta operaciones del dispositivo
-
-**Ejemplo - Controlador de disco:**
+El controlador contiene varios componentes esenciales. Los registros de control son donde la CPU escribe comandos: "leer sector 1234", "mover cabeza al cilindro 500", etc. Los registros de estado permiten que la CPU consulte el estado actual: ¿está ocupado el dispositivo? ¿hubo algún error? ¿completó la operación? Los registros de datos funcionan como buffers temporales para la transferencia de datos entre el dispositivo y la memoria. Finalmente, la lógica interna ejecuta las operaciones específicas del dispositivo, traduciendo comandos de alto nivel en secuencias de señales eléctricas.  
+Un ejemplo concreto de controlador de disco podría tener:
 ```
 Registro de Control:  [READ|WRITE|SEEK] comando
 Registro de Estado:   [BUSY|READY|ERROR] flags
@@ -126,33 +94,25 @@ Registro de Datos:    Buffer de sector (512 bytes)
 Registro de Dirección: LBA (Logical Block Address)
 ```
 
-\textcolor{blue!50!black}{\textbf{Nota importante:}\\
-El sistema operativo NO interactúa directamente con el dispositivo físico, sino con el controlador. El driver del SO habla con el controlador mediante lectura/escritura de sus registros.\\
-}
+\begin{highlight}
+El driver del sistema operativo habla con el controlador mediante lectura y escritura de sus registros, no con el dispositivo directamente. Esta abstracción permite que el mismo driver funcione con diferentes dispositivos que usan el mismo tipo de controlador.
+\end{highlight}
 
 ### Interfaces de I/O
 
-**Memory-Mapped I/O:**
-- Los registros del controlador se mapean a direcciones de memoria
-- CPU usa instrucciones normales de memoria (LOAD/STORE)
-- No requiere instrucciones especiales de I/O
+Existen dos formas principales de que la CPU acceda a los registros del controlador. En **Memory-Mapped I/O**, los registros del controlador se mapean a direcciones específicas del espacio de memoria física.  
+La CPU usa instrucciones normales de memoria (LOAD/STORE) para interactuar con ellos. Por ejemplo, escribir a la dirección `0xF0000000` podría estar escribiendo al registro de control del controlador de disco. Esta técnica no requiere instrucciones especiales y es la dominante en sistemas modernos por su simplicidad.  
 
-**Port-Mapped I/O (I/O Aislado):**
-- Espacio de direcciones separado para I/O
-- CPU usa instrucciones especiales (IN/OUT en x86)
-- Arquitecturas antiguas
+En **Port-Mapped I/O** (o I/O Aislado), existe un espacio de direcciones separado específico para I/O. La CPU usa instrucciones especiales como `IN` y `OUT` (en arquitectura x86) para acceder a estos puertos. Esta arquitectura era común en sistemas antiguos pero ha caído en desuso.  
 
-La mayoría de los sistemas modernos usan **Memory-Mapped I/O** por simplicidad y eficiencia.
-
----
+La mayoría de los sistemas modernos usan exclusivamente Memory-Mapped I/O porque permite usar toda la potencia del caché de CPU y las optimizaciones del pipeline para accesos a dispositivos.
 
 ## 3. Técnicas de I/O
 
-El sistema operativo puede gestionar las operaciones de I/O de tres formas principales, con trade-offs significativos en eficiencia, complejidad y uso de CPU.
+Ahora que entendemos el hardware, podemos explorar cómo el sistema operativo gestiona las operaciones de I/O. Existen tres técnicas principales, cada una con trade-offs significativos en eficiencia, complejidad y uso de CPU. La evolución histórica de estas técnicas refleja la búsqueda constante por minimizar el desperdicio de ciclos de CPU.  
 
 ### Técnica 1: I/O Programado (Polling)
-
-**Concepto:** La CPU ejecuta un bucle que constantemente verifica el estado del dispositivo hasta que esté listo.
+La técnica más simple es el I/O programado o polling. La idea es directa: la CPU ejecuta un bucle que constantemente verifica el estado del dispositivo hasta que esté listo. Es como preguntarle repetidamente a alguien "¿ya terminaste? ¿ya terminaste? ¿ya terminaste?" hasta que responda que sí.
 
 ```c
 // Pseudocódigo de I/O programado
@@ -172,31 +132,18 @@ void write_data(char *data, int size) {
 }
 ```
 
-**Flujo de operación:**
-1. CPU escribe comando en registro de control
-2. CPU entra en bucle de polling del registro de estado
-3. Cuando dispositivo está listo, CPU lee/escribe datos
-4. Repetir hasta completar transferencia
-
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Muy simple de implementar\\
-- No requiere hardware especial (interrupciones)\\
-- Latencia baja para dispositivos muy rápidos\\
-- Útil en sistemas embebidos simples\\
-}
-
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- CPU completamente ocupada durante I/O (busy-waiting)\\
-- Desperdicio enorme de ciclos de CPU\\
-- No puede hacer multitasking mientras espera\\
-- Ineficiente para dispositivos lentos\\
-}
-
-**Uso actual:** Sistemas embebidos muy simples, polling ocasional en drivers cuando se espera respuesta inmediata
+El flujo es simple: la CPU escribe un comando en el registro de control, luego entra en un bucle verificando constantemente el registro de estado. Cuando el dispositivo finalmente está listo, la CPU lee o escribe los datos. Este ciclo se repite hasta completar la transferencia completa.
+\begin{example}
+La ventaja del polling es su simplicidad extrema: no requiere hardware especial para interrupciones, es fácil de depurar, y tiene latencia muy baja para dispositivos que responden inmediatamente. En sistemas embebidos simples donde la CPU no tiene nada más que hacer, puede ser la solución correcta.
+\end{example}
+\begin{warning}
+Sin embargo, el polling tiene un problema fundamental: la CPU está completamente ocupada durante todo el I/O. Es un desperdicio catastrófico de ciclos de CPU. Mientras esperás que el disco complete una operación de 10 ms, la CPU podría haber ejecutado millones de instrucciones útiles. Además, no puede hacer multitasking: está atrapada en ese bucle de polling.
+\end{warning}
+El polling solo tiene sentido en escenarios muy específicos: cuando el dispositivo responde en menos de 100 ciclos de CPU, o en sistemas embebidos sin sistema operativo donde la CPU está dedicada a una sola tarea. En sistemas de propósito general modernos, el polling es prácticamente inexistente.
 
 ### Técnica 2: I/O por Interrupciones
 
-**Concepto:** El dispositivo interrumpe a la CPU cuando completa una operación, permitiendo que la CPU haga otras cosas mientras espera.
+La segunda técnica resuelve el problema del busy-waiting: en lugar de que la CPU pregunte constantemente, el dispositivo le avisa cuando termina mediante una interrupción. Es como darle a alguien tu número de teléfono en vez de llamarlo cada 5 segundos.
 
 ```c
 // Pseudocódigo de I/O por interrupciones
@@ -227,42 +174,30 @@ void disk_interrupt_handler() {
     }
 }
 ```
+El flujo cambia fundamentalmente. La CPU inicia la operación escribiendo al controlador, pero inmediatamente retorna y puede ejecutar otros procesos. Cuando el dispositivo completa la operación, genera una interrupción de hardware. Esta interrupción fuerza a la CPU a suspender el proceso actual, ejecutar el *Interrupt Service Routine* (ISR) que maneja el evento, y luego retornar al proceso que fue interrumpido.
 
-**Flujo de operación:**
-1. CPU inicia operación y retorna (no espera)
-2. CPU ejecuta otros procesos
-3. Dispositivo completa operación y genera interrupción
-4. CPU suspende proceso actual, ejecuta ISR
-5. ISR maneja el evento (leer datos, iniciar siguiente transferencia, etc.)
-6. CPU retorna al proceso interrumpido
+\begin{theory}
+Las interrupciones son el mecanismo fundamental que permite multitasking efectivo en presencia de I/O. Sin ellas, la CPU estaría constantemente atrapada esperando dispositivos lentos, desperdiciando su capacidad de procesamiento.
+\end{theory}
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- CPU libre para otras tareas durante I/O\\
-- Eficiente para dispositivos de velocidad media\\
-- Mejor utilización de CPU que polling\\
-- Permite multitasking efectivo\\
-}
+Las ventajas son claras: la CPU queda libre para ejecutar otros procesos durante el I/O, la utilización de CPU es mucho mejor que con polling, y permite multitasking real. Un sistema puede tener docenas de operaciones de I/O en progreso simultáneamente, con la CPU alternando entre procesos productivos.
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Overhead de context switch por cada interrupción\\
-- Problemas con interrupciones de alta frecuencia (interrupt storm)\\
-- CPU aún involucrada en transferencia de datos\\
-- Ineficiente para transferencias grandes\\
-}
+Sin embargo, las interrupciones introducen su propio overhead. Cada interrupción requiere un *context switch*: guardar el estado del proceso actual, cambiar al kernel, ejecutar el ISR, y restaurar el proceso. Este overhead es típicamente de cientos a miles de ciclos. Si las interrupciones llegan muy frecuentemente (por ejemplo, en dispositivos de red de alta velocidad recibiendo miles de paquetes por segundo), puede ocurrir una *interrupt storm* donde la CPU pasa más tiempo manejando interrupciones que ejecutando código útil.
 
-**Uso actual:** Dispositivos de carácter (teclado, mouse), eventos de dispositivos de bloque (completación de comando)
+Además, aunque mejor que polling, la CPU sigue involucrada en cada transferencia de datos. Para transferencias grandes (como leer un archivo de varios megabytes), esto significa miles de interrupciones, cada una con su overhead asociado.
+
+Las interrupciones son ideales para dispositivos de velocidad media, eventos esporádicos (como teclas presionadas), y transferencias pequeñas. Son el estándar para teclados, mice, y para señalizar la completación de operaciones de disco.
 
 ### Técnica 3: DMA (Direct Memory Access)
+
+La tercera técnica lleva la eficiencia al siguiente nivel. Con DMA, un controlador especializado maneja la transferencia completa de datos entre el dispositivo y la memoria, sin que la CPU toque ningún byte individual.
 
 \begin{infobox}
 \emph{DMA (Direct Memory Access):}
 Técnica que permite al controlador de dispositivo transferir datos directamente entre el dispositivo y la memoria RAM sin intervención de la CPU.
 \end{infobox}
 
-**Concepto:** Un controlador especializado (DMA controller) gestiona la transferencia completa de bloques de datos, liberando completamente a la CPU.
-
-**Arquitectura con DMA:**
-
+La arquitectura con DMA introduce un nuevo componente:
 ```
 CPU <---> Bus <---> Memoria RAM
             ^
@@ -271,24 +206,8 @@ CPU <---> Bus <---> Memoria RAM
       DMA Controller <---> Device Controller <---> Dispositivo
 ```
 
-**Flujo de operación:**
-
-1. **CPU configura DMA:**
-   - Dirección de memoria origen/destino
-   - Cantidad de bytes a transferir
-   - Dirección del dispositivo
-   - Dirección de control (read/write)
-
-2. **DMA ejecuta transferencia:**
-   - DMA "roba" ciclos del bus (cycle stealing)
-   - Transfiere datos directamente entre dispositivo y RAM
-   - Incrementa punteros automáticamente
-
-3. **DMA genera interrupción:**
-   - Al completar transferencia completa
-   - CPU recibe UNA interrupción (no una por byte)
-
-**Ejemplo de uso de DMA:**
+El flujo de operación es elegante. Primero, la CPU configura el DMA controller: le indica la dirección de memoria origen o destino, la cantidad de bytes a transferir, la dirección del dispositivo, y la dirección de control (read/write). Luego, el DMA controller ejecuta la transferencia completa de manera autónoma: "roba" ciclos del bus según necesita (cycle stealing), transfiere datos directamente entre dispositivo y RAM byte por byte o palabra por palabra, e incrementa punteros automáticamente. Finalmente, cuando completa la transferencia completa, el DMA genera una única interrupción para notificar a la CPU.
+Ejemplo de código:
 
 ```c
 // Pseudocódigo de lectura con DMA
@@ -317,13 +236,14 @@ void dma_complete_interrupt() {
     wake_up_process_waiting_for_io();
 }
 ```
-
-**Cycle Stealing:**
+Un concepto importante es el *cycle stealing*. El DMA controller necesita acceso al bus para transferir datos, pero la CPU también necesita el bus para ejecutar instrucciones. La solución es que el DMA "roba" temporalmente el control del bus cuando lo necesita. Si la CPU puede ejecutar desde caché (sin acceder a RAM), ni siquiera nota el robo. Si necesita el bus simultáneamente, debe esperar unos pocos ciclos.
 
 \begin{infobox}
 \emph{Cycle Stealing:}
 Técnica donde el DMA controller temporalmente "roba" el control del bus de sistema para realizar transferencias, mientras la CPU ejecuta desde cache o espera brevemente.
 \end{infobox}
+
+Un timeline típico del bus durante DMA se ve así:
 
 ```
 Timeline del bus durante DMA:
@@ -334,25 +254,17 @@ CPU  CPU  DMA  CPU  CPU  DMA  CPU  DMA  DMA  CPU
 CPU ejecuta cuando puede acceder al bus
 DMA "roba" ciclos periódicamente para transferir datos
 ```
+\begin{highlight}
+Las ventajas de DMA son dramáticas: la CPU queda completamente libre durante la transferencia, el throughput es muy alto (limitado solo por la velocidad del dispositivo y el bus), solo hay una interrupción por operación completa (no una por byte), y es esencial para dispositivos de alta velocidad como SSDs modernos que transfieren gigabytes por segundo.
+\end{highlight}
 
-\textcolor{teal!60!black}{\textbf{Ventajas de DMA:}\\
-- CPU completamente libre durante transferencia\\
-- Óptimo para transferencias grandes (bloques de disco)\\
-- Solo UNA interrupción por operación completa\\
-- Throughput muy alto\\
-- Esencial para dispositivos de alta velocidad\\
-}
+Las desventajas son menores en comparación: requiere hardware especializado (que ya viene incluido en todas las computadoras modernas), la configuración es más compleja que con interrupciones simples, el cycle stealing puede ralentizar ligeramente a la CPU (típicamente 1-5%), y para transferencias muy pequeñas (unos pocos bytes) el overhead de configuración puede ser mayor que simplemente copiar los datos con la CPU.
 
-\textcolor{red!60!gray}{\textbf{Desventajas de DMA:}\\
-- Requiere hardware especializado (DMA controller)\\
-- Configuración más compleja\\
-- Cycle stealing puede ralentizar ligeramente la CPU\\
-- No útil para transferencias muy pequeñas (overhead de setup)\\
-}
-
-**Uso actual:** Virtualmente todos los dispositivos de bloque modernos (discos, SSDs, tarjetas de red, GPUs)
+En sistemas modernos, virtualmente todos los dispositivos de bloque (discos, SSDs, tarjetas de red, GPUs) usan DMA. Es la técnica dominante para cualquier transferencia mayor a 1 KiB.
 
 ### Comparación de Técnicas
+
+Resumamos las tres técnicas en una tabla comparativa:
 
 | Aspecto | Polling | Interrupciones | DMA |
 |---------|---------|----------------|-----|
@@ -364,20 +276,24 @@ DMA "roba" ciclos periódicamente para transferir datos
 | **Mejor para** | Dispositivos rápidos | Eventos y chars | Transferencias grandes |
 | **Escalabilidad** | Muy mala | Media | Excelente |
 
-**Regla práctica:**
-- **Polling:** Útil si el dispositivo responde en < 100 ciclos de CPU
-- **Interrupciones:** Útil para eventos y transferencias pequeñas (< 1 KiB)
-- **DMA:** Obligatorio para transferencias > 1 KiB o dispositivos rápidos
+\begin{excerpt}
+Regla práctica para elegir técnica de I/O:
 
----
+Usá polling si el dispositivo responde en menos de 100 ciclos de CPU (rarísimo en la práctica).
+
+Usá interrupciones para eventos esporádicos y transferencias pequeñas (menos de 1 KiB).
+
+Usá DMA para transferencias mayores a 1 KiB o dispositivos rápidos. Es obligatorio para discos y redes modernas.
+\end{excerpt}
 
 ## 4. Discos Magnéticos: Estructura y Rendimiento
 
-Los discos duros (HDD) siguen siendo ampliamente usados para almacenamiento masivo. Comprender su estructura física es esencial para entender el rendimiento del I/O.
+Aunque los SSDs han ganado popularidad, los discos duros (HDD) siguen siendo ampliamente usados para almacenamiento masivo debido a su bajo costo por gigabyte. Más importante aún, comprender su estructura física es esencial para entender el rendimiento del I/O y por qué los algoritmos de scheduling de disco son necesarios.
 
 ### Geometría del Disco
 
-**Componentes físicos:**
+Un disco duro es una maravilla de ingeniería mecánica de precisión. Imaginalo como un tocadiscos moderno pero con múltiples discos girando a miles de revoluciones por minuto.
+
 
 ```
 Vista superior del disco:
@@ -402,15 +318,15 @@ Vista superior del disco:
 ```
 
 \begin{infobox}
-\emph{Componentes del disco:}\\
-\textbf{Plato (Platter):} Disco circular recubierto de material magnético. Un disco tiene múltiples platos.\\
-\textbf{Pista (Track):} Círculo concéntrico en la superficie del plato donde se almacenan datos.\\
+\emph{Componentes del disco:}
+\textbf{Plato (Platter):} Disco circular recubierto de material magnético. Un disco tiene múltiples platos apilados verticalmente.\\
+\textbf{Pista (Track):} Círculo concéntrico en la superficie del plato donde se almacenan datos magnéticamente.\\
 \textbf{Sector:} Subdivisión de una pista, unidad mínima de transferencia (típicamente 512 bytes o 4 KiB).\\
 \textbf{Cilindro (Cylinder):} Conjunto de pistas en la misma posición radial en todos los platos.\\
-\textbf{Cabeza (Head):} Dispositivo que lee/escribe datos magnéticamente. Hay una por superficie.\\
+\textbf{Cabeza (Head):} Dispositivo que lee/escribe datos magnéticamente flotando a nanómetros de la superficie. Hay una cabeza por superficie de plato.
 \end{infobox}
 
-**Vista lateral (múltiples platos):**
+La vista lateral de un disco con múltiples platos revela su estructura tridimensional:
 
 ```
 Cabezas (Heads)
@@ -428,11 +344,11 @@ Cabezas (Heads)
          (se mueve todo junto)
 ```
 
-**Numeración de sectores:**
+Un detalle crucial: todas las cabezas están montadas en el mismo brazo actuador y se mueven juntas. No pueden moverse independientemente. Esto significa que cuando el brazo se mueve a un cilindro específico, todas las cabezas quedan posicionadas sobre la misma posición radial en sus respectivos platos.
 
-Cada sector se puede direccionar por:
-- **CHS (Cylinder-Head-Sector):** (cilindro, cabeza, sector) - método antiguo
-- **LBA (Logical Block Addressing):** Número secuencial - método moderno
+Históricamente, los sectores se direccionaban usando CHS (*Cylinder-Head-Sector*): especificabas exactamente en qué cilindro, qué cabeza, y qué sector querías acceder. Los sistemas modernos usan LBA (*Logical Block Addressing*): cada sector tiene un número secuencial único, y el controlador del disco se encarga de traducirlo a la geometría física. Esto simplifica enormemente la vida del sistema operativo.
+
+Un ejemplo concreto ayuda a visualizar las capacidades. Considerá un disco con 1000 cilindros, 4 cabezas (2 platos con dos superficies cada uno), 100 sectores por pista, y 512 bytes por sector:
 
 ```
 Ejemplo de disco:
@@ -443,19 +359,20 @@ Ejemplo de disco:
 
 Capacidad total = 1000 × 4 × 100 × 512 = 204.800.000 bytes ≈ 195 MiB
 ```
+Este sería un disco muy antiguo, por supuesto. Los discos modernos tienen cientos de miles de cilindros y capacidades de terabytes.
 
 ### Tiempos de Acceso a Disco
 
-El tiempo total para leer/escribir datos de disco se compone de tres partes:
+El tiempo total para leer o escribir datos de un disco mecánico se descompone en tres componentes fundamentales. Esta descomposición es crítica para entender el rendimiento de I/O.  
 
-\begin{infobox}
-\emph{Tiempo de acceso total:}\\
-\textbf{T\_total = T\_seek + T\_rotacional + T\_transferencia}
-\end{infobox}
+Tiempo de acceso total:
+$$
+T_{total} = T_{seek} + T_{rotacional} + T_{transferencia}
+$$
 
 #### 1. Tiempo de Seek (Búsqueda)
 
-**Definición:** Tiempo que tarda el brazo en mover las cabezas desde su posición actual hasta el cilindro destino.
+El seek time es el tiempo que tarda el brazo actuador en mover las cabezas desde su posición actual hasta el cilindro destino. Es una operación mecánica: el brazo debe acelerar, recorrer la distancia, y decelerar precisamente en el cilindro correcto.  
 
 ```
 T_seek depende de la distancia en cilindros
@@ -466,23 +383,17 @@ Valores típicos para HDD:
 - Full stroke (máximo): 15 - 20 ms
 ```
 
-**Modelos de seek time:**
-- **Lineal:** $T_{seek} = a + b \times distancia$
-- **Más realista:** $T_{seek} = a + b \times \sqrt{distancia}$ (aceleración)
+Los modelos físicos del seek time son interesantes. Un modelo simple lineal sería $T_{seek} = a + b \times distancia$, pero la realidad es más compleja debido a la aceleración. Un modelo más realista usa $T_{seek} = a + b \times \sqrt{distancia}$, reflejando que el brazo pasa la mayor parte del tiempo acelerando y frenando.
 
-**Para cálculos simples:** Se suele usar el **seek promedio** (~9 ms en HDD 7200 RPM)
+Para cálculos en este libro, utilizaremos el seek promedio simplificado de aproximadamente 9 ms en discos de 7200 RPM, a menos que el problema especifique otra cosa.
 
 #### 2. Latencia Rotacional
 
-**Definición:** Tiempo que tarda el sector deseado en rotar bajo la cabeza después del seek.
-
-```
-Un disco gira a velocidad constante (RPM = Revolutions Per Minute)
-
-T_rotacion_completa = 60 / RPM segundos
-
-Latencia rotacional promedio = T_rotacion_completa / 2
-```
+Una vez que las cabezas están posicionadas en el cilindro correcto, debemos esperar a que el sector deseado rote bajo la cabeza. Los platos giran a velocidad constante, medida en RPM (revoluciones por minuto).
+El tiempo para una revolución completa es simplemente:
+$$
+T_{rotacional_promedio}​=T_{revolucion} / 2
+$$
 
 **Valores típicos:**
 
@@ -493,17 +404,19 @@ Latencia rotacional promedio = T_rotacion_completa / 2
 | 10000 | 6.0 ms | 3.0 ms |
 | 15000 | 4.0 ms | 2.0 ms |
 
-\textcolor{orange!70!black}{\textbf{Nota importante:}\\
-La latencia rotacional NO se puede mejorar con algoritmos de scheduling. Es una limitación física del disco. Solo se puede reducir con discos más rápidos.\\
-}
+\begin{warning}
+La latencia rotacional es una limitación física fundamental del disco. No puede mejorarse con algoritmos inteligentes de scheduling. Es simplemente una consecuencia de la velocidad de rotación del motor. La única forma de reducirla es comprar un disco más rápido (o usar un SSD, que no tiene partes móviles y por tanto no tiene latencia rotacional).
+\end{warning}
 
 #### 3. Tiempo de Transferencia
 
-**Definición:** Tiempo que tarda en transferirse los datos entre el disco y el controlador.
+Una vez que el sector está bajo la cabeza, los datos deben transferirse entre el disco y el controlador. Este tiempo depende de la tasa de transferencia del disco y la cantidad de datos:
+
+$$
+T_{transferencia} = (bytes a transferir) / (tasa de transferencia)
+$$
 
 ```
-T_transferencia = (bytes a transferir) / (tasa de transferencia)
-
 Tasa de transferencia típica:
 - HDD interno SATA: 100 - 200 MiB/s
 - HDD externo USB 3.0: 80 - 120 MiB/s
