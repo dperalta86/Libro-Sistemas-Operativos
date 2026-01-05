@@ -45,15 +45,15 @@ Podés pensar en un programa como una receta de cocina escrita en un libro: cont
 Para entender realmente qué son los procesos y por qué existen, necesitamos recorrer la evolución histórica de cómo las computadoras manejan programas. Esta evolución no fue arbitraria, sino una respuesta a limitaciones concretas que cada generación de sistemas enfrentó.  
 
 La monoprogramación representa el modelo más primitivo. En estos sistemas, un solo programa se ejecutaba a la vez, monopolizando completamente todos los recursos. El problema fundamental era evidente: cuando el programa realizaba operaciones de entrada/salida (como leer del disco), la CPU quedaba completamente ociosa, esperando. Esta ineficiencia era catastrófica: la utilización de CPU raramente superaba el 5-10%. Los sistemas batch simples de los años 1950 operaban bajo este modelo, donde los programas se procesaban uno tras otro en secuencia estricta.
-\begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-02/sequential.png}
-\end{center}
-El multiprocesamiento tomó un camino diferente: en lugar de mejorar cómo se usa una CPU, agregó múltiples CPUs físicos a la misma máquina. Esto permitió verdadero paralelismo a nivel hardware, donde cada CPU puede ejecutar un proceso completamente diferente al mismo tiempo. Los sistemas SMP (Symmetric Multiprocessing) democratizaron este enfoque, permitiendo que cualquier CPU ejecute cualquier proceso sin restricciones especiales.
-La multiprogramación atacó el problema de la ociosidad de manera más elegante. En lugar de esperar que un programa termine, estos sistemas mantienen múltiples programas cargados en memoria simultáneamente. Una sola CPU alterna entre ellos de manera inteligente: cuando un proceso hace una operación de I/O y queda bloqueado, otro proceso usa la CPU. El objetivo central es maximizar la utilización de CPU, transformando el tiempo muerto en tiempo productivo.
-\begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-02/pipelined.png}
-\end{center}
-La multitarea extendió la multiprogramación con un concepto revolucionario: time-sharing. No solo los procesos comparten la CPU durante operaciones de I/O, sino que el sistema operativo puede interrumpir forzosamente un proceso en ejecución (preemptive scheduling) para darle turno a otro. Cada proceso recibe pequeños intervalos de tiempo llamados quanta o time slices, típicamente de 10-100 milisegundos. Esta rapidez en el cambio crea la ilusión de que todos los programas se ejecutan simultáneamente, logrando la interactividad que esperamos de los sistemas modernos.
+
+![Diagrama de instrucciones secuenciales.](src/images/capitulo-02/sequential.jpg){width=570px,height=210px}  
+
+La multiprogramación atacó el problema de la ociosidad de manera elegante. En lugar de esperar que un programa termine, estos sistemas mantienen múltiples programas cargados en memoria simultáneamente. Una sola CPU alterna entre ellos de manera inteligente: cuando un proceso hace una operación de I/O y queda bloqueado, otro proceso usa la CPU. El objetivo central es maximizar la utilización de CPU, transformando el tiempo muerto en tiempo productivo.  
+
+![Diagrama de ejecución pipeline, donde las etapas de una instrucción (fetch, decode, execute y writeback) se superponen en distintos ciclos de reloj para mejorar el rendimiento.](src/images/capitulo-02/pipelined.jpg){width=570px,height=px} 
+
+El multiprocesamiento tomó un camino diferente: en lugar de mejorar cómo se usa una CPU, agregó múltiples CPUs físicos a la misma máquina. Esto permitió verdadero paralelismo a nivel hardware, donde cada CPU puede ejecutar un proceso completamente diferente al mismo tiempo. Los sistemas SMP (Symmetric Multiprocessing) democratizaron este enfoque, permitiendo que cualquier CPU ejecute cualquier proceso sin restricciones especiales.  
+La multitarea extendió la multiprogramación con un concepto revolucionario: time-sharing. No solo los procesos comparten la CPU durante operaciones de I/O, sino que el sistema operativo puede interrumpir forzosamente un proceso en ejecución (preemptive scheduling) para darle turno a otro. Cada proceso recibe pequeños intervalos de tiempo llamados quantum o time slices, típicamente de 10-100 milisegundos. Esta rapidez en el cambio crea la ilusión de que todos los programas se ejecutan simultáneamente, logrando la interactividad que esperamos de los sistemas modernos.
 \begin{warning}
 Es común confundir multiprogramación con multitarea. La diferencia clave está en la preemption: en multiprogramación pura, un proceso solo cede la CPU voluntariamente (al hacer I/O). En multitarea, el sistema operativo puede quitarle la CPU a un proceso en cualquier momento, garantizando que ningún proceso monopolice el sistema.
 \end{warning}
@@ -97,12 +97,12 @@ La **tabla de archivos** coordina el acceso al sistema de archivos. Registra tod
 
 ### Imagen de un Proceso
 
-La imagen del proceso representa la huella completa que un proceso deja en memoria. No es simplemente el código ejecutable, sino una estructura compleja dividida en segmentos especializados, cada uno con un propósito específico.
-\begin{center}
-\begin{minipage}{0.55\linewidth}  
+La imagen del proceso representa la huella completa que un proceso deja en memoria. No es simplemente el código ejecutable, sino una estructura compleja dividida en segmentos especializados, cada uno con un propósito específico.  
 El \textbf{text segment} contiene las instrucciones ejecutables del programa. Este segmento es read-only para prevenir modificaciones accidentales del código, y puede ser compartido entre múltiples procesos que ejecutan el mismo programa. Se carga directamente desde el archivo ejecutable al iniciar el proceso.  
 
 El \textbf{data segment} se divide en dos regiones. La sección de datos inicializados contiene variables globales y estáticas que tienen un valor inicial definido en el código fuente. La sección BSS (\textit{Block Started by Symbol}) contiene variables globales y estáticas no inicializadas, que el sistema operativo inicializa automáticamente a cero. Este segmento es read-write y específico para cada proceso.  
+\begin{center}
+\begin{minipage}{0.55\linewidth}  
 
 El \textbf{heap} es donde vive la memoria dinámica solicitada por el proceso mediante funciones como \texttt{malloc()} o el operador \texttt{new}. Crece hacia direcciones de memoria altas según el proceso solicita más memoria, y es completamente gestionado por el proceso (y las bibliotecas de manejo de memoria).  
 
@@ -116,7 +116,6 @@ El \textbf{stack} contiene variables locales de funciones, parámetros pasados a
 \begin{warning}
 La separación entre heap y stack creciendo en direcciones opuestas no es arbitraria. Si crecieran en la misma dirección, sería necesario decidir de antemano cuánto espacio asignar a cada uno. Con este diseño, heap y stack pueden crecer dinámicamente hasta encontrarse, maximizando el uso eficiente de la memoria disponible.
 \end{warning}
-\newpage
 
 ### Process Control Block (PCB)  
 
@@ -387,7 +386,7 @@ El manejo de errores en las líneas 15-18 es esencial: `fork()` puede fallar si 
 
 El código del padre en las líneas 27-38 es igualmente importante. La llamada a `wait(&status)` es bloqueante: el padre se suspende hasta que el hijo termine. Las macros `WIFEXITED()` y `WEXITSTATUS()` extraen información del status: si el hijo terminó normalmente y cuál fue su código de salida.
 \begin{example}
-La última línea printf("Proceso %d terminando", getpid()) se ejecutará dos veces: una por el padre y otra por el hijo. Sin embargo, verás que la línea del hijo aparece antes de que el padre imprima el análisis del status, porque el padre estaba bloqueado en \texttt{wait()}.
+La última línea printf("Proceso \%d terminando", \texttt{getpid()}) se ejecutará dos veces: una por el padre y otra por el hijo. Sin embargo, verás que la línea del hijo aparece antes de que el padre imprima el análisis del status, porque el padre estaba bloqueado en \texttt{wait()}.
 \end{example}
 
 ### Usando exec() para cargar programas

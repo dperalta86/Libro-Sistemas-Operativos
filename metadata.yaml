@@ -124,7 +124,3 @@ include-before: |
   \vfill
   \newpage
 
-  \thispagestyle{empty}
-  \null\vfill
-  \vfill
-  \newpage
