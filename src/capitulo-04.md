@@ -60,7 +60,7 @@ Este mecanismo es crucial para mantener el balance entre rendimiento y utilizaci
 #### Planificación a Corto Plazo (CPU Scheduler)
 El planificador a corto plazo (dispatcher) es el corazón del sistema de planificación y el enfoque principal de este capítulo. Opera a velocidades de milisegundos, decidiendo constantemente qué proceso de la cola READY debe ejecutarse en el CPU.
 \begin{example}
-En un sistema típico, el planificador a corto plazo puede tomar decisiones cada 10-100 milisegundos, mientras que el planificador a largo plazo puede tomar decisiones cada varios segundos o minutos.
+En un sistema típico, el planificador a corto plazo puede tomar decisiones cada 10-100 milisegundos, mientras que el planificador a largo plazo puede tomar decisiones cada varios segundos o incluso minutos.
 \end{example}
 
 ### Tipos de Planificación
@@ -84,21 +84,21 @@ El costo de esta flexibilidad es el overhead de los frecuentes cambios de contex
 
 Para evaluar y comparar algoritmos de planificación necesitamos métricas objetivas. Estas se dividen en dos categorías según su perspectiva.  
 Las métricas orientadas al sistema incluyen la utilización del CPU (porcentaje de tiempo que el CPU está ejecutando procesos productivos en lugar de estar ocioso) y el throughput (cantidad de procesos que el sistema completa por unidad de tiempo). Estas métricas interesan principalmente a los administradores de sistemas y diseñadores de algoritmos.  
-Las métricas orientadas al usuario capturan la experiencia percibida. El tiempo de retorno (turnaround time) mide cuánto tiempo total transcurre desde que un proceso llega al sistema hasta que termina completamente:
+Las métricas orientadas al usuario capturan la experiencia percibida. El **tiempo de retorno** (turnaround time) mide cuánto tiempo total transcurre desde que un proceso llega al sistema hasta que termina completamente:
 
   $$
-  t retorno = t terminación - t llegada
+  t_{retorno} = t_{terminacion} - t_{llegada}
   $$
 El **tiempo de espera** (waiting time) cuantifica cuánto tiempo un proceso pasó esperando en la cola READY, sin ejecutarse:
 
   $$
-  t espera = t retorno - t ejecución
+  t_{espera} = t_{retorno} - t_{ejecucion}
   $$
 
 El **tiempo de respuesta** (response time) es particularmente importante en sistemas interactivos, midiendo cuánto tiempo transcurre desde que un proceso llega hasta que comienza su primera ejecución:  
 
   $$ 
-  t respuesta = t primera ejecución - t llegada
+  t_{respuesta} = t_{primera_ejecucion} - t_{llegada}
   $$
 \begin{highlight}
 Un usuario percibe la velocidad de un sistema principalmente a través del tiempo de respuesta, no del tiempo de retorno. Un proceso que comienza a ejecutarse inmediatamente pero tarda mucho en terminar puede sentirse más responsivo que uno que termina rápido pero tarda en comenzar.
@@ -165,11 +165,23 @@ La intuición detrás de esta optimalidad es simple: ejecutar primero trabajos c
 Pero SJF tiene dos problemas fundamentales que limitan su aplicabilidad práctica. Primero, requiere conocer el tiempo de ejecución de cada proceso de antemano, algo imposible en general. El sistema operativo puede estimar tiempos basándose en ráfagas anteriores usando un promedio móvil exponencial:
 
 $$
- τ_{(n+1)} = \alpha × τ_{(n)} + (1-\alpha) × τ_{(n)}
+ τ_{(n+1)} = \alpha × t_{(n)} + (1-\alpha) × τ_{(n)}
 $$
 
-donde $τ_{(n+1)}$ es el tiempo estimado para la próxima ráfaga, $τ_{(n)}$ fue el tiempo real de la ráfaga anterior, y $\alpha$ controla cuánto peso le damos a la historia reciente versus el pasado lejano.
-El segundo problema es más serio: starvation severa. Un proceso largo puede nunca ejecutarse si constantemente llegan procesos más cortos. En un sistema ocupado, un trabajo de varias horas podría quedar perpetuamente postergado, esperando un momento de calma que nunca llega.
+donde $τ_{(n+1)}$ es el tiempo estimado para la próxima ráfaga, $t_{(n)}$ fue el tiempo real de la ráfaga anterior, y $\alpha$ controla cuánto peso le damos a la historia reciente versus el pasado lejano.
+
+#### El rol crítico de α en la predicción
+El parámetro α determina fundamentalmente el comportamiento del predictor. Su valor, siempre entre 0 y 1, establece un balance delicado entre dos extremos:
+
+Cuando α está cerca de 1 (por ejemplo, α = 0.9), le damos mucho peso a la observación más reciente. El sistema tiene "memoria corta" y reacciona rápidamente a cambios en el comportamiento del proceso. Si un proceso que normalmente usa 10ms de CPU de repente necesita 100ms, la estimación se ajusta rápidamente. Esto es útil para procesos con comportamiento variable, pero hace que el predictor sea volátil y susceptible a ráfagas anómalas individuales.
+Por el contrario, cuando α está cerca de 0 (por ejemplo, α = 0.1), privilegiamos la historia acumulada. La estimación cambia lentamente, suavizando fluctuaciones temporales. Esto es ideal para procesos con comportamiento estable y predecible, pero significa que el sistema tarda mucho en adaptarse cuando un proceso genuinamente cambia su patrón de uso de CPU.
+El valor α = 0.5 representa un compromiso equilibrado, dando igual peso a la medición reciente y al historial acumulado. Es un punto de partida razonable cuando no conocemos el comportamiento del proceso.  
+
+![Comparación entre la duración real de los procesos y la estimación de CPU utilizada por SJF para distintos valores de α, mostrando cómo el parámetro influye en la adaptación del algoritmo al comportamiento reciente.](src/images/capitulo-03/01.jpg){width=640px,height=295px}  
+
+En la práctica, sistemas operativos modernos suelen usar valores de α entre 0.5 y 0.8, favoreciendo levemente la reactividad sobre la estabilidad. Algunos sistemas incluso ajustan α dinámicamente basándose en la variabilidad observada del proceso.
+
+El segundo problema que enfrenta **SJF** es más serio: starvation severa. Un proceso largo puede nunca ejecutarse si constantemente llegan procesos más cortos. En un sistema ocupado, un trabajo de varias horas podría quedar perpetuamente postergado, esperando un momento de calma que nunca llega.
 \begin{warning}
 SJF sin mecanismo de aging puede resultar en starvation indefinida para procesos largos. En sistemas de producción, siempre debe implementarse algún mecanismo que incremente gradualmente la prioridad de procesos que esperan mucho tiempo.
 \end{warning}
@@ -222,7 +234,25 @@ La regla práctica tradicional sugiere quantums de 10-100 milisegundos, signific
 
 Round Robin no es óptimo para tiempo de retorno. De hecho, puede tener uno de los peores tiempos de retorno promedio entre todos los algoritmos. Un proceso que requiere 100 milisegundos de CPU y es el único en el sistema terminará en exactamente 100ms con cualquier algoritmo. Pero con Round Robin compartiendo el CPU con otros 9 procesos (Q=10ms), ese mismo proceso tardará aproximadamente 1 segundo en completarse: 10ms por turno, 10 turnos total, con 90ms de espera entre cada turno.  
 
-Sin embargo, para sistemas interactivos modernos, este compromiso vale la pena. La experiencia del usuario mejora dramáticamente cuando todas las aplicaciones progresan constantemente, incluso si ninguna termina particularmente rápido.
+Sin embargo, para sistemas interactivos modernos, este compromiso vale la pena. La experiencia del usuario mejora dramáticamente cuando todas las aplicaciones progresan constantemente, incluso si ninguna termina particularmente rápido.  
+
+\begin{excerpt}
+\textit{"Atomicidad mata quantum..."}
+
+\hfill --- Ing. Néstor Esquivel
+\end{excerpt}
+
+Esta frase, cuando la dijo el profe, sonó casi zen y sin sentido, pero resume un principio crítico que aparece en ejercicios de planificación: **una operación atómica no puede ser interrumpida, ni siquiera cuando expira el quantum**. 
+
+Una operación atómica es indivisible: o se ejecuta completa o no se ejecuta. Para garantizar esta propiedad, el sistema debe deshabilitar interrupciones durante su ejecución. Esto significa que el timer interrupt que normalmente causa un context switch al expirar el quantum simplemente no puede ocurrir mientras la operación atómica está en progreso.
+
+\begin{warning}
+En ejercicios de planificación con Round-Robin:
+
+Si un proceso está ejecutando una operación atómica de 15ms y su quantum es de 10ms, el proceso \textbf{NO} será expropiado a los 10ms. Continuará hasta completar los 15ms de la operación atómica, y recién entonces el scheduler podrá actuar. El quantum efectivo en ese caso fue de 15ms, no 10ms.
+\end{warning}
+
+Este comportamiento puede parecer una violación del algoritmo RR, pero es necesario para mantener la corrección del sistema. La atomicidad es una garantía de seguridad que tiene prioridad sobre las políticas de planificación.
 
 
 ### Virtual Round Robin (VRR)
@@ -258,7 +288,7 @@ HRRN intenta capturar lo mejor de SJF y FCFS en un solo algoritmo, balanceando l
 
 La métrica central es el *response ratio* (ratio de respuesta), calculado para cada proceso como:
 $$
-Response Ratio = (t espera + t servicio) / t servicio
+Response Ratio = (t_{espera} + t_{servicio}) / t_{servicio}
 $$
 
 El planificador siempre selecciona el proceso con el mayor response ratio. Miremos qué significa esta fórmula. Un proceso que acaba de llegar tiene tiempo de espera cero, entonces su ratio es simplemente 1.0. A medida que espera, el numerador crece linealmente, aumentando su ratio y por lo tanto su prioridad.  
@@ -266,8 +296,8 @@ El planificador siempre selecciona el proceso con el mayor response ratio. Mirem
 Procesos cortos (Tiempo_servicio pequeño) naturalmente tienen ratios más altos, dándoles preferencia similar a SJF. Pero procesos largos que han esperado mucho tiempo eventualmente tendrán ratios muy altos también, garantizando que eventualmente ejecuten.  
 
 \begin{example}
-Proceso A: $t servicio=5ms, t espera=10ms -> ratio = (10+5)/5 = 3.0$\\
-Proceso B: $t servicio=20ms, t espera=40ms -> ratio = (40+20)/20 = 3.0$
+Proceso A: $t_{servicio} = 5ms, t_{espera} = 10ms -> ratio = (10+5)/5 = 3.0$\\
+Proceso B: $t_{servicio} = 20ms, t_{espera} = 40ms -> ratio = (40+20)/20 = 3.0$
 
 Ambos tienen el mismo ratio, aunque B es más largo. El tiempo de espera de B compensa su mayor longitud.
 \end{example}
@@ -294,7 +324,7 @@ Planificación por prioridades sin aging sufre de starvation severa. Procesos de
 
 El aging en sistemas de prioridad típicamente incrementa la prioridad de un proceso en función de su tiempo de espera:
 $$
-prioridad_efectiva = prioridad_base + (tiempo_espera / factor_aging)
+prioridad_{efectiva} = prioridad_{base} + (tiempo_{espera} / factor_{aging})
 $$
 
 El `factor_aging` controla qué tan rápido crece la prioridad. Un factor pequeño significa que procesos de baja prioridad rápidamente alcanzan prioridad competitiva. Un factor grande significa que deben esperar mucho tiempo antes de volverse relevantes.  
@@ -466,15 +496,15 @@ El criterio de desempate cuando múltiples procesos tienen igual prioridad y est
 | **Prioridades** | Ambos | Bajo-Medio | Sí | Esencial | Tiempo real |
 | **Multilevel** | Sí | Alto | Posible | Necesario | Propósito general |
 
-**Fórmulas esenciales:**
-$$
-t retorno =t terminación - t llegada
-t espera = t retorno - t CPU total
-t respuesta = primera ejecución - t llegada
+**Fórmulas esenciales:**  
+```
+t_retorno = t_terminacion - t_llegada
+t_espera = t_retorno - t_CPU-total
+t_respuesta = t_primera-ejecucion - t_llegada
 
-HRRN: Response Ratio = (t espera + t servicio) / t servicio
-Aging: Nueva Prioridad = prioridad base + (t espera / factor aging)
-$$
+HRRN: Response Ratio = (t_espera + t_servicio) / t_servicio
+Aging: Nueva Prioridad = prioridad-base + (t_espera / factor-aging)
+```
 
 Cuando resuelvas ejercicios de planificación, seguí esta metodología sistemática:  
 Primero, dibujá un timeline mostrando todas las llegadas y eventos importantes. Marcá claramente cuándo cada proceso llega, cuándo comienzan y terminan las ráfagas de CPU, y cuándo ocurren los I/O.  
