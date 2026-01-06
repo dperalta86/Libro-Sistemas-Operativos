@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Round Robin - Diagrama de Gantt</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .exercise-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .exercise-header {
+            background: linear-gradient(135deg, #4a5568, #2d3748);
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .gantt-container {
+            padding: 20px;
+            overflow-x: auto;
+        }
+        
+        .gantt-chart {
+            min-width: 1000px;
+        }
+        
+        .process-row {
+            display: flex;
+            margin-bottom: 2px;
+            align-items: center;
+        }
+        
+        .process-label {
+            width: 60px;
+            padding: 8px;
+            font-weight: bold;
+            text-align: center;
+            background: #718096;
+            color: white;
+            margin-right: 10px;
+            border-radius: 4px;
+        }
+        
+        .process-timeline {
+            display: flex;
+            flex: 1;
+        }
+        
+        .time-unit {
+            width: 40px;
+            height: 30px;
+            border-right: 1px solid #cbd5e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            background: #f7fafc;
+        }
+        
+        .time-slot {
+            width: 40px;
+            height: 35px;
+            border: 1px solid #cbd5e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        /* Estados de proceso */
+        .cpu-burst { background-color: #38a169; color: white; }
+        .io-wait { background-color: #d69e2e; color: white; }
+        .ready { background-color: #e2e8f0; color: #4a5568; }
+        .ready { background-color: #90cdf4; color: #1a365d; }
+        .finished { background-color: #9ae6b4; color: #22543d; }
+        
+        /* Leyenda */
+        .legend {
+            padding: 15px 20px;
+            background: #f7fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .legend-item {
+            display: inline-block;
+            margin-right: 20px;
+            margin-bottom: 8px;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+            margin-right: 5px;
+            vertical-align: middle;
+            border: 1px solid #cbd5e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="exercise-container">                
+        <div class="gantt-container">           
+            <div class="gantt-chart">
+                <!-- Eje de tiempo -->
+                <div class="process-row">
+                    <div class="process-label" style="background:#f7fafc; color:#2d3748;">Tiempo</div>
+                    <div class="process-timeline">
+                        <div class="time-unit">1</div><div class="time-unit">2</div><div class="time-unit">3</div><div class="time-unit">4</div>
+                        <div class="time-unit">5</div><div class="time-unit">6</div><div class="time-unit">7</div><div class="time-unit">8</div>
+                        <div class="time-unit">9</div><div class="time-unit">10</div><div class="time-unit">11</div><div class="time-unit">12</div>
+                        <div class="time-unit">13</div><div class="time-unit">14</div><div class="time-unit">15</div><div class="time-unit">16</div>
+                        <div class="time-unit">17</div><div class="time-unit">18</div><div class="time-unit">19</div><div class="time-unit">20</div>
+                        <div class="time-unit">21</div><div class="time-unit">22</div><div class="time-unit">23</div><div class="time-unit">24</div>
+                        <div class="time-unit">25</div>
+                    </div>
+                </div>
+
+                <!-- P1 -->
+                <div class="process-row">
+                    <div class="process-label" style="background:#e53e3e;">P1</div>
+                    <div class="process-timeline">
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot io-wait">IO</div>
+                        <div class="time-slot io-wait">IO</div>
+                        <div class="time-slot io-wait">IO</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                    </div>
+                </div>
+
+                <!-- P2-K1 -->
+                <div class="process-row">
+                    <div class="process-label" style="background:#38a169;">P2-K1</div>
+                    <div class="process-timeline">
+                        <div class="time-slot waiting">-</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>                      
+                    </div>
+                </div>
+
+                <!-- P2-K2 -->
+                <div class="process-row">
+                    <div class="process-label" style="background:#2f855a;">P2-K2</div>
+                    <div class="process-timeline">
+                        <div class="time-slot waiting">-</div>
+                        <div class="time-slot waiting">-</div>
+                        <div class="time-slot waiting">-</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot io-wait">IO</div>
+                        <div class="time-slot io-wait">IO</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot finished">END</div>
+                    </div>
+                </div>
+
+                <!-- P3-U1 -->
+                <div class="process-row">
+                    <div class="process-label" style="background:#d69e2e;">P3-U1</div>
+                    <div class="process-timeline">
+                        <div class="time-slot waiting">-</div>
+                        <div class="time-slot waiting">-</div>
+                        <div class="time-slot waiting">-</div>
+                        <div class="time-slot waiting">-</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                    </div>
+                </div>
+
+                <!-- P3-U2 -->
+                <div class="process-row">
+                    <div class="process-label" style="background:#c05621;">P3-U2</div>
+                    <div class="process-timeline">
+                        <div class="time-slot waiting">-</div>
+                        <div class="time-slot waiting">-</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot ready">RDY</div>
+                        <div class="time-slot cpu-burst">CPU</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                        <div class="time-slot finished">END</div>
+                    </div>
+                </div>
+
+                <!-- Fila CPU -->
+                <div class="process-row" style="margin-top: 15px;">
+                    <div class="process-label" style="background:#2d3748;">CPU</div>
+                    <div class="process-timeline">
+                                        <div class="time-slot cpu-burst">P1</div><div class="time-slot cpu-burst">P1</div><div class="time-slot cpu-burst">P1</div><div class="time-slot cpu-burst">K1</div>
+                <div class="time-slot cpu-burst">K1</div><div class="time-slot cpu-burst">K1</div><div class="time-slot cpu-burst">K3</div><div class="time-slot cpu-burst">K3</div>
+                <div class="time-slot cpu-burst">K3</div><div class="time-slot cpu-burst">K2</div><div class="time-slot cpu-burst">K2</div><div class="time-slot cpu-burst">K2</div>
+                <div class="time-slot cpu-burst">P1</div><div class="time-slot cpu-burst">K3</div><div class="time-slot cpu-burst">K3</div><div class="time-slot cpu-burst">K3</div>
+                <div class="time-slot cpu-burst">K2</div><div class="time-slot cpu-burst">K2</div><div class="time-slot cpu-burst">K3</div><div class="time-slot cpu-burst">K3</div>
+                <div class="time-slot cpu-burst">K3</div><div class="time-slot cpu-burst">P1</div><div class="time-slot cpu-burst">P1</div><div class="time-slot cpu-burst">K2</div>
+                <div class="time-slot cpu-burst">K3</div>
+                    </div>
+                </div>
+            </div>         
+        </div>
+
+        <div class="legend">
+            <h4 style="margin-top: 0;">Leyenda:</h4>
+            <div class="legend-item">
+                <span class="legend-color cpu-burst"></span>
+                <span>CPU = Ejecutando en CPU</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color io-wait"></span>
+                <span>IO = Esperando I/O</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color finished"></span>
+                <span>F = Finalizado</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color ready"></span>
+                <span>- = Inactivo/Esperando</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

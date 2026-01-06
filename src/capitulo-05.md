@@ -486,78 +486,66 @@ Vamos a trabajar un ejercicio complejo que integra todos los conceptos vistos: p
 
 ### Enunciado del problema
 
-Un sistema con planificador Round Robin (quantum Q=4ms) debe ejecutar tres procesos con diferentes configuraciones de hilos:
+Un sistema con planificador Round Robin (quantum Q=3ms) debe ejecutar tres procesos con diferentes configuraciones de hilos:
 
 *Proceso P1* tiene un único hilo KLT:
-- P1-T1: Llega en t=0ms, requiere 14ms de CPU total, realiza I/O en t=6ms durante 3ms
+- P1-T1: Llega en t=0ms, requiere 6ms de CPU total, realiza I/O después de 4ms de uso de CPU durante 3ms
 
 *Proceso P2* tiene dos hilos KLT independientes:
-- P2-T1: Llega en t=1ms, requiere 10ms de CPU
-- P2-T2: Llega en t=3ms, requiere 8ms de CPU, realiza I/O en t=5ms durante 2ms
+- P2-T1: Llega en t=1ms, requiere 3ms de CPU
+- P2-T2: Llega en t=3ms, requiere 6ms de CPU, realiza I/O después de 5ms de uso de CPU durante 2ms
 
 *Proceso P3* tiene arquitectura híbrida: un KLT que contiene dos ULT con scheduler interno FIFO:
-- P3-T1 (KLT): Llega en t=2ms, requiere 12ms de CPU total para ejecutar sus ULT
-- P3-T2 (ULT): Llega en t=4ms, requiere 6ms de CPU
-- P3-T3 (ULT): Llega en t=5ms, requiere 4ms de CPU
+- P3-T1 (KLT): Llega en t=2ms, requiere 10ms de CPU total para ejecutar sus ULT
+- P3-T2 (ULT1): Llega en t=4ms, requiere 6ms de CPU
+- P3-T3 (ULT2): Llega en t=2ms, requiere 4ms de CPU
 
 El aspecto más interesante de este ejercicio es P3. Los hilos ULT (P3-T2 y P3-T3) solo pueden ejecutar cuando su KLT contenedor (P3-T1) tiene asignado el CPU. El scheduler interno FIFO significa que P3-T2 debe completarse completamente antes de que P3-T3 pueda comenzar.
 
-### Resolución paso a paso
+### Análisis de la planificación con combinación de KLT y ULT
 
-Analicemos la ejecución cronológicamente, razonando sobre cada decisión del scheduler:
+Analicemos la ejecución del sistema considerando que el planificador del kernel utiliza **Round Robin con quantum Q = 3ms**, y que los procesos presentan distintas arquitecturas de hilos.
 
-En *t=0ms*, solo P1-T1 está en el sistema, por lo que comienza a ejecutar. Durante este primer quantum de 4ms, P2-T1 llega (t=1ms), P3-T1 llega (t=2ms), y P2-T2 llega (t=3ms). Todos se agregan a la cola ready mientras P1-T1 consume su quantum completo.
+En *t = 0ms*, solo el hilo **P1-T1 (KLT)** está presente en el sistema, por lo que comienza a ejecutarse inmediatamente. Durante este primer intervalo, se producen nuevas llegadas: **P2-T1** en *t = 1ms*, **P3-T1 (KLT)** en *t = 2ms*, y **P2-T2** en *t = 3ms*. Todos estos hilos son agregados a la cola *READY* mientras P1-T1 consume su quantum.
 
-En *t=4ms*, P1-T1 ha usado su quantum y va al final de la cola. El scheduler selecciona a P2-T1, que comienza a ejecutar. En t=6ms, dos eventos ocurren casi simultáneamente: P2-T1 completa su quantum de 4ms, y la operación de I/O de P1-T1 (iniciada en t=6ms del timeline total) termina. P1-T1 regresa a la cola ready.
+A partir de este punto, la planificación continúa siguiendo el esquema Round Robin clásico, alternando entre los distintos **KLT visibles para el sistema operativo**. En el caso de **P2**, cada uno de sus hilos (P2-T1 y P2-T2) es tratado como una entidad independiente por el kernel, pudiendo ser planificados y bloqueados por I/O de manera separada.
 
-La ejecución continúa siguiendo el patrón Round Robin, pero con una particularidad importante en *t=8ms* cuando P3-T1 obtiene el CPU. Recordemos que P3-T1 es un KLT que actúa como contenedor para dos ULT. Cuando P3-T1 ejecuta, su scheduler interno FIFO determina cuál ULT corre. Como P3-T2 llegó primero (t=4ms), comienza a ejecutar dentro del quantum de P3-T1.
-```
-t=8-12ms: P3-T1 ejecuta P3-T2 (ULT) durante 4ms (quantum completo de P3-T1)
-          P3-T2 remaining: 6 - 4 = 2ms
-          P3-T1 va al final de la cola ready
-```
+La situación más interesante ocurre cuando **P3-T1 obtiene el CPU**. Desde la perspectiva del sistema operativo, P3-T1 es un único hilo KLT. Sin embargo, internamente contiene dos **ULT**, gestionados por un scheduler en espacio de usuario con política FIFO. Cuando P3-T1 comienza a ejecutarse, su scheduler interno selecciona al ULT que llegó primero (**P3-ULT2**), que consume tiempo de CPU **dentro del quantum asignado al KLT**.
 
-Esta es la clave del ejercicio: los ULT "roban" tiempo del quantum de su KLT contenedor. P3-T2 ejecuta hasta que P3-T1 agota su quantum, momento en el cual P3-T1 es suspendido por el scheduler del sistema operativo, suspendiendo implícitamente también a P3-T2.
+Durante este intervalo, el kernel no tiene visibilidad ni control sobre qué ULT está ejecutando. Para el sistema operativo, simplemente P3-T1 está usando CPU. Cuando el quantum del KLT se agota, el kernel desaloja a P3-T1, suspendiendo implícitamente la ejecución del ULT activo, aunque este no haya finalizado su trabajo.
 
-\begin{theory}
-Este comportamiento ilustra la dependencia fundamental de los ULT respecto a su KLT host. Desde la perspectiva del kernel, solo existe P3-T1. No sabe que P3-T1 internamente está multiplexando entre P3-T2 y P3-T3. Esta transparencia es tanto una ventaja (eficiencia) como una desventaja (falta de control del kernel sobre la planificación interna).
-\end{theory}
+Este comportamiento se repite cada vez que P3-T1 es planificado: el kernel decide *cuándo* ejecuta el KLT, mientras que el scheduler en espacio de usuario decide *qué ULT* se ejecuta dentro de ese intervalo. Recién cuando el primer ULT completa totalmente su ejecución, el scheduler interno permite que el siguiente ULT comience a ejecutarse.
 
-Continuando con la ejecución, P2-T2 recibe su turno pero se bloquea en I/O. Cuando finalmente P3-T1 obtiene el CPU nuevamente en t=22ms, su scheduler interno encuentra que P3-T2 aún tiene 2ms pendientes. Solo cuando P3-T2 se completa totalmente, el scheduler FIFO interno permite que P3-T3 comience a ejecutar.
+\begin{infobox}
+Los ULT dependen completamente de su KLT contenedor. Desde el punto de vista del kernel, solo existen los KLT; la planificación interna de ULT es invisible para el sistema operativo. Esto permite una planificación más liviana y flexible, pero también implica que un bloqueo o desalojo del KLT afecta a todos los ULT asociados.
+\end{infobox}  
 
-### Diagrama de Gantt
+Los diagramas muestran visualmente la ejecución completa del sistema:  
 
-Los diagramas muestran visualmente la ejecución completa del sistema:
+![Observemos particularmente las secciones donde P3-T1 está activo. El diagrama puede mostrar internamente qué ULT está ejecutando, pero desde la perspectiva del scheduler del SO, solo P3-T1 está usando el CPU.](src/tables/cap05-gantt-RR.png)
 
-\begin{center}
-\includegraphics[width=0.9\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap04-gantt-hilos-mixto-1.png}
-\end{center}
-\begin{center}
-\includegraphics[width=0.9\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap04-gantt-hilos-mixto-2.png}
-\end{center}
-\begin{center}
-\includegraphics[width=0.9\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap04-gantt-hilos-mixto-3.png}
-\end{center}
+#### Consejo para encarar ejercicios con KLT y ULT
 
-Observemos particularmente las secciones donde P3-T1 está activo. El diagrama puede mostrar internamente qué ULT está ejecutando, pero desde la perspectiva del scheduler del SO, solo P3-T1 está usando el CPU.
+En ejercicios que combinan hilos a nivel kernel (KLT) y hilos a nivel usuario (ULT), resulta muy útil separar el análisis en **dos etapas**, evitando mezclar niveles de planificación desde el inicio.
 
-### Cálculos de métricas
+Una estrategia recomendable es la siguiente:
 
-El tiempo de retorno (turnaround time) de cada hilo revela características interesantes del sistema. Para los KLT independientes (P1-T1, P2-T1, P2-T2), el tiempo de retorno es simplemente la diferencia entre su terminación y llegada. Para los ULT (P3-T2 y P3-T3), debemos considerar tanto su tiempo de llegada individual como el hecho de que solo pueden ejecutar cuando su KLT host tiene el CPU:
-```
-Tiempos de terminación:
-- P1-T1: 44ms (llegada=0ms) → retorno = 44ms
-- P2-T1: 38ms (llegada=1ms) → retorno = 37ms
-- P2-T2: 47ms (llegada=3ms) → retorno = 44ms
-- P3-T1: 51ms (llegada=2ms) → retorno = 49ms
-- P3-T2: 26ms (llegada=4ms) → retorno = 22ms
-- P3-T3: 42ms (llegada=5ms) → retorno = 37ms
+1. **Planificar primero solo los KLT**, ignorando momentáneamente la existencia de ULT.
+   - El kernel únicamente planifica KLT.
+   - En esta etapa se construye el diagrama de Gantt considerando llegadas, bloqueos por I/O y quantum del scheduler del sistema operativo.
 
-Tiempo de retorno promedio: (44 + 37 + 44 + 49 + 22 + 37) / 6 = 38.8ms
-```
-\begin{example}
-Note que P3-T2, a pesar de requerir solo 6ms de CPU, tiene un tiempo de retorno de 22ms. Esto se debe a que debe esperar a que P3-T1 sea planificado por el kernel, y cuando P3-T1 ejecuta, solo recibe fragmentos de 4ms antes de ser desalojado. Esta fragmentación es el precio de la planificación preventiva justa, pero permite que todos los hilos progresen de forma equitativa.
-\end{example}
+2. **Una vez obtenido el Gantt de KLT**, agregar las filas correspondientes a los ULT.
+   - Para cada KLT que contiene ULT, se analiza cómo su scheduler interno distribuye el tiempo de CPU recibido.
+   - Los ULT consumen tiempo *dentro del quantum del KLT*, siguiendo su política interna (FIFO, en este caso).
+
+Este enfoque puede pensarse como una **planificación anidada**:  
+el kernel decide *cuándo* ejecuta cada KLT, y cada KLT decide *qué ULT* ejecuta durante ese intervalo.
+
+Adoptar este método ayuda a:
+- evitar errores conceptuales,
+- mantener claro qué decisiones toma el sistema operativo y cuáles no,
+- y entender mejor las limitaciones y ventajas de los ULT frente a los KLT.
+
 
 ## Análisis comparativo y casos de uso
 Habiendo explorado los fundamentos técnicos, consideremos ahora cuándo usar cada tipo de hilo en la práctica. Esta decisión arquitectural puede determinar el éxito o fracaso de un sistema concurrente.

@@ -175,9 +175,9 @@ El parámetro α determina fundamentalmente el comportamiento del predictor. Su 
 
 Cuando α está cerca de 1 (por ejemplo, α = 0.9), le damos mucho peso a la observación más reciente. El sistema tiene "memoria corta" y reacciona rápidamente a cambios en el comportamiento del proceso. Si un proceso que normalmente usa 10ms de CPU de repente necesita 100ms, la estimación se ajusta rápidamente. Esto es útil para procesos con comportamiento variable, pero hace que el predictor sea volátil y susceptible a ráfagas anómalas individuales.
 Por el contrario, cuando α está cerca de 0 (por ejemplo, α = 0.1), privilegiamos la historia acumulada. La estimación cambia lentamente, suavizando fluctuaciones temporales. Esto es ideal para procesos con comportamiento estable y predecible, pero significa que el sistema tarda mucho en adaptarse cuando un proceso genuinamente cambia su patrón de uso de CPU.
-El valor α = 0.5 representa un compromiso equilibrado, dando igual peso a la medición reciente y al historial acumulado. Es un punto de partida razonable cuando no conocemos el comportamiento del proceso.  
+El valor α = 0.5 representa un compromiso equilibrado, dando igual peso a la medición reciente y al historial acumulado. Es un punto de partida razonable cuando no conocemos el comportamiento del proceso.
 
-![Comparación entre la duración real de los procesos y la estimación de CPU utilizada por SJF para distintos valores de α, mostrando cómo el parámetro influye en la adaptación del algoritmo al comportamiento reciente.](src/images/capitulo-03/01.jpg){width=640px,height=295px}  
+![Comparación entre la duración real de los procesos y la estimación de CPU utilizada por SJF para distintos valores de α, mostrando cómo el parámetro influye en la adaptación del algoritmo al comportamiento reciente.](src/images/capitulo-03/01.jpg){width=0.9\linewidth}
 
 En la práctica, sistemas operativos modernos suelen usar valores de α entre 0.5 y 0.8, favoreciendo levemente la reactividad sobre la estabilidad. Algunos sistemas incluso ajustan α dinámicamente basándose en la variabilidad observada del proceso.
 
@@ -362,9 +362,8 @@ Tuning el sistema también es un desafío.¿Cuántas colas? ¿Qué quantum para 
 A pesar de esta complejidad, muchos sistemas operativos modernos utilizan variantes de Multilevel Feedback Queue porque, cuando está bien tuneado, proporciona excelente rendimiento para cargas de trabajo heterogéneas. Linux, por ejemplo, utiliza el "Completely Fair Scheduler" (CFS) que incorpora ideas similares.
 
 ## Casos de Estudio
-La teoría cobra vida cuando la aplicamos a problemas concretos. Analicemos varios escenarios de planificación en detalle, calculando todas las métricas relevantes.  
 
-### Caso de Estudio: Planificación con Round Robin
+### Planificación con Round Robin
 
 Consideremos cuatro procesos con comportamiento heterogéneo, incluyendo múltiples ráfagas de CPU intercaladas con operaciones de I/O. Este escenario refleja sistemas reales donde los procesos raramente ejecutan hasta completarse sin interrupciones.
 
@@ -672,8 +671,6 @@ Los sistemas de propósito general modernos como Linux o Windows enfrentan el de
 
 Finalmente, recordá que la planificación de CPU es solo una pieza del rompecabezas de rendimiento del sistema. La gestión de memoria, el sistema de I/O, y el diseño de las aplicaciones mismas frecuentemente tienen mayor impacto en la experiencia del usuario que el algoritmo de planificación específico. Un algoritmo de planificación brillante no puede compensar aplicaciones mal diseñadas que bloquean la interfaz de usuario o realizan I/O ineficientemente.
 
-
 ---
-
 
 **Próximo capítulo**: Hilos - Explorando la concurrencia dentro de los procesos y desafíos de planificación multinivel.
