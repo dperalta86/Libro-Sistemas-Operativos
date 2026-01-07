@@ -41,8 +41,17 @@ Los **Dispositivos de E/S** son las interfaces que permiten al sistema interactu
 \vfill
 \newpage 
 
-![Diagrama de la arquitectura básica de una computadora, basado en el modelo de von Neumann, donde se muestran los principales componentes del sistema y su interconexión: CPU, memoria principal y dispositivos de entrada/salida.](src/images/capitulo-01/01.png){width=0.9\linewidth}
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-01/01.png}
 
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Diagrama de la arquitectura básica de una computadora, basado en el modelo de von Neumann, donde se muestran los principales componentes del sistema y su interconexión: CPU, memoria principal y dispositivos de entrada/salida.
+}
+\end{center}
+
+<!-- ![Diagrama de la arquitectura básica de una computadora, basado en el modelo de von Neumann, donde se muestran los principales componentes del sistema y su interconexión: CPU, memoria principal y dispositivos de entrada/salida.](src/images/capitulo-01/01.png){width=0.9\linewidth}
+ -->
 ## Buses de Comunicación
 Los componentes de la arquitectura de von Neumann no pueden funcionar de forma aislada. Los **buses** son las "autopistas" que permiten la comunicación entre CPU, memoria y dispositivos. Sin ellos, tendríamos componentes poderosos pero incapaces de colaborar.  
 El sistema de buses se divide en tres tipos especializados, cada uno con una función específica:  
@@ -354,8 +363,18 @@ Esta separación de modos es la base de la seguridad y estabilidad del sistema. 
 ### Cambio de Procesos
 Cuándo por algún motivo existe un cambio de proceso en ejecución (los motivos se verán en detalle mas adelante), se realizan varias tareas que son "transparentes" para el usuario final.  
 
-![Diagrama del cambio de contexto entre procesos, donde el sistema operativo guarda el estado del proceso en ejecución en su PCB y restaura el estado de otro proceso para continuar su ejecución.](src/images/capitulo-01/03.png){ width=0.8\linewidth height=370px style="display: block; margin: auto;" }
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-01/03.png}
 
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Diagrama del cambio de contexto entre procesos, donde el sistema operativo guarda el estado del proceso en ejecución en su PCB y restaura el estado de otro proceso para continuar su ejecución.
+}
+\end{center}
+
+<!-- 
+![Diagrama del cambio de contexto entre procesos, donde el sistema operativo guarda el estado del proceso en ejecución en su PCB y restaura el estado de otro proceso para continuar su ejecución.](src/images/capitulo-01/03.png){ width=0.8\linewidth height=370px style="display: block; margin: auto;" }
+ -->
 \begin{center}
 \begin{minipage}{0.45\linewidth}
 \textbf{Cambio de procesos en sistemas Unix} \\
@@ -584,7 +603,17 @@ El rendimiento sufre debido al overhead de IPC entre componentes. Una operación
 *Enfoques Híbridos:*
 La realidad es que la mayoría de sistemas operativos modernos no son puramente monolíticos ni microkernels puros, sino que combinan elementos de ambos enfoques según convenga. Windows NT usa un microkernel modificado pero mueve algunos servicios críticos de performance al kernel. macOS combina el microkernel Mach con componentes monolíticos de BSD. Linux, aunque principalmente monolítico, usa módulos cargables que pueden agregarse y removerse dinámicamente.  
 
-![Comparación de las principales arquitecturas de núcleo de un sistema operativo: kernel monolítico, microkernel y kernel multicapa, destacando la organización de sus componentes y su relación con el hardware.](src/images/capitulo-01/02.png){width=0.9\linewidth}
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-01/02.png}
+
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Comparación de las principales arquitecturas de núcleo de un sistema operativo: kernel monolítico, microkernel y kernel multicapa, destacando la organización de sus componentes y su relación con el hardware.
+}
+\end{center}
+
+<!-- ![Comparación de las principales arquitecturas de núcleo de un sistema operativo: kernel monolítico, microkernel y kernel multicapa, destacando la organización de sus componentes y su relación con el hardware.](src/images/capitulo-01/02.png){width=0.9\linewidth}
+ -->
 
 
 | Aspecto | Monolítico | Microkernel |

@@ -55,14 +55,22 @@ typedef struct thread_control_block {
 
 El TID (Thread ID) identifica únicamente al hilo dentro de su proceso. El estado refleja su situación actual en el sistema: ready cuando está listo para ejecutar, running cuando tiene asignado un CPU, blocked cuando espera por algún recurso, o terminated cuando ha finalizado. Los punteros `stack_pointer` y `program_counter` capturan exactamente dónde se encuentra el hilo en su ejecución. El campo `registers` preserva el estado completo de los registros del procesador, permitiendo que el hilo retome su ejecución exactamente donde la dejó después de un cambio de contexto.
 
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-04/thread_tcb.png}
+\end{center}
+
 \begin{warning}
 La información del stack es crítica. Cada hilo necesita su propio stack para almacenar variables locales, parámetros de funciones y direcciones de retorno. Un stack insuficiente causará stack overflow, mientras que stacks muy grandes desperdiciarán memoria. La mayoría de implementaciones usan stacks de 2-8MB por hilo, aunque sistemas embebidos pueden usar apenas 1-2KB.
 \end{warning}
 
 ### Modelo de memoria con hilos
 La organización del espacio de direcciones de un proceso multihilo revela claramente qué recursos son compartidos y cuáles son privados:  
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/01.png}
-En la parte baja de la memoria encontramos el segmento de texto (código ejecutable), idéntico para todos los hilos. Inmediatamente después está el segmento de datos inicializados y el BSS (datos no inicializados), también compartidos. El heap dinámico, gestionado por malloc() y free(), crece hacia direcciones más altas y es accesible por todos los hilos del proceso.  
+En la parte baja de la memoria encontramos el segmento de texto (código ejecutable), idéntico para todos los hilos. Inmediatamente después está el segmento de datos inicializados y el BSS (datos no inicializados), también compartidos. El heap dinámico, gestionado por malloc() y free(), crece hacia direcciones más altas y es accesible por todos los hilos del proceso.
+
+\begin{center}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/01.png}  
+\end{center}
+
 La parte alta de la memoria se reserva para los stacks individuales de cada hilo. Estos crecen hacia direcciones más bajas y están separados por regiones de guarda (guard pages) que detectan desbordamientos. Esta separación física de los stacks garantiza que las variables locales de un hilo no interfieran con las de otro.
 
 \begin{infobox}
@@ -149,18 +157,28 @@ Las desventajas incluyen cambios de contexto significativamente más lentos (tí
 La relación entre hilos de usuario y kernel puede estructurarse de varias formas, cada una con sus propias características de rendimiento y complejidad.
 
 #### Modelo Many-to-One (N:1)
-Múltiples hilos de usuario mapean a un solo hilo kernel. Este es el modelo clásico de ULT puro:  
+Múltiples hilos de usuario mapean a un solo hilo kernel. Este es el modelo clásico de ULT puro:
+
+\begin{center}
 \includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/02.png}
+\end{center}
+
 Este modelo maximiza la eficiencia del context switch y minimiza el uso de recursos del kernel, pero sacrifica completamente el paralelismo. Toda la aplicación se ejecuta como un único hilo desde la perspectiva del sistema operativo.
 
 #### Modelo One-to-One (1:1)
 Cada hilo de usuario mapea a un hilo kernel dedicado. Este es el modelo más común en sistemas operativos modernos:  
+\begin{center}
 \includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/03.png}
+\end{center}
+
 Este modelo maximiza el paralelismo y permite que el kernel gestione directamente todos los hilos, pero incrementa el overhead de cada operación. Linux, Windows y la mayoría de sistemas UNIX modernos utilizan este modelo para sus implementaciones de hilos POSIX (pthreads).
 
 #### Modelo Many-to-Many (M:N)
 M hilos de usuario mapean a N hilos kernel, donde M > N. Este modelo híbrido intenta combinar las ventajas de ambos enfoques:  
+\begin{center}
 \includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/04.png}
+\end{center}
+
 \begin{infobox}
 El modelo M:N requiere un scheduler de dos niveles: uno en espacio de usuario que gestiona los hilos de usuario, y otro en el kernel que gestiona los hilos kernel. La biblioteca de hilos debe coordinar con el kernel para optimizar el mapeo dinámico, asignando hilos de usuario activos a los hilos kernel disponibles. Este modelo fue implementado en Solaris (como threads M:N) y en algunas versiones tempranas de Go, aunque la complejidad adicional ha llevado a muchos sistemas a preferir el modelo 1:1 más simple.
 \end{infobox}
@@ -520,10 +538,17 @@ Este comportamiento se repite cada vez que P3-T1 es planificado: el kernel decid
 Los ULT dependen completamente de su KLT contenedor. Desde el punto de vista del kernel, solo existen los KLT; la planificación interna de ULT es invisible para el sistema operativo. Esto permite una planificación más liviana y flexible, pero también implica que un bloqueo o desalojo del KLT afecta a todos los ULT asociados.
 \end{infobox}  
 
-Los diagramas muestran visualmente la ejecución completa del sistema:  
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/tables/cap05-gantt-RR.png}
 
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Observemos particularmente las secciones donde P3-T1 está activo. El diagrama puede mostrar internamente qué ULT está ejecutando, pero desde la perspectiva del scheduler del SO, solo P3-T1 está usando el CPU.
+}
+\end{center}
+<!-- 
 ![Observemos particularmente las secciones donde P3-T1 está activo. El diagrama puede mostrar internamente qué ULT está ejecutando, pero desde la perspectiva del scheduler del SO, solo P3-T1 está usando el CPU.](src/tables/cap05-gantt-RR.png)
-
+ -->
 #### Consejo para encarar ejercicios con KLT y ULT
 
 En ejercicios que combinan hilos a nivel kernel (KLT) y hilos a nivel usuario (ULT), resulta muy útil separar el análisis en **dos etapas**, evitando mezclar niveles de planificación desde el inicio.

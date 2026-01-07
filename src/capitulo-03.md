@@ -46,12 +46,30 @@ Para entender realmente qué son los procesos y por qué existen, necesitamos re
 
 La monoprogramación representa el modelo más primitivo. En estos sistemas, un solo programa se ejecutaba a la vez, monopolizando completamente todos los recursos. El problema fundamental era evidente: cuando el programa realizaba operaciones de entrada/salida (como leer del disco), la CPU quedaba completamente ociosa, esperando. Esta ineficiencia era catastrófica: la utilización de CPU raramente superaba el 5-10%. Los sistemas batch simples de los años 1950 operaban bajo este modelo, donde los programas se procesaban uno tras otro en secuencia estricta.
 
-![Diagrama de instrucciones secuenciales.](src/images/capitulo-02/sequential.jpg){width=0.9\linewidth}
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-02/sequential.jpg}
 
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Diagrama de instrucciones secuenciales.
+}
+\end{center}
+<!-- 
+![Diagrama de instrucciones secuenciales.](src/images/capitulo-02/sequential.jpg){width=0.9\linewidth}
+ -->
 La multiprogramación atacó el problema de la ociosidad de manera elegante. En lugar de esperar que un programa termine, estos sistemas mantienen múltiples programas cargados en memoria simultáneamente. Una sola CPU alterna entre ellos de manera inteligente: cuando un proceso hace una operación de I/O y queda bloqueado, otro proceso usa la CPU. El objetivo central es maximizar la utilización de CPU, transformando el tiempo muerto en tiempo productivo.  
 
-![Diagrama de ejecución pipeline, donde las etapas de una instrucción (fetch, decode, execute y writeback) se superponen en distintos ciclos de reloj para mejorar el rendimiento.](src/images/capitulo-02/pipelined.jpg){width=0.9\linewidth}
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-02/pipelined.jpg}
 
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Diagrama de ejecución pipeline, donde las etapas de una instrucción (fetch, decode, execute y writeback) se superponen en distintos ciclos de reloj para mejorar el rendimiento.
+}
+\end{center}
+<!-- 
+![Diagrama de ejecución pipeline, donde las etapas de una instrucción (fetch, decode, execute y writeback) se superponen en distintos ciclos de reloj para mejorar el rendimiento.](src/images/capitulo-02/pipelined.jpg){width=0.9\linewidth}
+ -->
 El multiprocesamiento tomó un camino diferente: en lugar de mejorar cómo se usa una CPU, agregó múltiples CPUs físicos a la misma máquina. Esto permitió verdadero paralelismo a nivel hardware, donde cada CPU puede ejecutar un proceso completamente diferente al mismo tiempo. Los sistemas SMP (Symmetric Multiprocessing) democratizaron este enfoque, permitiendo que cualquier CPU ejecute cualquier proceso sin restricciones especiales.  
 La multitarea extendió la multiprogramación con un concepto revolucionario: time-sharing. No solo los procesos comparten la CPU durante operaciones de I/O, sino que el sistema operativo puede interrumpir forzosamente un proceso en ejecución (preemptive scheduling) para darle turno a otro. Cada proceso recibe pequeños intervalos de tiempo llamados quantum o time slices, típicamente de 10-100 milisegundos. Esta rapidez en el cambio crea la ilusión de que todos los programas se ejecutan simultáneamente, logrando la interactividad que esperamos de los sistemas modernos.
 \begin{warning}

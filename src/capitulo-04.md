@@ -177,8 +177,17 @@ Cuando α está cerca de 1 (por ejemplo, α = 0.9), le damos mucho peso a la obs
 Por el contrario, cuando α está cerca de 0 (por ejemplo, α = 0.1), privilegiamos la historia acumulada. La estimación cambia lentamente, suavizando fluctuaciones temporales. Esto es ideal para procesos con comportamiento estable y predecible, pero significa que el sistema tarda mucho en adaptarse cuando un proceso genuinamente cambia su patrón de uso de CPU.
 El valor α = 0.5 representa un compromiso equilibrado, dando igual peso a la medición reciente y al historial acumulado. Es un punto de partida razonable cuando no conocemos el comportamiento del proceso.
 
-![Comparación entre la duración real de los procesos y la estimación de CPU utilizada por SJF para distintos valores de α, mostrando cómo el parámetro influye en la adaptación del algoritmo al comportamiento reciente.](src/images/capitulo-03/01.jpg){width=0.9\linewidth}
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-03/01.jpg}
 
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Comparación entre la duración real de los procesos y la estimación de CPU utilizada por SJF para distintos valores de α, mostrando cómo el parámetro influye en la adaptación del algoritmo al comportamiento reciente.
+}
+\end{center}
+<!-- 
+![Comparación entre la duración real de los procesos y la estimación de CPU utilizada por SJF para distintos valores de α, mostrando cómo el parámetro influye en la adaptación del algoritmo al comportamiento reciente.](src/images/capitulo-03/01.jpg){width=0.9\linewidth}
+ -->
 En la práctica, sistemas operativos modernos suelen usar valores de α entre 0.5 y 0.8, favoreciendo levemente la reactividad sobre la estabilidad. Algunos sistemas incluso ajustan α dinámicamente basándose en la variabilidad observada del proceso.
 
 El segundo problema que enfrenta **SJF** es más serio: starvation severa. Un proceso largo puede nunca ejecutarse si constantemente llegan procesos más cortos. En un sistema ocupado, un trabajo de varias horas podría quedar perpetuamente postergado, esperando un momento de calma que nunca llega.
