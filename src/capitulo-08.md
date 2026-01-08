@@ -20,22 +20,19 @@ Al finalizar este capítulo, el estudiante debe ser capaz de:
 
 ### El Problema Fundamental
 
-Imaginemos que estamos desarrollando un sistema operativo en 1960. Tenemos:
-- Memoria RAM: 64 KiB (¡muy cara!)
-- Programas que necesitan: 128 KiB, 256 KiB o más
-- Múltiples procesos que queremos ejecutar simultáneamente
+Imaginemos que estamos desarrollando un sistema operativo en 1960. La situación es desafiante: tenemos apenas 64 KiB de memoria RAM (extremadamente cara en esa época), pero nuestros programas necesitan 128 KiB, 256 KiB o incluso más. Para empeorar las cosas, queremos ejecutar múltiples procesos simultáneamente.
 
-**¿Cómo ejecutamos un programa más grande que la RAM disponible?**
+La pregunta fundamental es inevitable: *¿cómo ejecutamos un programa más grande que la RAM disponible?*
 
-Las primeras soluciones fueron manuales y dolorosas:
+Las primeras soluciones fueron manuales y requirieron un esfuerzo considerable por parte de los programadores. La técnica dominante en la década de 1960 se llamaba **overlays**, y era tan tediosa como efectiva.
 
-\textcolor{red!60!gray}{\textbf{Overlays (década de 1960):}\\
-- El programador dividía manualmente el código en secciones\\
-- Solo una sección se cargaba en memoria a la vez\\
-- El programador escribía código para cargar/descargar secciones\\
-- Extremadamente tedioso y propenso a errores\\
-- Ejemplo: "Cuando termino la fase de input, cargo la fase de procesamiento"\\
-}
+\begin{warning}
+\textbf{Overlays (década de 1960):}
+
+El programador debía dividir manualmente el código en secciones. Solo una sección se cargaba en memoria a la vez, y el programador tenía que escribir código explícito para cargar y descargar secciones según fuera necesario. Este enfoque era extremadamente tedioso y propenso a errores. Por ejemplo, al terminar la fase de input, el programador debía escribir código para cargar la fase de procesamiento.
+\end{warning}
+
+Un ejemplo conceptual de overlays muestra cómo el programador manejaba esto:
 
 ```c
 // Ejemplo conceptual de overlays (código del programador)
@@ -53,56 +50,38 @@ void fase2_procesamiento() {
     // ... procesar datos ...
 }
 ```
+Esta carga manual de código era frustrante y limitaba severamente la productividad del desarrollo de software. Necesitábamos una solución mejor.
 
 **La solución moderna: Memoria Virtual**
 
-\begin{excerpt}
-\emph{Memoria Virtual:}
-Técnica que permite ejecutar procesos cuyo espacio de direcciones total excede la memoria física disponible, mediante la ilusión de que cada proceso tiene acceso a un espacio de direcciones enorme y contiguo, gestionado automáticamente por el hardware y el sistema operativo.
-\end{excerpt}
+La memoria virtual representa uno de los avances más significativos en el diseño de sistemas operativos. Es una técnica que permite ejecutar procesos cuyo espacio de direcciones total excede la memoria física disponible, creando la ilusión de que cada proceso tiene acceso a un espacio de direcciones enorme y contiguo. Todo esto se gestiona automáticamente por el hardware y el sistema operativo, sin intervención del programador.
 
-\textcolor{teal!60!black}{\textbf{Ventajas revolucionarias:}\\
-- Transparente al programador (¡no más overlays!)\\
-- Cada proceso cree que tiene toda la memoria para sí\\
-- Permite ejecutar programas más grandes que la RAM\\
-- Protección automática entre procesos\\
-- Compartición eficiente de código\\
-- Simplifica la programación enormemente\\
-}
+\begin{highlight}
+La memoria virtual permite ejecutar procesos cuyo espacio de direcciones total excede la memoria física disponible, mediante la ilusión de que cada proceso tiene acceso a un espacio de direcciones enorme y contiguo, gestionado automáticamente por el hardware y el sistema operativo.
+\end{highlight}
+
+Las ventajas de este enfoque fueron revolucionarias. Primero, es completamente transparente al programador: no más overlays manuales. Cada proceso opera bajo la creencia de que tiene toda la memoria para sí, lo que simplifica enormemente la programación. Podemos ejecutar programas más grandes que la RAM disponible, y obtenemos protección automática entre procesos. Además, el código puede compartirse eficientemente entre múltiples procesos.
 
 ### ¿Cómo es posible?
 
-La clave está en dos conceptos:
-1. **No todo el programa necesita estar en RAM simultáneamente** (principio de localidad)
-2. **Podemos usar el disco como extensión de la RAM** (con traducción automática)
+La viabilidad de la memoria virtual se basa en dos observaciones fundamentales. Primero, no todo el programa necesita estar en RAM simultáneamente (esto se conoce como el *principio de localidad*). Segundo, podemos usar el disco como extensión de la RAM, con traducción automática de direcciones.
 
-```
-Programa de 1 GiB:
-┌─────────────────────────┐
-│   Código (100 MiB)       │ ← Solo 10 MiB activos ahora
-├─────────────────────────┤
-│   Datos (200 MiB)        │ ← Solo 5 MiB activos ahora
-├─────────────────────────┤
-│   Heap (300 MiB)         │ ← Solo 20 MiB activos ahora
-├─────────────────────────┤
-│   Stack (400 MiB)        │ ← Solo 2 MiB activos ahora
-└─────────────────────────┘
-Total en RAM: ~37 MiB de 1 GiB
-Resto en disco (swap)
-```
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-08/01.png}
+
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Un proceso de 1 GiB puede correr con aprox. 37 MiB en RAM, y el resto en almacenamiento secundario (swap).
+}
+\end{center}
 
 ## Recap: Conceptos del Capítulo 7
 
-Antes de continuar, repasemos brevemente los conceptos de paginación que vimos en el Capítulo 7, ya que son la base de la memoria virtual.
+Antes de sumergirnos en los detalles de la memoria virtual, necesitamos repasar brevemente los conceptos de paginación que estudiamos en el Capítulo 7. Estos conceptos son la base sobre la cual construiremos nuestra comprensión de la memoria virtual.
 
 ### Paginación Básica (Recap)
 
-En el Capítulo 7 aprendimos que:
-
-- El **espacio lógico** se divide en páginas de tamaño fijo (típicamente 4 KiB)
-- La **memoria física** se divide en marcos del mismo tamaño
-- Una **tabla de páginas** mapea páginas lógicas a marcos físicos
-- La **MMU** traduce direcciones automáticamente en hardware
+En el Capítulo 7 aprendimos que el espacio lógico se divide en *páginas* de tamaño fijo (típicamente 4 KiB), mientras que la memoria física se divide en *marcos* del mismo tamaño. Una tabla de páginas mapea páginas lógicas a marcos físicos, y la MMU (Memory Management Unit) traduce direcciones automáticamente en hardware.
 
 ```
 Dirección Lógica:
@@ -121,38 +100,37 @@ Dirección Lógica:
 
 ### TLB (Recap)
 
-El **Translation Lookaside Buffer** es una caché hardware que acelera la traducción:
-- Almacena traducciones recientes (64-512 entradas)
-- Acceso < 1 ns (vs ~100 ns si hay que buscar en tabla de páginas)
-- Hit rate típico: 98-99%
+El Translation Lookaside Buffer es una caché hardware que acelera dramáticamente la traducción de direcciones. Almacena traducciones recientes (típicamente entre 64 y 512 entradas) y puede accederlas en menos de 1 nanosegundo, comparado con aproximadamente 100 nanosegundos si hay que buscar en la tabla de páginas. El hit rate típico es de 98-99%, lo que hace que este mecanismo sea extremadamente efectivo.
 
-**Esto es crítico en memoria virtual, donde cada acceso requiere traducción.**
+\begin{infobox}
+El TLB es crítico en memoria virtual, donde cada acceso requiere traducción. Sin él, el overhead de traducción de direcciones sería inaceptable.
+\end{infobox}
 
 ### Lo Nuevo en Memoria Virtual
 
-En el Capítulo 7, **todas las páginas del proceso estaban en RAM**. Ahora, en memoria virtual:
-- **No todas las páginas están en RAM simultáneamente**
-- Algunas páginas están en disco (swap space)
-- El bit **presencia** en la tabla de páginas indica dónde está la página
-- Se producen **page faults** cuando se accede a una página no presente
+En el Capítulo 7, todas las páginas del proceso estaban en RAM. Esta es la diferencia fundamental con memoria virtual: ahora, no todas las páginas están en RAM simultáneamente. Algunas páginas residen en disco (en el swap space), y el *bit presencia* en la tabla de páginas indica dónde está cada página. Cuando se intenta acceder a una página no presente, se produce un **page fault**.
 
-\textcolor{orange!70!black}{\textbf{Diferencia clave:}\\
-Cap 7: Tabla de páginas mapea TODAS las páginas a marcos\\
-Cap 8: Tabla de páginas puede indicar "esta página NO está en RAM"\\
-}
+\begin{warning}
+\textbf{Diferencia clave:}
 
-Para más detalles sobre paginación básica, tablas multinivel, TLB y segmentación, consultar el Capítulo 7.
+Capítulo 7: La tabla de páginas mapea TODAS las páginas a marcos físicos.
+
+Capítulo 8: La tabla de páginas puede indicar "esta página NO está en RAM".
+\end{warning}
+
+Para más detalles sobre paginación básica, tablas multinivel, TLB y segmentación, podés consultar el Capítulo 7.
 
 ## Conceptos Fundamentales
 
 ### Espacio de Direcciones Virtual vs Físico
 
-\begin{excerpt}
-\emph{Espacio de Direcciones Virtual:}
-El rango completo de direcciones que un proceso puede generar, independiente de la cantidad de memoria física disponible. En un sistema de 32 bits: 0 a 4 GiB, en 64 bits: 0 a 16 EB (exabytes).
-\end{excerpt}
+El espacio de direcciones virtual es el rango completo de direcciones que un proceso puede generar, completamente independiente de la cantidad de memoria física disponible. En un sistema de 32 bits, este espacio va de 0 a 4 GiB. En sistemas de 64 bits, el rango teórico es de 0 a 16 exabytes, aunque en la práctica se usa un subconjunto más pequeño.
 
-**Ejemplo práctico:**
+\begin{highlight}
+El espacio de direcciones virtual es el rango completo de direcciones que un proceso puede generar, independiente de la cantidad de memoria física disponible.
+\end{highlight}
+
+Veamos un ejemplo práctico de cómo funciona esto:
 
 ```c
 #include <stdio.h>
@@ -176,52 +154,22 @@ int main() {
 }
 ```
 
-**Separación completa:**
+Este programa ilustra un punto crucial: la dirección que vemos (como `0x7f8a3c000000`) es completamente virtual. Físicamente, esos datos pueden estar en el marco 2847 de RAM, o incluso no estar en RAM en absoluto, sino en disco.
 
-```
-Proceso A:                    Proceso B:
-Espacio Virtual (4 GiB)        Espacio Virtual (4 GiB)
-┌─────────────────┐          ┌─────────────────┐
-│ 0xFFFFFFFF      │          │ 0xFFFFFFFF      │
-│                 │          │                 │
-│   Stack         │          │   Stack         │
-│      ↓          │          │      ↓          │
-├─────────────────┤          ├─────────────────┤
-│                 │          │                 │
-│      ↑          │          │      ↑          │
-│   Heap          │          │   Heap          │
-│                 │          │                 │
-├─────────────────┤          ├─────────────────┤
-│   Datos         │          │   Datos         │
-├─────────────────┤          ├─────────────────┤
-│   Código        │          │   Código        │
-│ 0x00000000      │          │ 0x00000000      │
-└─────────────────┘          └─────────────────┘
-       ↓                            ↓
-       └────────────┬───────────────┘
-                    ↓
-         Memoria Física (RAM)
-         ┌─────────────────┐
-         │ Marco N         │ ← Proceso B, página 5
-         ├─────────────────┤
-         │ Marco N-1       │ ← Proceso A, página 2
-         ├─────────────────┤
-         │ Marco N-2       │ ← SO
-         ├─────────────────┤
-         │ ...             │
-         └─────────────────┘
-```
+La separación entre espacios virtual y físico tiene consecuencias profundas. Ambos procesos pueden usar la misma dirección virtual (digamos, `0x1000`), pero estas se mapean a marcos físicos completamente diferentes. Esto proporciona protección automática: un proceso no puede acceder al marco de otro. Además, simplifica enormemente la programación, ya que cada proceso comienza en `0x0` y el programador no tiene que preocuparse de dónde están otros procesos en memoria.
 
-\textcolor{blue!50!black}{\textbf{Consecuencias importantes:}\\
-- Ambos procesos pueden usar la misma dirección virtual 0x1000\\
-- Se mapean a marcos físicos diferentes\\
-- Protección automática: un proceso no puede acceder al marco de otro\\
-- Simplifica la programación: cada proceso empieza en 0x0\\
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-08/02.png}
+
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Ambos procesos pueden usar la misma dirección virtual 0x1000, se mapean a marcos físicos diferentes.
 }
+\end{center}
 
-### El Bit presencia: El Héroe de Memoria Virtual
+### El Bit Presencia: El Héroe de Memoria Virtual
 
-En el Capítulo 7, cada entrada de tabla de páginas era simplemente un número de marco. Ahora, agregamos información crucial:
+En el Capítulo 7, cada entrada de tabla de páginas era simplemente un número de marco. Ahora, agregamos información crucial que hace posible la memoria virtual. La estructura expandida incluye varios bits de control, siendo el más importante el *bit presencia*.
 
 ```
 Entrada de Tabla de Páginas (expandida):
@@ -232,21 +180,13 @@ Entrada de Tabla de Páginas (expandida):
               Bit presencia (P)
 ```
 
-\begin{excerpt}
-\emph{Bit presencia (P):}
-Indica si la página está presente en memoria RAM (P=1) o está en disco/swap (P=0). Es la base del mecanismo de memoria virtual.
-\end{excerpt}
+\begin{highlight}
+El bit presencia (P) indica si la página está presente en memoria RAM (P=1) o está en disco/swap (P=0). Es la base del mecanismo de memoria virtual.
+\end{highlight}
 
-**Estados posibles:**
+Los bits de control tienen diferentes significados según el estado de la página. Cuando P=1, la página está en RAM, y los otros bits indican si fue accedida recientemente (U=1), si fue modificada (M=1, también llamada *dirty*), y permisos de ejecución (X). Cuando P=0, la página no está en RAM y reside en disco, haciendo que los otros bits sean irrelevantes en ese momento.
 
-| P | U | M | Significado |
-|---|---|---|-------------|
-| 1 | 0 | 0 | En RAM, no accedida recientemente, no modificada |
-| 1 | 1 | 0 | En RAM, accedida recientemente, no modificada |
-| 1 | 1 | 1 | En RAM, accedida y modificada (dirty) |
-| 0 | - | - | NO en RAM, está en disco (swap) |
-
-**Ejemplo de tabla de páginas con memoria virtual:**
+Consideremos un ejemplo concreto de una tabla de páginas con memoria virtual:
 
 ```
 Proceso con 8 páginas:
@@ -264,270 +204,163 @@ Proceso con 8 páginas:
 └────┴───────┴───┴───┴───┴──────────────┘
 
 Solo 4 de 8 páginas en RAM
-Proceso usa 8 * 4 KiB = 32 KiB virtual
-Pero solo 4 * 4 KiB = 16 KiB físicos
+Proceso usa 8 × 4 KiB = 32 KiB virtual
+Pero solo 4 × 4 KiB = 16 KiB físicos
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventaja crítica:}\\
-Un proceso de 1 GiB puede ejecutarse con solo 50 MiB en RAM\\
-El resto permanece en disco hasta que se necesite\\
-}
+La ventaja es crítica: un proceso de 1 GiB puede ejecutarse con solo 50 MiB en RAM. El resto permanece en disco hasta que se necesite, permitiendo una utilización mucho más eficiente de la memoria física.
 
 ### Page Fault: Evento Normal, NO Error
 
-Este es un punto que genera mucha confusión en estudiantes. Aclaremos:
+Este es un punto que genera mucha confusión en estudiantes, y es importante aclararlo desde el principio. Un page fault es una interrupción generada por la MMU cuando el CPU intenta acceder a una página cuyo bit presencia está en 0 (página no presente en RAM). Contrario a lo que el nombre podría sugerir, es un mecanismo normal y esperado del sistema de memoria virtual, no un error de programación.
 
-\begin{excerpt}
-\emph{Page Fault:}
-Interrupción generada por la MMU cuando el CPU intenta acceder a una página cuyo bit presencia está en 0 (página no presente en RAM). Es un mecanismo normal y esperado del sistema de memoria virtual, NO un error de programación.
-\end{excerpt}
+\begin{highlight}
+Un page fault es una interrupción generada por la MMU cuando el CPU intenta acceder a una página cuyo bit presencia está en 0. Es un mecanismo normal y esperado del sistema de memoria virtual, NO un error de programación.
+\end{highlight}
 
-\textcolor{orange!70!black}{\textbf{¡IMPORTANTE!}\\
-Page Fault ≠ Segmentation Fault\\
-- Page Fault: Normal, el SO lo maneja transparentemente\\
-- Segmentation Fault: Error, acceso a memoria inválida\\
-}
+\begin{warning}
+\textbf{¡IMPORTANTE!}
 
-**Comparación:**
+Page Fault ≠ Segmentation Fault
 
-| Evento | Causa | Manejo | Visible al Proceso |
-|--------|-------|--------|--------------------|
-| Page Fault | Acceso a página P=0 | SO carga página, continúa | NO (transparente) |
-| Segmentation Fault | Acceso fuera del espacio válido | SO mata proceso | SÍ (señal SIGSEGV) |
+- Page Fault: Evento normal que el SO maneja transparentemente\\
+- Segmentation Fault: Error de acceso a memoria inválida
+\end{warning}
 
+La distinción es crucial. Un page fault ocurre cuando se accede a una página con P=0, y el SO lo maneja transparentemente cargando la página desde disco. El proceso ni siquiera se entera de que ocurrió. Por otro lado, un segmentation fault es un acceso fuera del espacio válido del proceso, lo que causa que el SO termine el proceso enviando la señal SIGSEGV.
 
 ### Swap Space (Backing Store)
 
-\begin{excerpt}
-\emph{Swap Space:}
-Área del disco duro reservada para almacenar páginas que no están en RAM. Actúa como extensión de la memoria física.
-\end{excerpt}
+El swap space es el área del disco duro reservada para almacenar páginas que no están en RAM. Actúa como una extensión de la memoria física, permitiendo que el sistema ejecute más procesos o procesos más grandes de lo que la RAM física permitiría por sí sola.
 
-**Configuración típica en Linux:**
+\begin{highlight}
+El swap space es el área del disco duro reservada para almacenar páginas que no están en RAM. Actúa como extensión de la memoria física.
+\end{highlight}
 
-```bash
-$ swapon --show
-NAME       TYPE      SIZE   USED
-/dev/sda2  partition  8G    1.2G
-/swapfile  file       4G    512M
-```
+En Linux, podemos ver la configuración del swap con el comando `swapon --show`. Una configuración típica podría mostrar una partición de 8 GiB y un archivo de swap de 4 GiB. El swap puede implementarse tanto como una partición dedicada como un archivo regular en el sistema de archivos.
 
-**Estructura:**
+La estructura del disco duro típicamente incluye una o más particiones para el sistema de archivos, y una partición o archivo dedicado al swap. Esta área almacena las páginas que no están actualmente en RAM, organizadas en bloques que corresponden a las páginas de los diferentes procesos.
 
-```
-Disco Duro:
-┌─────────────────────────────────┐
-│ Partición 1: Sistema de Archivos│
-├─────────────────────────────────┤
-│ Partición 2: Swap (8 GiB)        │ ← Páginas no en RAM
-│   ┌─────────────────────────┐   │
-│   │ Bloque 0-99:   Proceso A│   │
-│   │ Bloque 100-199:Proceso B│   │
-│   │ Bloque 200-299:Proceso C│   │
-│   │ ...                     │   │
-│   └─────────────────────────┘   │
-└─────────────────────────────────┘
-```
+\begin{warning}
+El swap es aproximadamente 1000 veces más lento que la RAM cuando se usa un disco duro tradicional (HDD). Con SSDs, la diferencia se reduce a unas 100 veces, pero sigue siendo significativa. Por eso es crítico minimizar los page faults. El sistema operativo intenta mantener las páginas "calientes" (frecuentemente accedidas) en RAM.
+\end{warning}
 
-\textcolor{blue!50!black}{\textbf{Datos importantes:}\\
-- Swap es ~1000x más lento que RAM (HDD)\\
-- Con SSD: ~100x más lento que RAM\\
-- Por eso es crítico minimizar page faults\\
-- El SO intenta mantener páginas "calientes" en RAM\\
-}
-
-**Relación tamaño RAM vs Swap:**
-
-```
-Configuración típica:
-RAM: 8 GiB  → Swap: 8-16 GiB
-RAM: 16 GiB → Swap: 8-16 GiB
-RAM: 32 GiB → Swap: 4-8 GiB (o menos)
-
-Razón: Con más RAM, menos page faults → menos swap necesario
-```
+La relación entre el tamaño de la RAM y el swap ha evolucionado con el tiempo. En sistemas con 8 GiB de RAM, es común configurar entre 8 y 16 GiB de swap. Con 16 GiB de RAM, típicamente se usa entre 8 y 16 GiB de swap. En sistemas con 32 GiB o más de RAM, el swap puede ser de solo 4 a 8 GiB, o incluso menos. La razón es simple: con más RAM disponible, hay menos page faults y, por lo tanto, se necesita menos espacio de swap.
 
 ## Page Fault: Anatomía Completa
 
-Ahora veamos el flujo detallado de lo que sucede cuando ocurre un page fault.
+Ahora que entendemos qué es un page fault y por qué es necesario, veamos en detalle el flujo completo de lo que sucede cuando ocurre uno. Este proceso involucra una coordinación compleja entre el hardware y el sistema operativo.
 
 ### Flujo Paso a Paso
 
-```
-1. CPU ejecuta: MOV R1, [0x2000]
-   ↓
-2. MMU traduce 0x2000 → página 2
-   ↓
-3. MMU consulta tabla de páginas: página 2, bit P=0
-   ↓
-4. MMU genera TRAP (interrupción page fault)
-   ↓
-5. Hardware guarda estado del proceso (registros, PC)
-   ↓
-6. Control pasa al SO (handler de page fault)
-   ↓
-7. SO verifica: ¿es acceso válido?
-   ├─→ NO: enviar SIGSEGV (Segmentation Fault)
-   └─→ SÍ: continuar
-   ↓
-8. SO busca marco libre en RAM
-   ├─→ HAY marco libre: usar directamente
-   └─→ NO hay marco libre: ejecutar algoritmo de reemplazo
-   ↓
-9. Si se reemplaza página "dirty" (M=1):
-   - Escribir página víctima a disco (~5-10 ms)
-   ↓
-10. SO lee página desde disco (~5-10 ms)
-    ↓
-11. SO carga página en marco seleccionado
-    ↓
-12. SO actualiza tabla de páginas:
-    - Página 2: marco=X, P=1, U=0, M=0
-    ↓
-13. SO invalida entrada TLB anterior (si existía)
-    ↓
-14. SO retorna de la interrupción
-    ↓
-15. Hardware restaura registros del proceso
-    ↓
-16. CPU reintenta la instrucción: MOV R1, [0x2000]
-    ↓
-17. Ahora P=1 → traducción exitosa → acceso a RAM
-```
+El proceso comienza cuando el CPU ejecuta una instrucción como `MOV R1, [0x2000]`. La MMU intenta traducir la dirección virtual `0x2000` a una dirección física, determinando que corresponde a la página 2. Al consultar la tabla de páginas, descubre que el bit presencia está en 0, lo que indica que la página no está en RAM.
 
-### Tiempos Aproximados (Validados)
+En este punto, la MMU genera una interrupción especial llamada *trap*, específicamente un trap de page fault. El hardware automáticamente guarda el estado completo del proceso, incluyendo todos los registros y el contador de programa (PC). El control pasa entonces al sistema operativo, específicamente al manejador de page faults.
 
-Los siguientes tiempos están basados en mediciones de sistemas reales y literatura técnica (Silberschatz, Tanenbaum):
+El sistema operativo tiene varias responsabilidades críticas. Primero, debe verificar si el acceso es válido. Si el acceso es a una dirección completamente fuera del espacio válido del proceso, el SO envía una señal SIGSEGV (segmentation fault) y termina el proceso. Si el acceso es válido, el proceso continúa.
 
-\textcolor{blue!50!black}{\textbf{Tiempos típicos de page fault:}\\
-- Detección hardware (MMU): ~1 ns\\
-- Context switch a handler SO: ~1-5 μs\\
-- Búsqueda marco libre / algoritmo reemplazo: ~1-10 μs\\
-- Escritura página dirty a disco (HDD): ~5-10 ms\\
-- Lectura página desde disco (HDD): ~5-10 ms\\
-- Escritura página dirty a disco (SSD): ~0.1-0.5 ms\\
-- Lectura página desde disco (SSD): ~0.1-0.5 ms\\
-- Actualización estructuras SO: ~1-5 μs\\
-- Context switch de vuelta a proceso: ~1-5 μs\\
-\textbf{Total (HDD): 10-20 ms}\\
-\textbf{Total (SSD): 0.2-1 ms}\\
-}
+\begin{theory}
+El manejador de page faults debe distinguir entre tres situaciones:
 
-**Comparación con acceso normal a RAM:**
+1. Acceso válido a página que está en disco (page fault normal)\\
+2. Acceso a página que nunca ha sido asignada (primer acceso)\\
+3. Acceso inválido a memoria fuera del espacio del proceso (segmentation fault)
+\end{theory}
 
-```
-Acceso con TLB hit:  ~10 ns   (0.00001 ms)
-Acceso con TLB miss: ~100 ns  (0.0001 ms)
-Page fault (SSD):    ~500 μs  (0.5 ms)     → ~5,000x más lento
-Page fault (HDD):    ~10 ms                → ~1,000,000x más lento
-```
+Solo en el tercer caso se termina el proceso. Los primeros dos son situaciones normales que el SO maneja transparentemente.
 
-\textcolor{red!60!gray}{\textbf{Consecuencia crítica:}\\
-Un page fault equivale a ~100,000 accesos normales a RAM\\
-Por eso el principio de localidad es fundamental\\
-Minimizar page faults es esencial para rendimiento\\
-}
+
+El siguiente paso es buscar un marco libre en RAM. Si hay un marco disponible, se usa directamente. Si no hay marcos libres, el SO debe ejecutar un algoritmo de reemplazo para seleccionar una página víctima que será desalojada. Si esta página víctima tiene el bit modificado (M=1), lo que significa que fue modificada desde que se cargó, debe escribirse a disco antes de ser reemplazada. Esta escritura toma entre 5 y 10 milisegundos en un disco duro tradicional.
+
+Una vez que tenemos un marco disponible (ya sea porque estaba libre o porque desalojamos una página), el SO lee la página necesaria desde disco. Esta operación también toma entre 5 y 10 milisegundos en HDD. Después de cargar la página en el marco seleccionado, el SO actualiza la tabla de páginas, estableciendo el número de marco, poniendo P=1, y reiniciando los bits U y M a 0.
+
+Un detalle importante es la invalidación del TLB. Si existía una entrada anterior para esta página en el TLB (por ejemplo, de cuando la página estaba en RAM anteriormente), debe invalidarse para forzar una nueva traducción que use la tabla de páginas actualizada.
+
+Finalmente, el SO retorna de la interrupción. El hardware restaura automáticamente los registros del proceso, y el CPU reintenta la instrucción `MOV R1, [0x2000]`. Esta vez, como P=1, la traducción es exitosa y el acceso a RAM se completa normalmente.
+
+### Tiempos Aproximados
+
+Los tiempos involucrados en un page fault son significativos y vale la pena analizarlos en detalle. Estos valores están basados en mediciones de sistemas reales y literatura técnica estándar.
+
+\begin{infobox}
+\textbf{Tiempos típicos de page fault (validados):}
+
+La detección por hardware (MMU) toma aproximadamente 1 nanosegundo. El context switch al manejador del SO requiere entre 1 y 5 microsegundos. La búsqueda de marco libre o ejecución del algoritmo de reemplazo toma entre 1 y 10 microsegundos.
+
+Las operaciones de disco son las más costosas. La escritura de una página dirty a disco HDD toma entre 5 y 10 milisegundos, mientras que la lectura desde disco HDD también requiere 5 a 10 milisegundos. Con SSDs, estos tiempos se reducen dramáticamente: entre 0.1 y 0.5 milisegundos para escritura, y entre 0.1 y 0.5 milisegundos para lectura.
+
+La actualización de estructuras del SO requiere entre 1 y 5 microsegundos, y el context switch de vuelta al proceso toma otros 1 a 5 microsegundos.
+
+Total con HDD: 10-20 milisegundos\\
+Total con SSD: 0.2-1 milisegundo
+\end{infobox}
+
+Para poner estos números en perspectiva, comparémoslos con un acceso normal a RAM. Un acceso con TLB hit toma aproximadamente 10 nanosegundos (0.00001 ms). Un acceso con TLB miss requiere unos 100 nanosegundos (0.0001 ms). Un page fault con SSD toma alrededor de 500 microsegundos (0.5 ms), lo que es aproximadamente 50,000 veces más lento. Un page fault con HDD toma unos 10 milisegundos, lo que es aproximadamente 1,000,000 veces más lento que un acceso normal a RAM.
+
+\begin{warning}
+\textbf{Consecuencia crítica:}
+
+Un solo page fault equivale a aproximadamente 100,000 accesos normales a RAM. Por eso el principio de localidad es fundamental para el rendimiento del sistema. Minimizar page faults es esencial para mantener un rendimiento aceptable.
+\end{warning}
+
+\begin{warning}
+En un CPU de 3 GHz, un ciclo de reloj dura aproximadamente 0.33 ns.\\
+Un acceso a RAM de 10 ns equivale a unos 30 ciclos de CPU, mientras que un page fault con SSD puede costar más de 1.5 millones de ciclos, y con HDD más de \textbf{30 millones de ciclos.}
+\end{warning}
 
 ### Casos Especiales
 
+Existen varios casos especiales de page faults que vale la pena examinar, cada uno con características únicas.
+
 #### Caso 1: Primera Referencia (Demand Paging)
 
-```
-Proceso recién creado:
-- Todas las páginas tienen P=0
-- Primera referencia a página 0 (código)
-  → Page fault
-  → SO carga página 0 desde ejecutable
-- Primera referencia a página 1
-  → Page fault
-  → SO carga página 1
-- ...
+Cuando se crea un proceso nuevo, todas sus páginas tienen inicialmente el bit presencia en 0. La primera referencia a la página 0 (típicamente código) genera un page fault, y el SO carga esa página desde el archivo ejecutable. La primera referencia a la página 1 genera otro page fault, y así sucesivamente.
 
-Las páginas se cargan SOLO cuando se necesitan
-(de ahí "demand paging" = paginación bajo demanda)
-```
+Este enfoque se llama *demand paging* (paginación bajo demanda) porque las páginas se cargan solo cuando se necesitan. Es fundamentalmente diferente de cargar todo el programa en memoria antes de ejecutarlo, lo que sería más lento y desperdiciaría memoria en páginas que nunca se usan.
 
-#### Caso 2: Copy-on-Write (Adelanto)
+#### Caso 2: Copy-on-Write
 
-```c
-pid_t pid = fork();
-// Antes del fork: proceso padre tiene 100 páginas en RAM
+Copy-on-Write es una optimización elegante que exploraremos en detalle más adelante. Cuando un proceso hace `fork()`, el proceso hijo no copia inmediatamente todas las páginas del padre. En su lugar, ambos procesos comparten las mismas páginas físicas, pero marcadas como solo lectura.
 
-// Después del fork:
-// - Hijo NO copia las 100 páginas inmediatamente
-// - Ambos procesos comparten las mismas páginas (P=1, pero R/O)
-// - Si hijo ESCRIBE en página X:
-//   → Page fault (intento de escritura en R/O)
-//   → SO copia la página
-//   → Ahora cada proceso tiene su propia copia
-```
+Si el hijo intenta escribir en una página compartida, se genera un page fault (por intento de escritura en una página de solo lectura). El SO detecta que es un caso de Copy-on-Write, copia la página a un nuevo marco, y actualiza la tabla del hijo para apuntar a esta copia privada. Ahora el hijo puede escribir en su propia copia sin afectar al padre.
 
 #### Caso 3: Memory-Mapped Files
 
-```c
-int fd = open("archivo.dat", O_RDWR);
-void *addr = mmap(NULL, 1024*1024, PROT_READ|PROT_WRITE, 
-                  MAP_SHARED, fd, 0);
-// mmap() NO carga el archivo completo
-// Solo mapea direcciones virtuales al archivo
+Los archivos mapeados en memoria son otro caso especial fascinante. Cuando llamamos a `mmap()` para mapear un archivo de 1 MiB, la llamada no carga el archivo completo inmediatamente. Solo mapea direcciones virtuales al archivo.
 
-// Primera lectura de addr[0]:
-// → Page fault
-// → SO carga página desde archivo (no swap)
+La primera lectura de la dirección mapeada genera un page fault. El SO carga la página correspondiente desde el archivo (no desde el swap). Si escribimos en esta dirección y la página no está en RAM, también habrá un page fault. Una vez en RAM, la página se marca como dirty (M=1), y el SO eventualmente escribirá los cambios de vuelta al archivo.
 
-// Escritura en addr[100]:
-// → Si página no está en RAM: page fault
-// → Página marcada como dirty (M=1)
-// → SO escribirá cambios al archivo eventualmente
-```
+### Diagrama de Flujo
 
-### Diagrama Mermaid: Flujo de Page Fault
-
-Este diagrama muestra el flujo completo con decisiones y tiempos:
+El diagrama completo del flujo de un page fault muestra todas estas decisiones y transiciones:
 
 ```
 [Insertar aquí: cap08-pageFaultFlow.mmd]
 ```
 
-El diagrama debe incluir:
-- Detección por MMU
-- Verificación de validez
-- Búsqueda de marco libre
-- Algoritmo de reemplazo si es necesario
-- Lectura/escritura a disco
-- Actualización de estructuras
-- Retry de instrucción
+Este diagrama incluye la detección por MMU, verificación de validez del acceso, búsqueda de marco libre, ejecución del algoritmo de reemplazo si es necesario, operaciones de lectura y escritura a disco, actualización de todas las estructuras relevantes, y finalmente el retry de la instrucción original.
 
 ## Principio de Localidad
 
-El principio de localidad es **LA RAZÓN** por la cual la memoria virtual funciona eficientemente. Sin él, cada proceso necesitaría todas sus páginas en RAM todo el tiempo.
+El principio de localidad es la razón fundamental por la cual la memoria virtual funciona eficientemente. Sin este principio, cada proceso necesitaría todas sus páginas en RAM todo el tiempo, haciendo que la memoria virtual fuera impráctica.
 
 ### ¿Qué es el Principio de Localidad?
 
-\begin{excerpt}
-\emph{Principio de Localidad:}
-Observación empírica de que los programas tienden a acceder un subconjunto relativamente pequeño de su espacio de direcciones en cualquier intervalo de tiempo dado. Se divide en dos tipos: localidad temporal y localidad espacial.
-\end{excerpt}
+El principio de localidad es una observación empírica sobre el comportamiento de los programas. Los programas tienden a acceder un subconjunto relativamente pequeño de su espacio de direcciones en cualquier intervalo de tiempo dado. Este principio se divide en dos tipos fundamentales: localidad temporal y localidad espacial.
 
-\textcolor{orange!70!black}{\textbf{¿Por qué es crítico para memoria virtual?}\\
-Si un proceso de 1 GiB necesitara acceder aleatoriamente\\
-todas sus páginas constantemente, tendríamos:\\
-- Page faults continuos\\
-- Disco trabajando sin parar\\
-- Rendimiento catastrófico\\
-\\
-Pero GRACIAS a la localidad, el proceso solo accede\\
-~50 MiB activamente, permitiendo que funcione con poca RAM.\\
-}
+\begin{highlight}
+El principio de localidad es la observación de que los programas tienden a acceder un subconjunto relativamente pequeño de su espacio de direcciones en cualquier intervalo de tiempo dado. Se divide en localidad temporal y localidad espacial.
+\end{highlight}
+
+La importancia de este principio para la memoria virtual no puede subestimarse. Si un proceso de 1 GiB necesitara acceder aleatoriamente todas sus páginas constantemente, tendríamos page faults continuos, el disco trabajando sin parar, y un rendimiento catastrófico. Pero gracias a la localidad, el proceso típicamente solo accede activamente a unos 50 MiB en cualquier momento, permitiendo que funcione eficientemente con poca RAM física.
 
 ### Localidad Temporal
 
-\begin{excerpt}
-\emph{Localidad Temporal:}
-Si se referencia una ubicación de memoria en el tiempo t, es muy probable que se referencie nuevamente en un futuro cercano (t + Δt).
-\end{excerpt}
+\begin{highlight}
+La localidad temporal se refiere al fenómeno de que si se referencia una ubicación de memoria en el tiempo $t$, es muy probable que se referencie nuevamente en un futuro cercano $(t + Δt)$.
+\end{highlight}
 
-**Ejemplo clásico: Variables en un bucle**
+El ejemplo clásico de localidad temporal son las variables en un bucle:
 
 ```c
 #include <stdio.h>
@@ -550,37 +383,17 @@ int main() {
 }
 ```
 
-**¿Qué está pasando?**
+¿Qué está pasando con las páginas en este ejemplo? El proceso tiene la página 0 conteniendo el código (las instrucciones del bucle), y la página 1 conteniendo el stack (las variables `suma` y `contador`). Durante la ejecución del bucle, se accede a la página 0 un millón de veces, y a la página 1 otro millón de veces. En total, solo 2 páginas están activas de quizás 100 páginas totales del proceso.
 
-```
-Páginas del proceso:
-┌─────────────────┐
-│ Pág 0: Código   │ ← Instrucciones del bucle (acceso repetido)
-├─────────────────┤
-│ Pág 1: Stack    │ ← Variables suma y contador (acceso repetido)
-├─────────────────┤
-│ Pág 2-N: Heap   │ ← No se usa en este ejemplo
-└─────────────────┘
-
-Durante el bucle:
-- Se accede página 0 (código) 1,000,000 de veces
-- Se accede página 1 (stack) 1,000,000 de veces
-- Total: 2 páginas activas de quizás 100 páginas totales
-```
-
-**Otros ejemplos de localidad temporal:**
-- Funciones llamadas frecuentemente
-- Variables globales usadas en múltiples funciones
-- Código en bucles internos (hot loops)
+Otros ejemplos comunes de localidad temporal incluyen funciones que se llaman frecuentemente (permanecen "calientes" en memoria), variables globales usadas en múltiples funciones, y especialmente código en bucles internos (*hot loops*) que se ejecutan millones de veces.
 
 ### Localidad Espacial
 
-\begin{excerpt}
-\emph{Localidad Espacial:}
-Si se referencia una ubicación de memoria en la dirección X, es muy probable que se referencien ubicaciones cercanas (X ± δ) en un futuro próximo.
-\end{excerpt}
+\begin{highlight}
+La localidad espacial describe el fenómeno de que si se referencia una ubicación de memoria en la dirección $X$, es muy probable que se referencien ubicaciones cercanas $(X ± δ)$ en un futuro próximo.
+\end{highlight}
 
-**Ejemplo clásico: Recorrido de array**
+El ejemplo clásico es el recorrido secuencial de un array:
 
 ```c
 #include <stdio.h>
@@ -609,107 +422,72 @@ int main() {
 }
 ```
 
-**¿Qué está pasando con las páginas?**
+Para entender el impacto, consideremos cómo se organizan estos datos en páginas. Un array de 4 MiB con páginas de 4 KiB significa que los elementos `array[0..1023]` están en la página 0, `array[1024..2047]` en la página 1, y así sucesivamente.
 
-```
-Array de 4 MiB con páginas de 4 KiB:
-array[0..1023]    → Página 0   ┐
-array[1024..2047] → Página 1   │ Cuando accedemos array[0],
-array[2048..3071] → Página 2   │ es MUY probable que luego
-...                             │ accedamos array[1], array[2]...
-                                │ que están en la MISMA página
-                                ↓
-Si accedo array[0], traigo página 0 (con array[0..1023])
-Próximos 1023 accesos: ¡SIN page fault! (misma página)
-```
+Cuando accedemos `array[0]`, traemos la página 0 completa (que contiene `array[0..1023]`). Los próximos 1023 accesos no generan page faults porque todos esos elementos ya están en RAM, en la misma página.
 
-**Impacto en page faults:**
+El impacto en page faults es dramático. Para un array de 1,000,000 elementos (4 MiB total), necesitamos 1024 páginas. Con acceso secuencial (que tiene localidad espacial), tenemos exactamente 1024 page faults: uno por página, la primera vez que la accedemos. Los restantes 998,976 accesos no generan page faults.
 
-```
+Con acceso aleatorio (sin localidad espacial), cada acceso potencialmente va a una página diferente. Podríamos tener cientos de miles de page faults, resultando en un rendimiento desastroso.
+
+\begin{example}
+\textbf{Impacto medible de la localidad espacial:}
+
 Array de 1,000,000 elementos (int):
 - Tamaño: 4 MiB
-- Páginas necesarias: 4 MiB / 4 KiB = 1024 páginas
+- Páginas necesarias: 1024 páginas
 
-Acceso secuencial (CON localidad espacial):
-- Page faults: 1024 (uno por página, la primera vez)
-- Accesos sin PF: 1,000,000 - 1024 = 998,976
+Acceso secuencial:
+- Page faults: 1024 (uno por página)
+- Accesos sin PF: 998,976
+- Tiempo: ~10 ms + tiempo de procesamiento
 
-Acceso aleatorio (SIN localidad espacial):
-- Cada acceso potencialmente a página diferente
+Acceso aleatorio:
 - Page faults: potencialmente cientos de miles
-- Rendimiento: desastroso
-```
+- Rendimiento: 100-1000 veces peor
+\end{example}
 
 ### Localidad en Programas Reales
 
-**Ejemplo: Navegador web**
+Para ver cómo el principio de localidad funciona en la práctica, consideremos un navegador web real. El código del navegador puede ocupar 50 MiB, y las páginas web cargadas otros 500 MiB, para un total de 550 MiB de espacio de direcciones virtual.
 
-```
-Código del navegador: 50 MiB
-Datos/páginas web: 500 MiB
-Total: 550 MiB
+Sin embargo, en cualquier momento de 10 segundos, solo está activo aproximadamente 5 MiB de código (el motor de renderizado, la máquina virtual de JavaScript) y unos 20 MiB de datos (la página web actual y las imágenes visibles). El total activo es de solo 25 MiB.
 
-En cualquier momento de 10 segundos:
-- Código activo: ~5 MiB (render engine, JavaScript VM)
-- Datos activos: ~20 MiB (página actual, imágenes visibles)
-- Total activo: ~25 MiB
-
-Ratio: 25/550 = 4.5% del espacio en uso activo
-→ Localidad hace viable ejecutar con poca RAM
-```
+El ratio es revelador: 25/550 = 4.5% del espacio total está en uso activo. La localidad hace viable ejecutar este navegador con mucha menos RAM de la que su tamaño total sugeriría.
 
 ### Working Set
 
-\begin{excerpt}
-\emph{Working Set (Conjunto de Trabajo):}
-El conjunto de páginas que un proceso está usando activamente en un intervalo de tiempo dado. Es el "tamaño mínimo de RAM" que el proceso necesita para ejecutar eficientemente.
-\end{excerpt}
+Este concepto de "conjunto activo" se formaliza en la noción de *working set*.
 
-```
-Working set de un proceso:
-t = 0-5s:   {páginas 0,1,2,5,7}     → 5 páginas
-t = 5-10s:  {páginas 0,1,2,3,8}     → 5 páginas
-t = 10-15s: {páginas 0,1,10,11,12}  → 5 páginas
+\begin{highlight}
+El \textbf{working set} (conjunto de trabajo) es el conjunto de páginas que un proceso está usando activamente en un intervalo de tiempo dado. Representa el "tamaño mínimo de RAM" que el proceso necesita para ejecutar eficientemente.
+\end{highlight}
 
-Si le damos < 5 páginas de RAM:
-→ Page faults continuos (thrashing)
+El working set cambia con el tiempo a medida que el proceso pasa por diferentes fases de ejecución. Por ejemplo, en los primeros 5 segundos, un proceso podría tener un working set de las páginas {0,1,2,5,7}. En los siguientes 5 segundos, el working set podría ser {0,1,2,3,8}. Y en los siguientes 5 segundos, {0,1,10,11,12}.
 
-Si le damos ≥ 5 páginas de RAM:
-→ Funciona bien
-```
+La clave está en el tamaño del working set. Si le damos al proceso menos páginas de RAM que su working set, tendremos page faults continuos, una condición conocida como *thrashing* que estudiaremos más adelante. Si le damos al proceso suficientes páginas para cubrir su working set (en este ejemplo, 5 páginas o más), funcionará eficientemente.
 
-\textcolor{teal!60!black}{\textbf{Importancia del working set:}\\
-- El SO intenta estimar el working set de cada proceso\\
-- Asigna suficientes marcos para cubrirlo\\
-- Si no puede: suspende procesos (prevenir thrashing)\\
-- Algoritmos como Working Set y PFF se basan en esto\\
-}
+\begin{infobox}
+\textbf{Importancia del working set:}
+
+El sistema operativo intenta estimar continuamente el working set de cada proceso. Asigna suficientes marcos de RAM para cubrirlo, permitiendo que el proceso ejecute sin thrashing. Si el sistema no puede satisfacer los working sets de todos los procesos activos, debe suspender algunos procesos temporalmente para prevenir el colapso del rendimiento. Algoritmos avanzados como Working Set y PFF (Page Fault Frequency) se basan explícitamente en esta idea.
+\end{infobox}
 
 ### ¿Por Qué Funciona en Práctica?
 
-**Razones del principio de localidad:**
+El principio de localidad no es un accidente: surge naturalmente de cómo escribimos y estructuramos programas. Existen varias razones fundamentales por las cuales los programas exhiben localidad.
 
-1. **Estructura de programas:**
-   - Código organizado en funciones (localidad temporal de funciones activas)
-   - Datos en arrays/estructuras (localidad espacial)
+Primero, la estructura misma de los programas promueve localidad. El código se organiza en funciones, y las funciones activas en cualquier momento dado son relativamente pocas (localidad temporal de funciones). Los datos se organizan en arrays y estructuras, promoviendo accesos cercanos en memoria (localidad espacial).
 
-2. **Bucles:**
-   - Las instrucciones del bucle se ejecutan repetidamente
-   - Variables del bucle se acceden repetidamente
+Los bucles son particularmente importantes para la localidad. Las instrucciones dentro del bucle se ejecutan repetidamente, permaneciendo "calientes" en las cachés y en RAM. Las variables utilizadas en el bucle se acceden miles o millones de veces sin moverse de su ubicación en memoria.
 
-3. **Llamadas a funciones:**
-   - Una función activa usa su stack frame repetidamente
-   - Retorno a caller → vuelve a código anterior
+Las llamadas a funciones también contribuyen a la localidad. Mientras una función está activa, usa repetidamente su stack frame, que permanece en la misma región de memoria. Cuando la función retorna al caller, volvemos a código que ya estaba en memoria.
 
-4. **Acceso secuencial:**
-   - Archivos se leen/escriben secuencialmente
-   - Arrays se procesan elemento por elemento
+El acceso secuencial a datos es omnipresente en programación. Los archivos típicamente se leen o escriben secuencialmente, y los arrays se procesan elemento por elemento. La organización natural de datos también ayuda: las estructuras agrupan datos relacionados que se acceden juntos, y objetos relacionados tienden a alocarse cerca en memoria.
 
-5. **Organización de datos:**
-   - Structs agrupan datos relacionados
-   - Objetos relacionados se alocan cerca en memoria
+#### Contraejemplo: Programa SIN localidad
 
-**Contraejemplo: Programa SIN localidad**
+Consideremos un programa patológico que accede memoria completamente al azar:
 
 ```c
 // Programa patológico: acceso completamente aleatorio
@@ -738,61 +516,33 @@ int main() {
 }
 ```
 
-Este programa tendría un rendimiento ~1000x peor que uno con acceso secuencial.
+Este programa tendría un rendimiento ~1000 veces peor que uno con acceso secuencial, porque viola completamente el principio de localidad. Cada acceso aleatorio tiene alta probabilidad de ir a una página diferente, generando page faults constantes.
 
 ## Demand Paging vs Prepaging
 
-Cuando se carga un proceso en memoria, ¿cargamos todas sus páginas inmediatamente o esperamos a que se necesiten?
+Ahora que entendemos el principio de localidad, podemos explorar las estrategias que usa el sistema operativo para decidir cuándo cargar páginas en memoria. La pregunta fundamental es: cuando se carga un proceso, ¿cargamos todas sus páginas inmediatamente o esperamos a que se necesiten?
 
 ### Demand Paging (Paginación Bajo Demanda)
 
-\begin{excerpt}
-\emph{Demand Paging:}
-Política donde las páginas se cargan en memoria SOLO cuando se referencian por primera vez, generando un page fault. Es la estrategia más común en sistemas modernos.
-\end{excerpt}
+La estrategia más común en sistemas modernos es *demand paging*, donde las páginas se cargan en memoria solo cuando se referencian por primera vez, generando un page fault.
 
-**Funcionamiento:**
+\begin{highlight}
+En demand paging, las páginas se cargan en memoria SOLO cuando se referencian por primera vez, generando un page fault. Es la estrategia más común en sistemas modernos.
+\end{highlight}
 
-```
-Proceso recién creado:
-┌─────────────────────────┐
-│ Tabla de Páginas        │
-├────┬───────┬───┬────────┤
-│Pág │ Marco │ P │ Estado │
-├────┼───────┼───┼────────┤
-│ 0  │   -   │ 0 │ No cargada│
-│ 1  │   -   │ 0 │ No cargada│
-│ 2  │   -   │ 0 │ No cargada│
-│... │   -   │ 0 │ No cargada│
-└────┴───────┴───┴────────┘
-TODAS las páginas P=0 al inicio
+Cuando se crea un proceso nuevo, su tabla de páginas se inicializa con todas las entradas marcadas como no presentes (P=0). Ninguna página está en RAM inicialmente. La primera instrucción del programa intentará acceder a la página 0 (código), generando un page fault. El sistema operativo maneja este fault cargando la página 0 desde el archivo ejecutable y marcándola como presente (P=1).
 
-Primera instrucción: acceso a página 0
-→ Page fault → SO carga página 0
-→ P=1
+A medida que el programa continúa ejecutando, cada nueva página que accede genera su propio page fault inicial. El acceso a datos genera page faults para las páginas del heap y el stack. Gradualmente, el working set del proceso se carga en memoria, pero solo las páginas realmente necesarias.
 
-Acceso a datos: acceso a página 1
-→ Page fault → SO carga página 1
-→ P=1
+Las ventajas de demand paging son significativas. Solo se cargan páginas realmente necesarias, ahorrando tanto memoria como tiempo de I/O. El startup es rápido porque no esperamos a cargar todo el programa. Las páginas que nunca se usan (como código de manejo de errores raros) nunca se cargan, ahorrando recursos valiosos. Esto permite ejecutar programas más grandes que la RAM disponible.
 
-...y así sucesivamente
-```
+\begin{warning}
+\textbf{Desventajas de demand paging:}
 
-\textcolor{teal!60!black}{\textbf{Ventajas de demand paging:}\\
-- Solo se cargan páginas realmente necesarias\\
-- Startup rápido (no espera a cargar todo)\\
-- Ahorro de memoria (páginas no usadas nunca se cargan)\\
-- Permite ejecutar programas más grandes que RAM\\
-}
+El inicio del programa genera muchos page faults (cold start), causando latencia inicial. La latencia en la primera referencia a cada página es impredecible, lo que puede ser problemático para aplicaciones de tiempo real. Cada página nueva implica el overhead completo de un page fault, incluyendo la interrupción, el context switch, y la I/O de disco.
+\end{warning}
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Muchos page faults al inicio (cold start)\\
-- Latencia impredecible en primera referencia\\
-- Overhead por cada página nueva\\
-}
-
-**Ejemplo práctico:**
-
+Un ejemplo práctico ilustra cómo funciona esto.
 ```c
 // Programa de 100 páginas
 int main() {
@@ -810,87 +560,45 @@ int main() {
     return 0;
 }
 ```
+Cuando comienza a ejecutar, llama a `funcion_principal()`, lo que carga las páginas 0-5 de código. Ahora tenemos 6 páginas en RAM. Si hay un `if (condicion_rara)` que casi nunca se evalúa como verdadero, las páginas 50-55 que contienen `funcion_rara()` nunca se cargan. Al final de la ejecución, solo unas 10-20 páginas fueron cargadas de las 100 totales.
 
 ### Prepaging (Paginación Anticipada)
 
-\begin{excerpt}
-\emph{Prepaging:}
-Política donde el SO intenta predecir qué páginas se necesitarán pronto y las carga anticipadamente, antes de que se generen page faults.
-\end{excerpt}
+Una alternativa es *prepaging*, donde el sistema operativo intenta predecir qué páginas se necesitarán pronto y las carga anticipadamente, antes de que se generen page faults.
 
-**Estrategias de prepaging:**
+\begin{highlight}
+En prepaging, el SO intenta predecir qué páginas se necesitarán pronto y las carga anticipadamente, antes de que se generen page faults.
+\end{highlight}
 
-1. **Cargar páginas contiguas:**
-   ```
-   Se accede página 5
-   → Page fault
-   → SO carga página 5
-   → SO también carga páginas 6, 7, 8 (anticipando acceso secuencial)
-   ```
+Existen varias estrategias de prepaging. Una es cargar páginas contiguas: cuando se accede a la página 5 y se genera un page fault, el SO carga no solo la página 5 sino también las páginas 6, 7 y 8, anticipando acceso secuencial debido a la localidad espacial.
 
-2. **Histórico de acceso:**
-   ```
-   El proceso siempre accede páginas: 0 → 1 → 5 → 10
-   → Al cargar, traer ese conjunto completo
-   ```
+Otra estrategia usa el histórico de acceso. Si el SO observa que un proceso siempre accede las páginas en el orden 0 → 1 → 5 → 10, al cargar el proceso puede traer ese conjunto completo desde el principio.
 
-3. **Working set previo:**
-   ```
-   Proceso se suspende con páginas {0,1,2,5,7} en RAM
-   → Al reanudar, cargar ese working set completo
-   ```
+Una tercera estrategia aprovecha el working set previo. Cuando un proceso se suspende con las páginas {0,1,2,5,7} en RAM, al reanudarlo el SO puede cargar ese working set completo, asumiendo que será necesario nuevamente.
 
-\textcolor{teal!60!black}{\textbf{Ventajas de prepaging:}\\
-- Reduce page faults si la predicción es correcta\\
-- Mejor rendimiento para patrones predecibles\\
-- Útil al reanudar procesos suspendidos\\
-}
+Las ventajas de prepaging son claras cuando la predicción es correcta. Se reducen los page faults durante la ejecución, mejorando el rendimiento para patrones predecibles. Es particularmente útil al reanudar procesos que fueron suspendidos, ya que podemos restaurar su working set previo.
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Si la predicción falla: desperdicio de I/O y memoria\\
-- Más complejo de implementar\\
-- Puede cargar páginas que nunca se usan\\
-}
+\begin{warning}
+\textbf{Desventajas de prepaging:}
 
-### Comparación
+Si la predicción falla, desperdiciamos I/O y memoria cargando páginas que nunca se usan. La implementación es más compleja que demand paging simple, requiriendo mantener estadísticas y hacer predicciones. El trade-off fundamental es: prepaging solo vale la pena si la predicción es correcta más del 80\% del tiempo.
+\end{warning}
 
-| Aspecto | Demand Paging | Prepaging |
-|---------|---------------|-----------|
-| Carga inicial | Nada | Conjunto predicho |
-| Page faults | Más frecuentes | Menos (si predicción OK) |
-| Uso de memoria | Óptimo | Puede desperdiciar |
-| Complejidad | Simple | Compleja |
-| Uso en SO reales | Mayoritario | Casos específicos |
-
-**Uso en sistemas reales:**
-
-- **Linux:** Principalmente demand paging, con prepaging limitado
-  - Readahead para archivos secuenciales
-  - Cargar páginas de código contiguas
-
-- **Windows:** Similar, demand paging + prefetch
-  - Almacena patrones de inicio de aplicaciones
-  - Precarga páginas según histórico
-
-\textcolor{orange!70!black}{\textbf{Trade-off fundamental:}\\
-Prepaging apuesta: "el costo de cargar páginas extra\\
-es menor que el costo de múltiples page faults"\\
-\\
-Solo vale la pena si la predicción es correcta > 80\\% del tiempo.\\
-}
+En sistemas operativos reales, vemos mayormente demand paging con prepaging limitado en casos específicos. Linux usa principalmente demand paging, pero implementa *readahead* para archivos que se acceden secuencialmente, y carga páginas de código contiguas cuando detecta ejecución secuencial. Windows es similar, usando demand paging como base pero con un sistema de *prefetch* que almacena patrones de inicio de aplicaciones y precarga páginas según el histórico de arranques previos.
 
 ## Shared Pages y Técnicas Avanzadas
 
+Hasta ahora hemos considerado principalmente las páginas como recursos privados de cada proceso. Sin embargo, algunos de los usos más poderosos de la memoria virtual involucran compartir páginas entre múltiples procesos de manera eficiente y segura.
+
 ### Copy-on-Write (COW)
 
-Copy-on-Write es una optimización crucial que hace viable la operación `fork()` en sistemas Unix/Linux.
+Copy-on-Write es una optimización crucial que hace viable la operación `fork()` en sistemas Unix/Linux. Sin esta técnica, crear un proceso hijo sería prohibitivamente costoso.
 
-\begin{excerpt}
-\emph{Copy-on-Write (COW):}
-Técnica donde múltiples procesos comparten las mismas páginas físicas de memoria mientras sean solo lectura. Al intentar escribir, se crea una copia privada de la página para ese proceso.
-\end{excerpt}
+\begin{highlight}
+Copy-on-Write (COW) es una técnica donde múltiples procesos comparten las mismas páginas físicas de memoria mientras sean solo lectura. Al intentar escribir, se crea una copia privada de la página para ese proceso.
+\end{highlight}
 
-**Problema sin COW:**
+Para entender el problema que resuelve COW, consideremos qué pasaría sin esta optimización.
 
 ```c
 pid_t pid = fork();
@@ -901,7 +609,9 @@ pid_t pid = fork();
 // → Desperdicio si el hijo hace exec() inmediatamente
 ```
 
-**Solución con COW:**
+Cuando un proceso hace `fork()`, el sistema operativo tendría que copiar todas las páginas del padre. Si el padre tiene 100 MiB en RAM, copiar todo tomaría aproximadamente 100 milisegundos. Esto sería un desperdicio enorme, especialmente considerando que el caso más común es que el hijo haga `exec()` inmediatamente, reemplazando todo su espacio de direcciones.
+
+La solución con COW es elegante. Antes del `fork()`, el proceso padre tiene sus páginas marcadas como lectura-escritura (RW). Después del `fork()`, tanto el padre como el hijo tienen tablas de páginas que apuntan a los mismos marcos físicos, pero ahora marcados como solo lectura (R/O). Ambos procesos comparten la memoria física sin copiarla.
 
 ```
 ANTES del fork():
@@ -926,7 +636,7 @@ Proceso Padre:              Proceso Hijo:
 Ambos comparten marcos 5 y 8 (pero en modo solo lectura)
 ```
 
-**¿Qué pasa cuando el hijo escribe?**
+El momento crítico ocurre cuando uno de los procesos intenta escribir. Supongamos que el hijo ejecuta `x = 20`, intentando modificar una variable.
 
 ```c
 // Proceso hijo
@@ -935,17 +645,11 @@ int main() {
     x = 20;      // INTENTO DE ESCRITURA
     
     // → Page fault (intento de escritura en página R/O)
-    // → SO detecta que es COW
-    // → SO asigna nuevo marco (ej: marco 12)
-    // → SO copia contenido de marco 8 → marco 12
-    // → Actualiza tabla hijo: página 1 → marco 12, W=1
-    // → Retry: escritura exitosa en nuevo marco privado
     
     return 0;
 }
 ```
-
-**Estado después de la escritura:**
+Esto genera un page fault porque la página está marcada como solo lectura. El sistema operativo detecta que no es un error sino un caso de COW. En respuesta, asigna un nuevo marco (digamos, el marco 12), copia el contenido del marco compartido a este nuevo marco, actualiza la tabla del hijo para apuntar al nuevo marco con permisos de escritura, y finalmente reintenta la instrucción, que ahora tiene éxito.
 
 ```
 Proceso Padre:              Proceso Hijo:
@@ -956,34 +660,30 @@ Proceso Padre:              Proceso Hijo:
 │ 1  │   8   │ 1 │ 1 │ 0 │ │ 1  │  12   │ 1 │ 1 │ 1 │  Ahora privada!
 └────┴───────┴───┴───┴───┘ └────┴───────┴───┴───┴───┘
 ```
+\begin{example}
+\textbf{Estadísticas reales de COW:}
 
-\textcolor{teal!60!black}{\textbf{Ventajas de COW:}\\
-- fork() es casi instantáneo (no copia memoria)\\
-- Ahorra memoria si procesos no modifican páginas\\
-- Típico: hijo hace exec() → nunca copia nada\\
-- Solo se copian páginas realmente modificadas\\
-}
-
-**Estadísticas reales:**
-
-```
-fork() seguido de exec() (caso común):
+En el caso común de `fork()` seguido de `exec()`:
 - Sin COW: copiar 100 MiB → ~100 ms
-- Con COW: copiar 0 MiB → ~1 ms (solo estructuras SO)
+- Con COW: copiar 0 MiB → ~1 ms (solo estructuras del SO)
 
-fork() donde hijo modifica 10% de páginas:
+Cuando el hijo modifica el 10% de las páginas:
 - Sin COW: copiar 100 MiB → ~100 ms
 - Con COW: copiar 10 MiB bajo demanda → ~10 ms total
-```
+
+El ahorro es dramático en ambos casos.
+\end{example}
 
 ### Memory-Mapped Files
 
-\begin{excerpt}
-\emph{Memory-Mapped Files:}
-Técnica que mapea un archivo del disco directamente al espacio de direcciones virtual de un proceso, permitiendo acceder al archivo como si fuera un array en memoria.
-\end{excerpt}
+Memory-mapped files representan otra técnica poderosa que aprovecha la memoria virtual para simplificar el I/O y la compartición de datos.
 
-**Syscall principal: `mmap()`**
+\begin{highlight}
+Memory-mapped files mapean un archivo del disco directamente al espacio de direcciones virtual de un proceso, permitiendo acceder al archivo como si fuera un array en memoria.
+\end{highlight}
+
+La syscall principal es `mmap()`. Cuando mapeamos un archivo de 1 MiB, la llamada no carga el archivo completo inmediatamente. Solo configura las estructuras del sistema operativo para que las direcciones virtuales correspondan a bloques del archivo. Es otra forma de demand paging, pero usando el archivo como backing store en lugar del swap.
+
 
 ```c
 #include <sys/mman.h>
@@ -1027,7 +727,7 @@ int main() {
 }
 ```
 
-**¿Qué pasa internamente?**
+Internamente, después de `mmap()`, la tabla de páginas tiene todas las entradas con P=0, pero en lugar de apuntar al swap, cada entrada indica qué offset del archivo contiene los datos para esa página.
 
 ```
 Estado inicial (después de mmap):
@@ -1052,42 +752,23 @@ Escritura en página 0:
 → Marca M=1 (dirty)
 → Eventualmente SO escribe marco 5 → datos.bin:0
 ```
+Las ventajas de memory-mapped files son sustanciales. El I/O se simplifica dramáticamente: los archivos se tratan como arrays en memoria, eliminando las llamadas explícitas a `read()` y `write()`. La compartición entre procesos es fácil usando `MAP_SHARED`. El sistema operativo maneja el caché automáticamente, y se evitan copias entre user space y kernel space, mejorando el rendimiento.
 
-\textcolor{teal!60!black}{\textbf{Ventajas de memory-mapped files:}\\
-- I/O simplificado: archivos como arrays\\
-- Compartición fácil entre procesos (MAP\_SHARED)\\
-- SO maneja caché automáticamente\\
-- Evita copias entre user space y kernel space\\
-}
+\begin{example}
+\textbf{Casos de uso de memory-mapped files:}
 
-**Casos de uso:**
+Bases de datos: Mapean el archivo de BD completo y acceden a registros directamente sin `read/write`, permitiendo índices eficientes y acceso aleatorio rápido.
 
-1. **Bases de datos:**
-   ```c
-   // Mapear archivo de BD completo
-   // Acceder registros directamente sin read/write
-   ```
+Librerías compartidas (.so, .dll): Múltiples procesos mapean `libc.so`, compartiendo el código en RAM y ahorrando masivamente memoria.
 
-2. **Librerías compartidas (.so, .dll):**
-   ```
-   Múltiples procesos mapean libc.so
-   → Código compartido en RAM
-   → Ahorro masivo de memoria
-   ```
-
-3. **IPC (Inter-Process Communication):**
-   ```c
-   // Proceso A y B mapean mismo archivo
-   // Ambos ven cambios del otro (MAP_SHARED)
-   ```
+IPC (Inter-Process Communication): El proceso A y B mapean el mismo archivo con \texttt{MAP\_SHARED}, permitiendo que ambos vean los cambios del otro en tiempo real.
+\end{example}
 
 ### Shared Libraries
 
-Las librerías compartidas son un caso especial de shared pages.
+Las librerías compartidas son un caso especial particularmente importante de shared pages. Cuando tres procesos ejecutan programas que usan `libc`, sin compartición necesitaríamos tres copias completas de la librería en RAM. Con shared pages, los tres procesos apuntan a los mismos marcos físicos para el código de la librería.
 
 ```
-3 procesos ejecutando programas que usan libc:
-
 Proceso A:                Proceso B:                Proceso C:
 Tabla de Páginas         Tabla de Páginas         Tabla de Páginas
 ┌────┬───────┬───┐       ┌────┬───────┬───┐       ┌────┬───────┬───┐
@@ -1103,51 +784,27 @@ Tabla de Páginas         Tabla de Páginas         Tabla de Páginas
 Marcos 50-51: código de libc (compartido, R/O)
 Marcos 100,200,300: código privado de cada proceso
 ```
+Cada proceso tiene su propia tabla de páginas. Las páginas que contienen código privado del proceso apuntan a marcos únicos. Pero las páginas que contienen código de `libc` (marcadas como solo lectura) apuntan a los mismos marcos compartidos. Los marcos 50-51, por ejemplo, contienen código de `libc` y son compartidos por todos los procesos.
 
-\textcolor{blue!50!black}{\textbf{Ahorro de memoria:}\\
-Sin compartición: 3 procesos × 2 MiB libc = 6 MiB\\
-Con compartición: 3 procesos × 1 copia = 2 MiB\\
-Ahorro: 4 MiB (66\\%)\\
-\\
-En servidor con 100 procesos: ahorro de ~200 MiB\\
-}
+El ahorro de memoria es considerable. Sin compartición, tres procesos cada uno usando 2 MiB de `libc` consumirían 6 MiB de RAM. Con compartición, los tres procesos comparten una sola copia de 2 MiB, ahorrando 4 MiB (66%). En un servidor con 100 procesos, el ahorro puede alcanzar varios cientos de megabytes.
 
-### TLB Reach (Comentario Breve)
+### TLB Reach
 
-\begin{excerpt}
-\emph{TLB Reach:}
-Cantidad de memoria que puede ser mapeada por todas las entradas del TLB. Se calcula como: TLB Reach = (número de entradas TLB) × (tamaño de página).
-\end{excerpt}
+Un último concepto relacionado con el rendimiento de la memoria virtual es el *TLB reach*.
 
-**Ejemplo:**
+\begin{highlight}
+El TLB reach es la cantidad de memoria que puede ser mapeada por todas las entradas del TLB. Se calcula como: TLB Reach = (número de entradas TLB) × (tamaño de página).
+\end{highlight}
 
-```
-TLB con 64 entradas, páginas de 4 KiB:
-TLB Reach = 64 × 4 KiB = 256 KiB
+Un TLB con 64 entradas y páginas de 4 KiB tiene un reach de 256 KiB. Esto significa que si el working set del proceso es menor a 256 KiB, todas las traducciones estarán en el TLB con un hit rate cercano al 100%.
 
-Significado: si el working set del proceso es < 256 KiB,
-todas las traducciones estarán en TLB (hit rate ~100%)
-```
+El problema surge cuando el working set excede el TLB reach. Un proceso con working set de 1 MiB pero TLB reach de solo 256 KiB experimentará muchos TLB misses, degradando el rendimiento. La solución es usar páginas más grandes. Con páginas de 2 MiB (llamadas *huge pages*), el mismo TLB de 64 entradas tiene un reach de 128 MiB, suficiente para que el working set completo quepa en el TLB.
 
-**Optimización:**
+\begin{infobox}
+\textbf{Uso en sistemas reales:}
 
-```
-Problema: working set = 1 MiB, TLB reach = 256 KiB
-→ Muchos TLB misses
-→ Rendimiento degradado
-
-Solución: usar páginas más grandes
-Con páginas de 2 MiB (huge pages):
-TLB Reach = 64 × 2 MiB = 128 MiB
-→ Working set completo cabe en TLB
-→ Hit rate aumenta dramáticamente
-```
-
-\textcolor{blue!50!black}{\textbf{Uso en sistemas reales:}\\
-- Bases de datos usan huge pages (2 MiB o 1 GiB)\\
-- VMs usan páginas grandes para EPT (Extended Page Tables)\\
-- HPC (computación científica) usa páginas de 1 GiB\\
-}
+Las bases de datos modernas usan huge pages de 2 MiB o 1 GiB para reducir la presión sobre el TLB. Las máquinas virtuales usan páginas grandes para las Extended Page Tables (EPT), reduciendo el overhead de virtualización anidada. La computación de alto rendimiento (HPC) frecuentemente usa páginas de 1 GiB para grandes datasets científicos.
+\end{infobox}
 
 ## Algoritmos de Reemplazo de Páginas
 
