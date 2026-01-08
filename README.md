@@ -5,6 +5,14 @@ Un libro colaborativo de Sistemas Operativos diseñado específicamente para est
 
 [![📄 Descargar PDF](https://img.shields.io/github/v/release/dperalta86/Libro-Sistemas-Operativos?label=Descargar%20PDF&style=for-the-badge&color=blue)](https://github.com/dperalta86/Libro-Sistemas-Operativos/releases/latest/download/Introduccion_a_los_Sistemas_Operativos.pdf)
 
+## 📊 Estadísticas del proyecto
+
+![GitHub stars](https://img.shields.io/github/stars/dperalta86/Libro-Sistemas-Operativos?style=social)
+![GitHub forks](https://img.shields.io/github/forks/dperalta86/Libro-Sistemas-Operativos?style=social)
+![GitHub contributors](https://img.shields.io/github/contributors/dperalta86/Libro-Sistemas-Operativos)
+![GitHub last commit](https://img.shields.io/github/last-commit/dperalta86/Libro-Sistemas-Operativos)
+![Downloads](https://img.shields.io/github/downloads/dperalta86/Libro-Sistemas-Operativos/total?style=flat-square&label=Descargas%20totales)
+
 ## 🎯 Sobre este proyecto
 
 Este libro surge de la necesidad de contar con material didáctico específico para la cátedra de Sistemas Operativos. Está orientado a estudiantes que cursan la materia y buscan:
@@ -27,11 +35,11 @@ Este libro surge de la necesidad de contar con material didáctico específico p
 - [x] **Capítulo 6**: Interbloqueo (Deadlock)
 - [x] **Capítulo 7**: Gestión de Memoria Real
 - [x] **Capítulo 8**: Memoria Virtual
+- [x] **Capítulo 9**: Sistema de Archivos
+- [x] **Capítulo 10**: I/O - Gestión de Dispositivos
 
 ### En desarrollo
-
-- [ ] **Capítulo 9**: Sistema de Archivos
-
+- Modificar/Actualizar imagenes y diagramas
 
 ### Leer online
 
@@ -44,6 +52,8 @@ Puedes leer los capítulos individuales directamente en GitHub:
 - [Capítulo 6: Sincronización](src/capitulo-06.md)
 - [Capítulo 7: Memoria Real](src/capitulo-07.md)
 - [Capítulo 8: Memoria Virtual](src/capitulo-08.md)
+- [Capítulo 9: Sistemas de Archivos](src/capitulo-09.md)
+- [Capítulo 10: I/O - Gestión de Dispositivos](src/capitulo-10.md)
 
 ## 🔧 Compilación local
 
@@ -188,14 +198,6 @@ Las contribuciones ayudan a:
 - ☕ Motivar a los contribuidores con café durante las sesiones de escritura
 - 🎨 Contratar diseñadores para mejorar diagramas y visualizaciones
 - 📖 Imprimir copias físicas para bibliotecas de facultades
-
-## 📊 Estadísticas del proyecto
-
-![GitHub stars](https://img.shields.io/github/stars/dperalta86/Libro-Sistemas-Operativos?style=social)
-![GitHub forks](https://img.shields.io/github/forks/dperalta86/Libro-Sistemas-Operativos?style=social)
-![GitHub contributors](https://img.shields.io/github/contributors/dperalta86/Libro-Sistemas-Operativos)
-![GitHub last commit](https://img.shields.io/github/last-commit/dperalta86/Libro-Sistemas-Operativos)
-![Downloads](https://img.shields.io/github/downloads/dperalta86/Libro-Sistemas-Operativos/total?style=flat-square&label=Descargas%20totales)
 
 ## 💬 Comunidad y Soporte
 
