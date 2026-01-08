@@ -808,16 +808,17 @@ Las bases de datos modernas usan huge pages de 2 MiB o 1 GiB para reducir la pre
 
 ## Algoritmos de Reemplazo de Páginas
 
-Cuando ocurre un page fault y no hay marcos libres, el SO debe seleccionar una página "víctima" para reemplazar. El algoritmo de reemplazo determina QUÉ página sacar de RAM.
+Cuando ocurre un page fault y no hay marcos libres en RAM, el sistema operativo enfrenta una decisión crítica: debe seleccionar una página "víctima" para reemplazar. Esta decisión puede tener un impacto dramático en el rendimiento del sistema. Los algoritmos de reemplazo son las políticas que guían esta decisión.
 
 ### Objetivo del Algoritmo de Reemplazo
 
-\begin{excerpt}
-\emph{Algoritmo de Reemplazo:}
-Política que selecciona cuál página residente en RAM será reemplazada cuando se necesita cargar una nueva página y no hay marcos libres. El objetivo es minimizar la tasa de page faults.
-\end{excerpt}
+El propósito fundamental de cualquier algoritmo de reemplazo es minimizar la tasa de page faults. Cuantos menos page faults ocurran, menos veces tendremos que acceder al disco, y mejor será el rendimiento del sistema.
 
-**Métrica clave: Page Fault Rate**
+\begin{highlight}
+Un algoritmo de reemplazo es una política que selecciona cuál página residente en RAM será reemplazada cuando se necesita cargar una nueva página y no hay marcos libres. El objetivo es minimizar la tasa de page faults.
+\end{highlight}
+
+La métrica clave para evaluar estos algoritmos es la *page fault rate*, que se calcula como el número de page faults dividido por el número total de referencias a memoria.
 
 ```
 Page Fault Rate = (Número de page faults) / (Número total de referencias)
@@ -827,110 +828,70 @@ Secuencia de 20 referencias, 5 page faults
 PF Rate = 5/20 = 0.25 = 25%
 ```
 
+La métrica clave para evaluar estos algoritmos es la *page fault rate*, que se calcula como el número de page faults dividido por el número total de referencias a memoria. Por ejemplo, si en una secuencia de 20 referencias ocurren 5 page faults, la tasa es 5/20 = 0.25 o 25%. Cuanto menor sea este número, mejor está funcionando el algoritmo.
+
 ### FIFO (First-In-First-Out)
 
-El algoritmo más simple: reemplazar la página que lleva más tiempo en memoria.
+El algoritmo más simple es FIFO: reemplazar la página que lleva más tiempo en memoria. La intuición es que las páginas "viejas" probablemente ya no se necesitan.
 
-**Implementación:** Cola circular, la página más antigua está al frente.
+La implementación usa una cola circular donde la página más antigua está al frente. Cuando se necesita una víctima, simplemente se toma la página del frente de la cola. Cuando se carga una nueva página, se agrega al final de la cola.
 
 ```
 Estructura:
 ┌─────┬─────┬─────┬─────┐
 │ Pág │ Pág │ Pág │ Pág │
-│  5  │  2  │  9  │  1  │
+│  5  │   2  │  9  │  1  │
 └─────┴─────┴─────┴─────┘
   ↑                   ↑
 Oldest              Newest
 (víctima)
 ```
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Muy simple de implementar\\
-- Complejidad O(1) para encontrar víctima\\
-- Bajo overhead\\
-}
+Las ventajas de FIFO son claras: es muy simple de implementar, encontrar la víctima tiene complejidad O(1), y el overhead es mínimo. Sin embargo, tiene desventajas significativas. No considera la frecuencia de uso de las páginas, por lo que puede reemplazar páginas que se usan constantemente. Peor aún, sufre de la *anomalía de Belady*, un fenómeno contraintuitivo donde agregar más marcos puede aumentar los page faults en lugar de reducirlos.
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- No considera frecuencia de uso\\
-- Puede reemplazar páginas muy usadas\\
-- Sufre de anomalía de Belady (¡más marcos → más PF!)\\
-}
+\begin{warning}
+\textbf{Desventajas de FIFO:}
+
+FIFO no considera cuán frecuentemente se usa una página. Puede reemplazar páginas críticas que se acceden constantemente, simplemente porque fueron cargadas hace tiempo. Además, sufre de la anomalía de Belady: en ciertos patrones de acceso, ¡agregar más marcos aumenta los page faults en lugar de reducirlos!
+\end{warning}
 
 ### Óptimo (OPT o MIN)
 
-Algoritmo teórico propuesto por Belady: reemplazar la página que NO se usará por más tiempo en el futuro.
+\begin{highlight}
+El algoritmo óptimo fue propuesto por Belady como una referencia teórica. La idea es reemplazar la página cuya próxima referencia está más lejana en el futuro, o que nunca será referenciada nuevamente.
+\end{highlight}
 
-\begin{excerpt}
-\emph{Algoritmo Óptimo:}
-Selecciona como víctima la página cuya próxima referencia está más lejana en el futuro, o que nunca será referenciada nuevamente.
-\end{excerpt}
+Este algoritmo tiene una propiedad importante: garantiza la menor cantidad posible de page faults para cualquier secuencia de referencias dada. Es, por definición, el mejor algoritmo posible.
 
-\textcolor{orange!70!black}{\textbf{¿Por qué no se usa en la práctica?}\\
-Requiere conocer el futuro (secuencia completa de referencias)\\
-→ Imposible en sistemas reales\\
-\\
-¿Entonces para qué sirve?\\
-→ Como REFERENCIA para comparar otros algoritmos\\
-→ "¿Cuán cerca está mi algoritmo del óptimo?"\\
-}
+Pero hay un problema fundamental: este algoritmo requiere conocer el futuro, es decir, necesita saber de antemano toda la secuencia de referencias que el programa hará. Esto es imposible en sistemas reales. Entonces, ¿para qué sirve? El algoritmo óptimo se usa como referencia para comparar otros algoritmos. Nos permite responder: "¿cuán cerca está mi algoritmo práctico del mejor algoritmo posible?"
 
-**Propiedad:** OPT garantiza la menor cantidad posible de page faults para una secuencia dada.
+\begin{infobox}
+\textbf{¿Por qué estudiamos el algoritmo óptimo si es imposible implementarlo?}
+
+Aunque no podemos usarlo en la práctica, el algoritmo óptimo es invaluable como punto de referencia. Nos da una cota inferior: sabemos que ningún algoritmo puede tener menos page faults que el óptimo para una secuencia dada. Esto nos permite evaluar cuán buenos son los algoritmos prácticos, midiendo qué tan cerca están del óptimo.
+\end{infobox}
 
 ### LRU (Least Recently Used)
 
-Aproximación práctica al óptimo: reemplazar la página que NO se ha usado por más tiempo en el pasado.
+LRU es una aproximación práctica al algoritmo óptimo. La idea se basa en la localidad temporal: si el óptimo mira hacia el futuro, LRU mira hacia el pasado. Reemplaza la página cuyo último acceso fue el más lejano en el tiempo.
 
-\begin{excerpt}
-\emph{LRU (Least Recently Used):}
-Selecciona como víctima la página cuyo último acceso fue el más lejano en el pasado. Se basa en la observación de que páginas recientemente usadas probablemente se usarán pronto (localidad temporal).
-\end{excerpt}
+\begin{highlight}
+LRU (Least Recently Used) selecciona como víctima la página cuyo último acceso fue el más lejano en el pasado. Se basa en la observación de que páginas recientemente usadas probablemente se usarán pronto (localidad temporal).
+\end{highlight}
 
-**Implementación ideal:** Timestamp en cada acceso
+En una implementación ideal, cada marco tendría un timestamp que se actualiza en cada acceso. Para encontrar la víctima, buscamos el marco con el timestamp más antiguo. Por ejemplo, si tenemos páginas con timestamps t=100, t=250, t=180, y t=300, la víctima sería la página con t=100.
 
-```
-Marcos en RAM:
-┌────┬────────────────┐
-│Pág │ Último acceso  │
-├────┼────────────────┤
-│ 5  │ t=100          │ ← Víctima (acceso más antiguo)
-│ 2  │ t=250          │
-│ 9  │ t=180          │
-│ 1  │ t=300          │ ← Más reciente
-└────┴────────────────┘
-```
+LRU tiene ventajas significativas. Su rendimiento es bueno en la práctica, explota efectivamente la localidad temporal, y en muchos casos está muy cerca del algoritmo óptimo. Sin embargo, la implementación exacta es costosa. Necesitamos actualizar un timestamp en cada acceso a memoria, no solo en page faults. Buscar el mínimo tiene complejidad O(n) donde n es el número de marcos. Peor aún, cada acceso a memoria generaría una escritura adicional para actualizar el timestamp, duplicando efectivamente el tráfico de memoria.
 
-\textcolor{teal!60!black}{\textbf{Ventajas:}\\
-- Buen rendimiento en práctica\\
-- Explota localidad temporal\\
-- Cercano al óptimo en muchos casos\\
-}
+\begin{warning}
+\textbf{Problema de implementar LRU exacto:}
 
-\textcolor{red!60!gray}{\textbf{Desventajas:}\\
-- Costoso: actualizar timestamp en CADA acceso a memoria\\
-- Buscar mínimo: O(n) donde n = número de marcos\\
-- Implementación exacta es impráctica\\
-}
-
-**Problema de implementación exacta:**
-
-```
-Cada acceso a memoria requiere:
-1. Traducir dirección (MMU) ← OK, es hardware
-2. Actualizar timestamp  ← PROBLEMA: requiere escribir a RAM
-3. Acceder dato real      ← el acceso original
-
-→ CADA acceso a memoria genera un WRITE adicional
-→ Duplica el tráfico de memoria
-→ Inaceptable
-```
-
-Por eso se usan **aproximaciones** de LRU: Clock y Clock-M.
+Cada acceso a memoria requiere tres operaciones: traducir la dirección (MMU), actualizar el timestamp (¡escritura adicional!), y acceder al dato real. Esto significa que cada lectura genera también una escritura para el timestamp. El resultado es que duplicamos el tráfico de memoria, lo cual es inaceptable. Por eso se usan aproximaciones de LRU como Clock y Clock-M.
+\end{warning}
 
 ### Clock (Second Chance)
 
-Aproximación eficiente de LRU usando un bit de referencia.
-
-**Estructura:** Los marcos se organizan en un anillo circular con un puntero ("manecilla del reloj").
+Clock es una aproximación eficiente de LRU que usa un solo bit de referencia en lugar de timestamps. Los marcos se organizan conceptualmente en un anillo circular con un puntero (la "manecilla del reloj") que se mueve alrededor del anillo.
 
 ```
         ┌──────┐
@@ -947,106 +908,62 @@ Aproximación eficiente de LRU usando un bit de referencia.
         └──────┘
 ```
 
-**Algoritmo:**
+El algoritmo funciona de la siguiente manera. Cuando se busca una víctima, examinamos la página actual (donde apunta el puntero). Si su bit U (uso/referencia) está en 1, le damos una "segunda oportunidad": ponemos U=0, avanzamos el puntero, y continuamos. Si U está en 0, esta página es la víctima: la reemplazamos y avanzamos el puntero.
 
-```
-Al buscar víctima:
-1. Examinar página actual (donde apunta el puntero)
-2. Si U=1:
-   - Dar "segunda oportunidad": U=0
-   - Avanzar puntero
-   - Continuar
-3. Si U=0:
-   - Esta es la víctima
-   - Reemplazar
-   - Avanzar puntero
-```
+El bit U es manejado por el hardware y el software cooperativamente. El hardware lo pone en 1 automáticamente cada vez que se accede a la página (ya sea lectura o escritura). El algoritmo Clock lo pone en 0 cuando da la segunda oportunidad.
 
-**El bit U "uso" (R - Referenced):**
-- Hardware lo pone en 1 cada vez que se accede la página
-- El algoritmo lo pone en 0 al dar segunda oportunidad
+La intuición es simple pero efectiva. Una página con U=1 está diciendo "he sido usada recientemente, dame otra oportunidad". Una página con U=0 está diciendo "no he sido usada desde la última inspección". Esto aproxima LRU: las páginas no usadas recientemente tienen más probabilidad de tener U=0 y ser eliminadas primero.
 
-\textcolor{blue!50!black}{\textbf{Intuición:}\\
-- U=1: "He sido usada recientemente, dame otra chance"\\
-- U=0: "No he sido usada desde la última inspección"\\
-→ Aproxima LRU: páginas no usadas se eliminan primero\\
-}
+\begin{example}
+\textbf{Funcionamiento de Clock:}
+
+Supongamos que necesitamos una víctima y el puntero está en una página con U=1. Le damos segunda oportunidad (U=0), avanzamos el puntero a la siguiente página. Si esta también tiene U=1, repetimos el proceso. Eventualmente encontraremos una página con U=0, que será nuestra víctima. En el peor caso, damos la vuelta completa al anillo, reseteando todos los bits U a 0, y la segunda vuelta garantiza encontrar una víctima.
+\end{example}
 
 ### Clock-M (Clock Mejorado / Enhanced Second Chance)
 
-Versión mejorada de Clock que considera tanto el bit U (Referenced) como el bit M (Modified/Dirty).
+Clock-M es una versión mejorada del algoritmo Clock que considera tanto el bit U (Referenced) como el bit M (Modified/Dirty). Esta consideración adicional puede reducir significativamente el overhead de I/O.
 
-\begin{excerpt}
-\emph{Clock-M (Clock Mejorado):}
-Extensión del algoritmo Clock que usa los bits U y M para clasificar páginas en 4 categorías de prioridad para reemplazo. Prefiere reemplazar páginas no modificadas para evitar escrituras a disco.
-\end{excerpt}
+\begin{highlight}
+Clock-M (Clock Mejorado) es una extensión del algoritmo Clock que usa los bits U y M para clasificar páginas en 4 categorías de prioridad para reemplazo. Prefiere reemplazar páginas no modificadas para evitar escrituras a disco.
+\end{highlight}
 
-**Clasificación de páginas:**
+Las páginas se clasifican en cuatro clases según sus bits:
 
-| Clase | U | M | Descripción | Prioridad Reemplazo |
-|-------|---|---|-------------|---------------------|
-| 0     | 0 | 0 | No usada, no modificada | Mejor víctima |
-| 1     | 0 | 1 | No usada, modificada | Segunda opción |
-| 2     | 1 | 0 | Usada, no modificada | Tercera opción |
-| 3     | 1 | 1 | Usada y modificada | Peor víctima |
+- **Clase 0 (U=0, M=0):** No usada recientemente y no modificada. Esta es la mejor víctima posible.
+- **Clase 1 (U=0, M=1):** No usada recientemente pero modificada. Segunda mejor opción.
+- **Clase 2 (U=1, M=0):** Usada recientemente pero no modificada. Tercera opción.
+- **Clase 3 (U=1, M=1):** Usada recientemente y modificada. La peor víctima.
 
-**¿Por qué considerar M?**
+La razón para esta clasificación está en el costo de reemplazo. Reemplazar una página dirty (M=1) requiere escribirla a disco antes de descartarla, lo que toma aproximadamente 10 ms en un disco duro tradicional. Luego debemos leer la nueva página, otros 10 ms, para un total de 20 ms. Por otro lado, reemplazar una página clean (M=0) no requiere escritura: simplemente la descartamos y leemos la nueva página (10 ms). Es 50% más rápido.
 
-\textcolor{orange!70!black}{\textbf{Costo de reemplazar página dirty (M=1):}\\
-1. Escribir página a disco (~10 ms con HDD)\\
-2. Leer nueva página de disco (~10 ms)\\
-Total: ~20 ms\\
-\\
-Costo de reemplazar página clean (M=0):\\
-1. Descartar página (no escribir nada)\\
-2. Leer nueva página (~10 ms)\\
-Total: ~10 ms\\
-→ 50\\% más rápido\\
-}
+El algoritmo Clock-M puede hacer hasta cuatro vueltas alrededor del anillo:
 
-**Algoritmo Clock-M (las 4 vueltas):**
+**Vuelta 1:** Buscar clase 0 (U=0, M=0) sin modificar ningún bit. Si existe una página no usada y no modificada, la encontraremos rápidamente.
 
-```
-Búsqueda de víctima (hasta 4 pasadas):
+**Vuelta 2:** Buscar clase 1 (U=0, M=1) sin modificar bits. Si no había clase 0, buscamos páginas no usadas pero dirty.
 
-Vuelta 1: Buscar clase 0 (U=0, M=0)
-- Examinar páginas sin modificar U
-- Si encuentra (U=0, M=0): ¡víctima encontrada!
-- Si no: continuar vuelta 2
+**Vuelta 3:** Buscar clase 0 nuevamente, pero ahora SÍ modificando U. En cada página con U=1, la ponemos en U=0 (segunda oportunidad). Si encontramos U=0, M=0, la tomamos.
 
-Vuelta 2: Buscar clase 1 (U=0, M=1)
-- Examinar páginas sin modificar U
-- Si encuentra (U=0, M=1): víctima encontrada
-- Si no: continuar vuelta 3
+**Vuelta 4:** Buscar clase 1 modificando U. En este punto, todas las páginas que tenían U=1 ahora tienen U=0. Tomamos la primera página con M=1 que encontremos.
 
-Vuelta 3: Buscar clase 0 nuevamente (U=0, M=0)
-- Ahora SÍ modificar U: U=1 → U=0
-- Si encuentra (U=0, M=0): víctima encontrada
-- Si no: continuar vuelta 4
+\begin{theory}
+\textbf{Lógica de las cuatro vueltas de Clock-M:}
 
-Vuelta 4: Buscar clase 1 (U=0, M=1)
-- Modificar U: U=1 → U=0
-- Tomar la primera página (U=0, M=1) que encuentre
-```
+Las vueltas 1 y 2 intentan encontrar una víctima sin dar segundas oportunidades. Si existe una página de clase 0 o 1, la encontraremos rápidamente sin resetear bits U. Esto es eficiente para el caso común.
 
-\textcolor{blue!50!black}{\textbf{Lógica de las 4 vueltas:}\\
-Vueltas 1-2: Intentar encontrar víctima sin dar segundas oportunidades\\
-→ Si existe página clase 0 o 1, la encontrará rápido\\
-\\
-Vueltas 3-4: Dar segundas oportunidades (resetear U)\\
-→ Si todas las páginas tenían U=1, ahora tendrán U=0\\
-→ Garantiza encontrar víctima eventualmente\\
-}
+Las vueltas 3 y 4 dan segundas oportunidades. Si todas las páginas tenían U=1, ahora las reseteamos a U=0. Esto garantiza que eventualmente encontraremos una víctima, pero también da a las páginas recientemente usadas otra oportunidad antes de ser reemplazadas.
+\end{theory}
 
 ### Ejercicio Comparativo de Algoritmos
 
-Analicemos una secuencia de referencias con diferentes algoritmos.
+Para comprender realmente las diferencias entre algoritmos, analicemos una secuencia de referencias con tres algoritmos diferentes. Usaremos 3 marcos disponibles y la siguiente secuencia:
 
-**Configuración:**
-- Marcos disponibles: 3
-- Secuencia de referencias: `7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1`
+`7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1`
 
 #### Algoritmo FIFO
+
+Con FIFO, simplemente reemplazamos la página más antigua en cada page fault:
 
 ```
 Referencia │ 7 │ 0 │ 1 │ 2 │ 0 │ 3 │ 0 │ 4 │ 2 │ 3 │ 0 │ 3 │ 2 │ 1 │ 2 │ 0 │ 1 │ 7 │ 0 │ 1 │
@@ -1060,7 +977,11 @@ PF         │ F │ F │ F │ F │   │ F │   │ F │ F │ F │ F │
 Total Page Faults: 15
 ```
 
+FIFO genera 15 page faults en esta secuencia. Podemos ver que a veces reemplaza páginas que se usarán pronto, como cuando reemplaza la página 0 justo antes de que se necesite nuevamente.
+
 #### Algoritmo Óptimo (OPT)
+
+El algoritmo óptimo, conociendo todo el futuro, toma decisiones perfectas:
 
 ```
 Referencia │ 7 │ 0 │ 1 │ 2 │ 0 │ 3 │ 0 │ 4 │ 2 │ 3 │ 0 │ 3 │ 2 │ 1 │ 2 │ 0 │ 1 │ 7 │ 0 │ 1 │
@@ -1074,47 +995,24 @@ PF         │ F │ F │ F │ F │   │ F │   │ F │   │ F │   │
 Total Page Faults: 9
 ```
 
-**Decisiones clave de OPT:**
-- En ref 6 (pág 3): reemplaza 7 (próxima ref en pos 18, muy lejana)
-- En ref 8 (pág 4): reemplaza 1 (próxima ref en pos 14)
-- En ref 10 (pág 3): reemplaza 4 (nunca se vuelve a usar)
+OPT logra solo 9 page faults. Las decisiones clave incluyen: en la referencia 6 (página 3), reemplaza la página 7 porque su próxima referencia está muy lejos (posición 18). En la referencia 8 (página 4), reemplaza la página 1 cuya próxima referencia está en la posición 14. En la referencia 10 (página 3), reemplaza la página 4 que nunca se vuelve a usar.
 
-#### Algoritmo Clock-M (Detallado)
+#### Algoritmo Clock-M
 
-Ahora veamos Clock-M con detalle de los bits U y M.
+Ahora veamos Clock-M con el detalle completo de los bits U y M. Para este ejemplo, asumiremos que algunas referencias son lecturas (R) y otras escrituras (W):
 
-**Supuestos:**
-- Páginas cargadas desde disco inician con U=0, M=0
-- Al acceder una página: U=1
-- Al escribir una página: M=1
-- Secuencia incluye algunas escrituras (las marcaremos)
-
-**Secuencia extendida:** 
 `7R, 0R, 1W, 2R, 0R, 3W, 0W, 4R, 2W, 3R, 0R, 3R, 2R, 1R, 2W, 0R, 1R, 7W, 0R, 1R`
-(R=Read, W=Write)
+
+Las páginas cargadas desde disco inician con U=0, M=0. Al acceder una página, se pone U=1. Al escribir una página, se pone M=1 (además de U=1).
+
+Analicemos algunos momentos clave del algoritmo:
 
 ```
-Estado inicial: 3 marcos vacíos
-Puntero Clock en marco 0
-
-───────────────────────────────────────────────────
 Ref 1: Acceso 7 (lectura)
 - Page fault, cargar en marco 0
 - Marcos: [7(0,0)] [ ] [ ]
 - Puntero: marco 1
 PF: 1
-
-Ref 2: Acceso 0 (lectura)
-- Page fault, cargar en marco 1
-- Marcos: [7(0,0)] [0(0,0)] [ ]
-- Puntero: marco 2
-PF: 2
-
-Ref 3: Acceso 1 (escritura)
-- Page fault, cargar en marco 2
-- Marcos: [7(0,0)] [0(0,0)] [1(0,1)]  ← M=1 por escritura
-- Puntero: marco 0
-PF: 3
 
 Ref 4: Acceso 2 (lectura)
 - Page fault, necesita reemplazar
@@ -1122,12 +1020,6 @@ Ref 4: Acceso 2 (lectura)
   → Víctima encontrada en vuelta 1
   → Reemplazar 7 por 2
 - Marcos: [2(0,0)] [0(0,0)] [1(0,1)]
-- Puntero: marco 1
-PF: 4
-
-Ref 5: Acceso 0 (lectura)
-- Hit, marcar U=1
-- Marcos: [2(0,0)] [0(1,0)] [1(0,1)]
 PF: 4
 
 Ref 6: Acceso 3 (escritura)
@@ -1138,308 +1030,143 @@ Ref 6: Acceso 3 (escritura)
   Vuelta 1: Buscar (U=0,M=0)
   - Marco 1: [0(1,0)] → U=1, siguiente
   - Marco 2: [1(0,1)] → M=1, siguiente
-  - Marco 0: [2(0,0)] → U=0,M=0 - Víctima!
+  - Marco 0: [2(0,0)] → U=0,M=0 - ¡Víctima!
   
-- Reemplazar pág 2 por pág 3, marcar M=1
+- Reemplazar página 2 por página 3
 - Marcos: [3(0,1)] [0(1,0)] [1(0,1)]
-- Puntero: marco 1
-PF: 5
-
-Ref 7: Acceso 0 (escritura)
-- Hit, marcar M=1
-- Marcos: [3(0,1)] [0(1,1)] [1(0,1)]
 PF: 5
 
 Ref 8: Acceso 4 (lectura)
 - Page fault, necesita reemplazar
 - Estado actual: [3(0,1)] [0(1,1)] [1(0,1)]
-- Puntero en marco 1:
+- Todas las páginas tienen M=1 o U=1
   
-  Vuelta 1: Buscar (U=0,M=0)
-  - Marco 1: [0(1,1)] → U=1, siguiente
-  - Marco 2: [1(0,1)] → M=1, siguiente
-  - Marco 0: [3(0,1)] → M=1, siguiente
-  - Vuelve a marco 1, ninguna clase 0 encontrada
-  
+  Vuelta 1: No encuentra clase 0
   Vuelta 2: Buscar (U=0,M=1)
-  - Marco 1: [0(1,1)] → U=1, siguiente
-  - Marco 2: [1(0,1)] → U=0,M=1 - Víctima!
+  - Marco 2: [1(0,1)] → U=0,M=1 - ¡Víctima!
   
-- Reemplazar pág 1 por pág 4
+- Debe escribir página 1 a disco (dirty)
+- Reemplazar página 1 por página 4
 - Marcos: [3(0,1)] [0(1,1)] [4(0,0)]
-- Puntero: marco 0
-- (Nota: hay que escribir pág 1 a disco antes)
 PF: 6
-
-[Resto de referencias siguiendo la misma lógica]
-
-Refs 9-20: (formato compacto)
-─────────────────────────────────────
-Ref 9: Acceso 2 (escritura) → PF
-  Víctima: pág 3 (estado: 01)
-  Marcos: [2(0,1)] [0(1,1)] [4(0,0)]
-PF: 7
-
-Ref 10: Acceso 3 (lectura) → PF
-  Víctima: pág 4 (estado: 00)
-  Marcos: [2(0,1)] [0(1,1)] [3(0,0)]
-PF: 8
-
-Refs 11-13: Hits (0,3,2)
-PF: 8
-
-Ref 14: Acceso 1 (lectura) → PF
-  Víctima: pág 3 (estado: 10)
-  Marcos: [2(0,1)] [0(1,1)] [1(0,0)]
-PF: 9
-
-Ref 15: Acceso 2 (escritura) → Hit
-  Marcos: [2(1,1)] [0(1,1)] [1(0,0)]
-PF: 9
-
-Refs 16-20: (0,1,7,0,1)
-  Ref 18: Acceso 7 → PF (víctima: pág 2)
-  Resto: Hits
-PF: 10
-
-───────────────────────────────────────────────────
-Total Page Faults Clock-M: 10
 ```
 
-\textcolor{blue!50!black}{\textbf{Observaciones clave del ejercicio:}\\
-- Clock-M dio 2 vueltas completas en ref 6 y ref 8\\
-- En ref 8, no encontró clase 0 en vuelta 1, buscó clase 1 en vuelta 2\\
-- Escrituras aumentan M, lo que puede hacer a una página menos deseable\\
-- El algoritmo evitó escribir páginas dirty cuando pudo\\
-}
+El algoritmo continúa de esta manera, clasificando páginas en las cuatro clases y prefiriendo víctimas clean sobre dirty cuando es posible. Al final de la secuencia, Clock-M logra 10 page faults.
+
+\begin{example}
+\textbf{Observaciones del ejercicio comparativo:}
+
+Clock-M realizó dos vueltas completas en las referencias 6 y 8, demostrando el mecanismo de búsqueda en múltiples vueltas. En la referencia 8, no encontró páginas de clase 0 en la vuelta 1, así que buscó clase 1 en la vuelta 2. Las escrituras incrementan M, haciendo a las páginas menos deseables como víctimas, lo cual es correcto porque reemplazarlas requiere I/O adicional. El algoritmo evitó escribir páginas dirty cuando pudo encontrar víctimas clean.
+\end{example}
 
 ### Comparación Final
 
-```
-Algoritmo    │ Page Faults │ Complejidad │ Hardware Req
-─────────────┼─────────────┼─────────────┼──────────────
-FIFO         │     15      │    O(1)     │ Ninguno
-Óptimo (OPT) │      9      │    O(n)     │ Conocer futuro
-LRU          │     12      │    O(n)     │ Timestamp
-Clock        │     11      │    O(n)     │ Bit U
-Clock-M      │     10      │    O(n)     │ Bits U y M
-```
+Resumiendo los resultados de todos los algoritmos en esta secuencia:
 
-\textcolor{teal!60!black}{\textbf{Conclusiones:}\\
-- Óptimo es inalcanzable pero da cota inferior\\
-- Clock-M se acerca bastante a óptimo (10 vs 9)\\
-- FIFO es el peor (15 page faults, 67\\% más que óptimo)\\
-- El bit M ayuda: Clock-M mejor que Clock\\
-}
+| Algoritmo    | Page Faults | Complejidad | Hardware Requerido |
+|--------------|-------------|-------------|--------------------|
+| FIFO         | 15          | O(1)        | Ninguno            |
+| Óptimo (OPT) | 9           | O(n)        | Conocer futuro     |
+| LRU          | 12          | O(n)        | Timestamp          |
+| Clock        | 11          | O(n)        | Bit U              |
+| Clock-M      | 10          | O(n)        | Bits U y M         |
+
+Las conclusiones son claras. El algoritmo óptimo es inalcanzable en la práctica pero nos da una cota inferior: sabemos que ningún algoritmo real puede hacer mejor que 9 page faults en esta secuencia. Clock-M se acerca bastante al óptimo (10 vs 9), logrando solo un page fault más. FIFO es el peor, con 15 page faults (67% más que el óptimo). El bit M realmente ayuda: Clock-M es mejor que Clock simple gracias a evitar escrituras a disco cuando es posible.
 
 ## Thrashing
 
 ### ¿Qué es Thrashing?
 
-\begin{excerpt}
-\emph{Thrashing:}
-Estado del sistema donde se dedica más tiempo a manejar page faults (cargar/descargar páginas) que a ejecutar instrucciones útiles. Ocurre cuando la suma de los working sets de todos los procesos excede la memoria física disponible.
-\end{excerpt}
+Thrashing es uno de los problemas más severos que puede enfrentar un sistema de memoria virtual. Es un estado donde el sistema dedica más tiempo a manejar page faults (cargando y descargando páginas) que a ejecutar instrucciones útiles.
 
-**Síntomas de thrashing:**
-- CPU utilization muy baja (< 20%)
-- Disco trabajando constantemente (I/O al 100%)
-- Procesos avanzan muy lentamente
-- Sistema prácticamente inutilizable
+\begin{highlight}
+Thrashing es un estado del sistema donde se dedica más tiempo a manejar page faults (cargar/descargar páginas) que a ejecutar instrucciones útiles. Ocurre cuando la suma de los working sets de todos los procesos excede la memoria física disponible.
+\end{highlight}
 
-**Ejemplo numérico:**
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-08/03.png}
 
-```
-Sistema con 1 GiB RAM, 10 procesos:
-Cada proceso necesita working set de 150 MiB
-Total necesario: 10 × 150 MiB = 1500 MiB
-Disponible: 1000 MiB
+<!-- \vspace{0.3em}
+{\small\itshape\color{gray!65}
+-- Thrashing caption --
+} -->
+\end{center}
 
-Déficit: 500 MiB
+Los síntomas son inconfundibles y dramáticos. La utilización de CPU cae a niveles muy bajos (menos del 20%), mientras el disco trabaja constantemente al 100% de su capacidad. Los procesos avanzan extremadamente lento, y el sistema se vuelve prácticamente inutilizable para los usuarios.
 
-¿Qué pasa?
-→ Solo ~6 procesos caben cómodamente (6 × 150 = 900 MiB)
-→ Los otros 4 procesos generan page faults constantemente
-→ Al cargar páginas de proceso A, se quitan de proceso B
-→ Proceso B genera page fault, quita páginas de proceso C
-→ Proceso C genera page fault, quita páginas de proceso A
-→ CICLO VICIOSO sin fin
-```
+Veamos un ejemplo numérico concreto. Consideremos un sistema con 1 GiB de RAM y 10 procesos ejecutando simultáneamente. Cada proceso necesita un working set de 150 MiB para funcionar eficientemente. El total necesario sería 10 × 150 MiB = 1500 MiB, pero solo tenemos 1000 MiB disponibles. Hay un déficit de 500 MiB.
 
-**Medición de thrashing:**
+¿Qué sucede en esta situación? Solo aproximadamente 6 procesos caben cómodamente en memoria (6 × 150 = 900 MiB). Los otros 4 procesos generan page faults constantemente. Cuando cargamos páginas del proceso A, debemos quitar páginas del proceso B. Entonces el proceso B genera page faults, quitando páginas del proceso C. El proceso C genera page faults, quitando páginas del proceso A. El resultado es un ciclo vicioso sin fin.
 
-```
-Sin thrashing (normal):
-- CPU: 80% utilization
-- Disk I/O: 20% utilization
-- Tiempo por instrucción: 10 ns (promedio)
+La diferencia en rendimiento es catastrófica. En condiciones normales sin thrashing, la CPU opera al 80% de utilización, el disco al 20%, y el tiempo promedio por instrucción es de unos 10 nanosegundos. Con thrashing, la CPU cae al 5% de utilización, el disco sube al 95%, y el tiempo promedio por instrucción aumenta a aproximadamente 10 milisegundos. Esto representa una degradación de un millón de veces en el rendimiento.
 
-Con thrashing:
-- CPU: 5% utilization
-- Disk I/O: 95% utilization
-- Tiempo por instrucción: ~10 ms (promedio)
-→ 1,000,000x más lento!
-```
+\begin{warning}
+\textbf{El impacto del thrashing:}
+
+Durante thrashing, el sistema puede ser aproximadamente un millón de veces más lento que en condiciones normales. La CPU está mayormente idle esperando que el disco complete las operaciones de paginación. Para el usuario, el sistema parece "congelado", con el disco sonando constantemente pero las aplicaciones sin responder.
+\end{warning}
 
 ### ¿Por Qué Ocurre?
 
-**Causa fundamental:** Sobrecarga de multiprogramación
+La causa fundamental del thrashing es la sobrecarga de multiprogramación: intentar ejecutar demasiados procesos simultáneamente sin suficiente memoria física.
 
-```
-Grado de multiprogramación vs Throughput:
+Existe una relación entre el grado de multiprogramación y el throughput del sistema que puede graficarse como una curva. Con pocos procesos (0-6), la CPU está subutilizada porque no hay suficiente trabajo. En el punto óptimo (alrededor de 6-8 procesos), alcanzamos el máximo throughput. Pero con demasiados procesos (más de 10), el sistema cae en thrashing y el throughput colapsa.
 
-Throughput
-    ^
-    │     ┌───────┐ Punto óptimo
-    │    ╱         ╲
-    │   ╱           ╲
-    │  ╱             ╲_____ Thrashing!
-    │ ╱                     ╲
-    │╱                       ╲___
-    └────────────────────────────> Grado multiprog.
-    0  2  4  6  8 10 12 14 16
+El ciclo del thrashing es pernicioso y se auto-refuerza. Comienza cuando el sistema tiene poca carga y la CPU está idle. El sistema operativo, viendo CPU ociosa, decide agregar más procesos para aumentar la utilización. La memoria se llena y los procesos comienzan a generar page faults. Los procesos se bloquean esperando I/O de disco. El sistema operativo, viendo procesos bloqueados, interpreta que hay poca carga y agrega aún más procesos. Más procesos significan más page faults y menos memoria por proceso. El resultado final es thrashing: el disco saturado y la CPU idle.
 
-Explicación:
-- Pocos procesos (0-6): CPU subutilizada
-- Punto óptimo (6-8): máximo throughput
-- Demasiados procesos (>10): thrashing
-```
+\begin{warning}
+\textbf{La paradoja del thrashing:}
 
-**El ciclo del thrashing:**
-
-```
-1. Sistema con poca carga → CPU idle
-2. SO agrega más procesos (aumentar utilization)
-3. Memoria se llena, procesos generan page faults
-4. Procesos se bloquean esperando I/O de disco
-5. CPU ve procesos bloqueados → parece que hay poca carga
-6. SO agrega AÚN MÁS procesos
-7. Más page faults, menos memoria por proceso
-8. THRASHING: disco saturado, CPU idle
-```
-
-\textcolor{red!60!gray}{\textbf{Paradoja del thrashing:}\\
-Baja utilización de CPU → SO agrega procesos\\
-→ Empeora thrashing → CPU aún más baja\\
-→ SO agrega más procesos → muerte del sistema\\
-}
+La baja utilización de CPU lleva al SO a agregar más procesos. Esto empeora el thrashing, reduciendo aún más la CPU. El SO responde agregando todavía más procesos. Este ciclo de retroalimentación positiva puede llevar al colapso completo del sistema si no hay mecanismos de prevención.
+\end{warning}
 
 ### Detección de Thrashing
 
-**Métricas para detectar thrashing:**
+Para prevenir o recuperarse del thrashing, primero debemos detectarlo. Existen varias métricas que podemos monitorear.
 
-1. **Page Fault Rate:**
-   ```
-   Si PF rate > umbral (ej: 10 PF/segundo por proceso)
-   → Señal de thrashing
-   ```
+La primera es la *page fault rate*. Si la tasa de page faults por segundo excede un umbral (por ejemplo, 10 page faults por segundo por proceso), es una señal clara de thrashing.
 
-2. **Relación CPU/Disco:**
-   ```
-   Si (Disk I/O %) / (CPU %) > 5
-   → Thrashing probable
-   
-   Normal: Disk 20%, CPU 80% → ratio 0.25
-   Thrashing: Disk 95%, CPU 5% → ratio 19
-   ```
+La segunda es la relación entre actividad de disco y CPU. Si (Disk I/O %) / (CPU %) es mayor que 5, el thrashing es probable. En condiciones normales, con 20% de disco y 80% de CPU, el ratio es 0.25. Durante thrashing, con 95% de disco y 5% de CPU, el ratio es 19, indicando claramente el problema.
 
-3. **Tiempo de servicio de page faults:**
-   ```
-   Si avg_PF_service_time > 50 ms
-   → Señal de que el disco no da abasto
-   ```
+La tercera métrica es el tiempo promedio de servicio de page faults. Si el tiempo promedio para resolver un page fault excede 50 milisegundos, es señal de que el disco no da abasto con la carga de trabajo.
 
 ### Prevención y Recuperación
 
-**Estrategias de prevención:**
+Existen varias estrategias para prevenir el thrashing antes de que ocurra.
 
-1. **Working Set Model:**
-   ```
-   - Estimar working set de cada proceso
-   - Solo ejecutar proceso si:
-     Suma_working_sets ≤ RAM_disponible
-   - Si no: suspender procesos
-   ```
+El *Working Set Model* es un enfoque donde estimamos el working set de cada proceso. Solo ejecutamos un proceso si la suma de todos los working sets es menor o igual a la RAM disponible. Si no hay suficiente memoria, suspendemos procesos hasta que haya recursos suficientes.
 
-2. **Page Fault Frequency (PFF):**
-   ```
-   Para cada proceso:
-   - Si PF_rate > umbral_alto:
-     → Darle más marcos
-   - Si PF_rate < umbral_bajo:
-     → Quitarle marcos
-   - Si no hay marcos disponibles:
-     → Suspender proceso
-   ```
+El enfoque de *Page Fault Frequency (PFF)* monitorea cada proceso individualmente. Si la tasa de page faults de un proceso excede un umbral alto, le damos más marcos. Si está por debajo de un umbral bajo, le quitamos marcos (que pueden ir a otros procesos). Si no hay marcos disponibles para un proceso que los necesita, lo suspendemos.
 
-3. **Limitar grado de multiprogramación:**
-   ```
-   Establecer máximo de procesos activos
-   Ej: con 8 GiB RAM, límite de 20 procesos
-   ```
+Una tercera estrategia es simplemente limitar el grado de multiprogramación. Establecemos un máximo de procesos activos basado en la memoria disponible. Por ejemplo, con 8 GiB de RAM, podríamos limitar a 20 procesos máximo, basándonos en estimaciones del working set promedio.
 
-**Estrategias de recuperación:**
+Cuando ya estamos en thrashing, necesitamos estrategias de recuperación. La más efectiva es suspender procesos: swapear un proceso completo a disco, liberando toda su memoria, reduciendo así el grado de multiprogramación. También podemos priorizar procesos críticos, garantizando su working set a expensas de procesos de baja prioridad que pueden suspenderse. La solución obvia, aunque no siempre viable, es aumentar la memoria RAM física del sistema o reducir el memory footprint de los procesos.
 
-```
-Si se detecta thrashing:
+### Preguntas Típicas de Examen
 
-1. Suspender procesos:
-   - Swapear proceso completo a disco
-   - Liberar TODA su memoria
-   - Reducir grado de multiprogramación
-
-2. Priorizar procesos críticos:
-   - Garantizar working set a procesos importantes
-   - Suspender procesos de baja prioridad
-
-3. Aumentar memoria:
-   - Agregar RAM física (obviamente)
-   - Reducir memory footprint de procesos
-```
-
-### Preguntas Típicas de Parcial
+Para consolidar la comprensión del thrashing, analicemos algunas preguntas típicas que aparecen en exámenes.
 
 **Pregunta 1:** *Si un sistema está en thrashing, ¿mejora el rendimiento agregando más procesos?*
 
-\textcolor{red!60!gray}{\textbf{Respuesta: NO}\\
-Agregar más procesos EMPEORA el thrashing.\\
-Causa: menos memoria por proceso → más page faults\\
-→ más I/O de disco → peor rendimiento\\
-\\
-Solución: REDUCIR procesos, no agregar.\\
-}
+La respuesta es un rotundo no. Agregar más procesos empeora el thrashing, no lo mejora. La razón es que habrá menos memoria disponible por proceso, lo que genera más page faults, más I/O de disco, y peor rendimiento general. La solución correcta es reducir la cantidad de procesos, no agregarlos.
 
-**Pregunta 2:** *¿Agregar más RAM siempre soluciona thrashing?*
+**Pregunta 2:** *¿Agregar más RAM siempre soluciona el thrashing?*
 
-\textcolor{orange!70!black}{\textbf{Respuesta: Depende del contexto}\\
-- Si thrashing por falta de RAM real: SÍ ayuda\\
-- Si thrashing por procesos con working sets enormes: ayuda parcialmente\\
-- Si thrashing por algoritmo de reemplazo malo: NO ayuda\\
-- Si SO sigue agregando procesos sin límite: NO ayuda (problema de diseño)\\
-}
+La respuesta depende del contexto. Si el thrashing es causado por una genuina falta de RAM física, entonces agregar RAM ayudará. Si el problema es que los procesos tienen working sets extremadamente grandes, agregar RAM ayudará parcialmente pero puede no ser suficiente. Si el thrashing es causado por un algoritmo de reemplazo inadecuado, más RAM no resolverá el problema subyacente. Y si el sistema operativo continúa agregando procesos sin límite, más RAM solo postergará el thrashing pero no lo evitará, porque el problema es de diseño del sistema.
 
-**Pregunta 3:** *Sistema tiene 20% CPU, 90% Disk I/O. ¿Thrashing? ¿Qué hacer?*
+**Pregunta 3:** *Un sistema tiene 20% de utilización de CPU y 90% de utilización de disco. ¿Está en thrashing? ¿Qué hacer?*
 
-\textcolor{teal!60!black}{\textbf{Respuesta: SÍ, thrashing claro}\\
-Ratio Disk/CPU = 90/20 = 4.5 (muy alto)\\
-\\
-Acciones inmediatas:\\
-1. Identificar procesos con alto PF rate\\
-2. Suspender procesos menos críticos\\
-3. Verificar working sets vs RAM disponible\\
-4. NO agregar más procesos\\
-}
+Este es un caso claro de thrashing. El ratio Disk/CPU es 90/20 = 4.5, que es muy alto (lo normal sería menos de 1). Las acciones inmediatas incluyen identificar los procesos con alta tasa de page faults, suspender procesos menos críticos, verificar que los working sets no excedan la RAM disponible, y definitivamente no agregar más procesos al sistema.
 
-**Pregunta 4:** *¿Thrashing puede ocurrir con mucha RAM libre?*
+**Pregunta 4:** *¿Puede ocurrir thrashing con mucha RAM libre?*
 
-\textcolor{blue!50!black}{\textbf{Respuesta: SÍ, en casos raros}\\
-Ejemplo: algoritmo de reemplazo muy malo\\
-- FIFO puede reemplazar páginas constantemente usadas\\
-- Si todas las páginas del working set son "viejas" en FIFO\\
-- Resultado: page faults continuos pese a RAM libre\\
-\\
-Pero es muy poco común; thrashing típico es por falta de RAM.\\
-}
+Sorprendentemente, la respuesta es sí, aunque en casos raros. Esto puede ocurrir si el algoritmo de reemplazo es muy malo. Por ejemplo, FIFO podría reemplazar constantemente páginas que están siendo usadas, si todas las páginas del working set son "viejas" según el criterio de FIFO. El resultado serían page faults continuos a pesar de tener RAM libre. Sin embargo, este escenario es muy poco común; el thrashing típico es causado por falta genuina de memoria física.
+
+\begin{infobox}
+\textbf{Prevención vs. Recuperación:}
+
+Es mucho mejor prevenir el thrashing que intentar recuperarse de él. Los mecanismos de prevención como Working Set y PFF pueden detectar las condiciones que llevarían al thrashing antes de que ocurra, suspendiendo procesos proactivamente. Una vez que el sistema está en thrashing profundo, la recuperación es más difícil y puede requerir intervención manual del administrador del sistema.
+\end{infobox}
 
 ## Código en C: Simulador de Clock-M
 
@@ -1730,14 +1457,22 @@ int main() {
 }
 ```
 
-**Compilación y ejecución:**
+Para compilar y ejecutar el simulador:
 
 ```bash
 gcc -o clock_m_sim clock_m_sim.c -Wall -std=c99
 ./clock_m_sim
 ```
 
-**Salida esperada (parcial):**
+El simulador define estructuras para representar marcos de memoria, cada uno con un número de página, un bit referenced (U), y un bit modified (M). El estado del sistema incluye el array de marcos, el puntero del reloj (clock hand), y un contador de page faults.
+
+Las funciones clave implementan la lógica del algoritmo. `find_page()` busca si una página está en RAM. `find_empty_frame()` busca marcos vacíos. La función más importante es `clock_m_find_victim()`, que implementa las cuatro vueltas del algoritmo Clock-M con salida detallada para propósitos educativos.
+
+La vuelta 1 busca páginas de clase 0 (U=0, M=0) sin modificar bits. Si encuentra una, la selecciona inmediatamente como víctima. La vuelta 2 busca páginas de clase 1 (U=0, M=1), también sin modificar bits. La vuelta 3 busca nuevamente clase 0, pero ahora resetea los bits U de las páginas con U=1, dándoles una segunda oportunidad. La vuelta 4 busca clase 1 con los bits U ya reseteados por la vuelta 3, garantizando que eventualmente encontrará una víctima.
+
+La función `access_page()` maneja tanto hits como page faults. En un hit, simplemente actualiza los bits referenced y modified según el tipo de acceso. En un page fault, primero busca un marco vacío; si no hay, llama al algoritmo de reemplazo. Si la víctima está modificada, simula escribirla a disco antes de reemplazarla.
+
+**Salida esperada del simulador (fragmento):**
 
 ```
 ═══════════════════════════════════════════
@@ -1754,15 +1489,6 @@ Acceso 1: Página 7 (LECTURA)
 Marcos: [7(0,0)] [  -  ] [  -  ] [  -  ]  Clock→1
 
 ─────────────────────────────────────────
-Acceso 2: Página 0 (LECTURA)
-  PAGE FAULT: Página 0 no está en RAM
-  Marco 1 está vacío, cargar página 0
-  [I/O] Leer página 0 desde disco
-Marcos: [7(0,0)] [0(0,0)] [  -  ] [  -  ]  Clock→2
-
-[...]
-
-─────────────────────────────────────────
 Acceso 8: Página 4 (LECTURA)
   PAGE FAULT: Página 4 no está en RAM
   No hay marcos vacíos, ejecutar Clock-M
@@ -1773,8 +1499,6 @@ Acceso 8: Página 4 (LECTURA)
   [I/O] Leer página 4 desde disco
 Marcos: [4(0,0)] [0(1,1)] [1(0,1)] [3(0,1)]  Clock→1
 
-[...]
-
 ═══════════════════════════════════════════
   RESUMEN FINAL
 ═══════════════════════════════════════════
@@ -1782,16 +1506,26 @@ Total de referencias: 15
 Total de page faults: 9
 Hit rate: 40.00%
 Page fault rate: 60.00%
-
-Estado final de marcos:
-Marcos: [2(1,1)] [0(1,0)] [1(0,0)] [3(1,0)]  Clock→2
 ```
 
-\textcolor{blue!50!black}{\textbf{Conceptos demostrados en el código:}\\
-- Estructura de marcos con bits U y M\\
-- Puntero circular (clock hand)\\
-- Las 4 vueltas del algoritmo Clock-M\\
-- Detección de páginas dirty (requieren escritura)\\
-- Diferencia entre hits y page faults\\
-- Contadores de rendimiento\\
-}
+El simulador es una herramienta educativa valiosa. Permite ver exactamente cómo el algoritmo toma decisiones, cómo maneja los bits U y M, cuándo da segundas oportunidades, y por qué ciertas páginas son seleccionadas como víctimas. Modificar la secuencia de referencias en el código permite experimentar con diferentes patrones de acceso y observar cómo responde el algoritmo.
+
+\begin{infobox}
+\textbf{Conceptos demostrados en el código:}
+
+El simulador ilustra varios conceptos clave: la estructura de marcos con bits U y M, el funcionamiento del puntero circular (clock hand), la lógica completa de las cuatro vueltas del algoritmo Clock-M, la detección y manejo de páginas dirty que requieren escritura a disco, la diferencia entre hits y page faults en términos de rendimiento, y el cálculo de métricas de rendimiento como hit rate y page fault rate.
+\end{infobox}
+
+## Conclusiones del Capítulo
+
+La memoria virtual es uno de los logros más significativos en la historia de los sistemas operativos. Permite ejecutar procesos más grandes que la memoria física disponible, simplifica enormemente la programación al darle a cada proceso la ilusión de un espacio de direcciones enorme y privado, y permite una multiprogramación eficiente al compartir la memoria física entre múltiples procesos.
+
+El éxito de la memoria virtual depende críticamente del principio de localidad. Sin localidad temporal y espacial, cada proceso necesitaría todas sus páginas en RAM todo el tiempo, haciendo la memoria virtual impráctica. Gracias a la localidad, los procesos típicamente solo necesitan una pequeña fracción de su espacio de direcciones en cualquier momento dado, el working set, que puede caber en la memoria física disponible.
+
+Los algoritmos de reemplazo de páginas son fundamentales para el rendimiento del sistema. FIFO es simple pero puede tener rendimiento pobre. El algoritmo óptimo es inalcanzable pero provee una cota inferior útil. LRU es efectivo pero costoso de implementar exactamente. Clock y Clock-M son aproximaciones prácticas de LRU que ofrecen buen rendimiento con overhead razonable, siendo Clock-M particularmente efectivo al considerar tanto el uso reciente como si las páginas están modificadas.
+
+El thrashing representa el límite de lo que la memoria virtual puede lograr. Ocurre cuando intentamos ejecutar demasiados procesos simultáneamente, excediendo la capacidad de la memoria física. La prevención del thrashing requiere controlar el grado de multiprogramación, estimar working sets, y estar dispuesto a suspender procesos cuando la memoria es insuficiente.
+
+Los sistemas operativos modernos combinan todas estas técnicas: demand paging para cargar páginas solo cuando se necesitan, algoritmos sofisticados de reemplazo como Clock-M, monitoreo continuo para detectar condiciones de thrashing, y mecanismos de prevención basados en working sets o page fault frequency. El resultado es un sistema que puede ejecutar eficientemente muchos procesos grandes en hardware con memoria física limitada, todo de manera transparente para las aplicaciones.
+
+La memoria virtual es un ejemplo perfecto de cómo la abstracción en sistemas operativos puede simplificar la programación mientras mejora la utilización de recursos. Los programadores escriben código como si tuvieran acceso ilimitado a memoria contigua, mientras el sistema operativo y el hardware colaboran detrás de escena para hacer realidad esta ilusión, manejando la complejidad de la paginación, el reemplazo, y la gestión de memoria física de manera completamente transparente.
