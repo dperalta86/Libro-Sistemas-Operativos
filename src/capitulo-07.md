@@ -150,27 +150,23 @@ La fragmentación es el desperdicio de memoria que no puede usarse eficientement
 #### Fragmentación Interna
 
 La fragmentación interna es memoria desperdiciada DENTRO de una región asignada. Ocurre cuando se asigna más memoria de la necesitada. Imaginá que un proceso necesita 19 KiB pero el sistema asigna bloques de 4 KiB. Se asignan 5 bloques (20 KiB), desperdiciando 1 KiB.
-```
-Bloque asignado: [===================·] 
-                  ← 19 KiB usados →  ← 1 KiB desperdiciado
-                  ← 20 KiB totales →
-```
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/01.png}
+
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+El último "bloque" asignado queda con un sector inutilizable, en el ejemplo 1kiB.
+}
+\end{center}
 
 Las causas principales son la asignación en bloques de tamaño fijo, políticas de alineación de memoria, y overhead de estructuras administrativas. Ocurre típicamente en particiones fijas, paginación (desperdicio en última página), y Buddy System.
 
 #### Fragmentación Externa
 
-La fragmentación externa es memoria desperdiciada ENTRE regiones asignadas. Hay suficiente memoria libre total, pero no es contigua. Por ejemplo, si tenés memoria total de 100 KiB con 40 KiB libres, pero en bloques de 10 KiB cada uno, no podés asignar un proceso de 30 KiB a pesar de tener espacio suficiente.
+La fragmentación externa es memoria desperdiciada ENTRE regiones asignadas. Hay suficiente memoria libre total, pero no es contigua. Por ejemplo, si tenés memoria total de 64 MiB con 16 MiB libres, pero en distintos bloques no contiguos, no podés asignar un proceso de 10 MiB a pesar de tener espacio suficiente.
 
-```
-Memoria: [P1][··][P2][····][P3][······][P4]
-          ← libre -> ← libre ->  ← libre ->
-         10 KiB    15 KiB      15 KiB
-         Total libre: 40 KiB, pero no contiguos
-         No se puede asignar proceso de 30 KiB
-```
-
-Las causas son la asignación y liberación de bloques de tamaño variable, los procesos que terminan dejan huecos, y con el tiempo la memoria se "perfora" como un queso suizo. Ocurre en particiones dinámicas, segmentación, y cualquier esquema de asignación variable. La solución es la compactación (mover procesos para consolidar memoria libre), pero es costosa.  
+Las causas son la asignación y liberación de bloques de tamaño variable, los procesos que terminan dejan huecos, y con el tiempo la memoria se "perfora". Ocurre en particiones dinámicas, segmentación, y cualquier esquema de asignación variable. La solución es la compactación (mover procesos para consolidar memoria libre), pero es costosa.  
 
 \begin{highlight}
 La fragmentación externa es uno de los problemas más insidiosos en gestión de memoria. Puede hacer que un sistema con 50\% de memoria libre sea incapaz de asignar nuevos procesos. La paginación fue inventada específicamente para resolver este problema.
@@ -188,27 +184,12 @@ Imaginá un esquema de memoria con particiones fijas donde después del SO hay v
 El mecanismo de asignación es extremadamente simple: cuando llega un proceso, se busca una partición libre que lo contenga, el proceso ocupa toda la partición aunque no la use completamente, y al terminar, la partición queda libre para el próximo proceso.
 Las ventajas son tentadoras: implementación extremadamente simple, asignación y liberación en O(1), sin fragmentación externa, y protección fácil porque cada partición tiene base y límite fijos. Sin embargo, las desventajas son severas: fragmentación interna que puede ser brutal, número limitado de procesos fijado al inicio del sistema, procesos grandes pueden simplemente no caber, y memoria desaprovechada si hay particiones vacías.
 \begin{example}
-El problema crítico es evidente con un ejemplo: un proceso de 50 KiB en una partición de 256 KiB desperdicia 206 KiB, lo que representa un 80% de fragmentación interna. En un sistema real, este desperdicio es inaceptable.
+El problema crítico es evidente con un ejemplo: un proceso de 50 KiB en una partición de 256 KiB desperdicia 206 KiB (lo que representa un 80%). En un sistema real, este desperdicio es inaceptable.
 \end{example}
 
-```
-Memoria física:
-┌─────────────────┐ 0 KiB
-│   SO (64 KiB)    │
-├─────────────────┤ 64 KiB
-│ Partición 1     │
-│   (128 KiB)      │
-├─────────────────┤ 192 KiB
-│ Partición 2     │
-│   (256 KiB)      │
-├─────────────────┤ 448 KiB
-│ Partición 3     │
-│   (512 KiB)      │
-├─────────────────┤ 960 KiB
-│ Partición 4     │
-│   (64 KiB)       │
-└─────────────────┘ 1024 KiB
-```
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/04.png}
+\end{center}
 
 ### Particiones Dinámicas
 
@@ -217,72 +198,21 @@ Para resolver la fragmentación interna de las particiones fijas, se desarrollar
 La evolución de la memoria con particiones dinámicas muestra el problema claramente. Al inicio, el sistema arranca con todo el espacio libre. Cuando llega el primer proceso (P1 de 100 KiB), se le asigna exactamente ese espacio. Luego llegan P2 (200 KiB) y P3 (150 KiB), ocupando sus espacios precisos. Hasta acá todo perfecto: no hay desperdicio.  
 
 El problema aparece cuando P1 termina. Queda un hueco de 100 KiB entre el SO y P2. Luego P2 termina, dejando otro hueco de 200 KiB. Ahora tenemos memoria libre total de 810 KiB, pero fragmentada en tres bloques separados. Un proceso que necesite 400 KiB no puede ejecutarse, a pesar de que hay 810 KiB libres en total. Esta es la esencia de la fragmentación externa.  
-
 Las ventajas iniciales son claras: sin fragmentación interna, número dinámico de procesos, y uso eficiente de memoria al principio. Pero las desventajas son significativas: fragmentación externa severa con el tiempo, algoritmo de asignación más complejo, requiere compactación periódica que es costosa, y estructuras de datos para rastrear bloques libres.
+\\vfill
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/02.jpg}
+
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Debido a la fragmentación externa, existe la posibilidad de no poder alocar un proceso aún contando con memoria disponible.
+}
+\end{center}
+
 \begin{warning}
 La fragmentación externa es progresiva: empeora con el tiempo de ejecución del sistema. Un sistema que funciona bien al arrancar puede volverse ineficiente después de horas de operación.
 \end{warning}
-
-```
-t=0: Sistema arranca
-┌──────────┐
-│    SO    │ 64 KiB
-├──────────┤
-│  Libre   │ 960 KiB
-└──────────┘
-
-t=1: Llega P1 (100 KiB)
-┌──────────┐
-│    SO    │
-├──────────┤
-│    P1    │ 100 KiB
-├──────────┤
-│  Libre   │ 860 KiB
-└──────────┘
-
-t=2: Llegan P2 (200 KiB) y P3 (150 KiB)
-┌──────────┐
-│    SO    │
-├──────────┤
-│    P1    │
-├──────────┤
-│    P2    │ 200 KiB
-├──────────┤
-│    P3    │ 150 KiB
-├──────────┤
-│  Libre   │ 510 KiB
-└──────────┘
-
-t=3: P1 termina
-┌──────────┐
-│    SO    │
-├──────────┤
-│  Libre   │ 100 KiB (hueco)
-├──────────┤
-│    P2    │
-├──────────┤
-│    P3    │
-├──────────┤
-│  Libre   │ 510 KiB
-└──────────┘
-
-t=4: P2 termina
-┌──────────┐
-│    SO    │
-├──────────┤
-│  Libre   │ 100 KiB
-├──────────┤
-│  Libre   │ 200 KiB (otro hueco)
-├──────────┤
-│    P3    │
-├──────────┤
-│  Libre   │ 510 KiB
-└──────────┘
-
-Total libre: 810 KiB, pero fragmentado en 3 bloques
-Un proceso de 400 KiB no cabe (aunque hay 810 KiB libres)
--> Fragmentación externa
-```
 
 ### Algoritmos de Asignación
 
@@ -347,20 +277,9 @@ Las ventajas de la paginación son significativas: elimina fragmentación extern
 La paginación es el fundamento de prácticamente todos los sistemas operativos modernos. Aunque tiene costos, los beneficios en términos de flexibilidad y protección son indispensables.
 \end{highlight}
 
-```
-Espacio lógico del proceso:    Memoria física:
-┌──────────┐                   ┌──────────┐ Marco 0
-│ Página 0 │ ────────────────-> │    P2    │
-├──────────┤                   ├──────────┤ Marco 1
-│ Página 1 │ ─────────┐        │    P0    │
-├──────────┤          │        ├──────────┤ Marco 2
-│ Página 2 │ ─┐       └──────-> │    P1    │
-├──────────┤  │                ├──────────┤ Marco 3
-│ Página 3 │  └──────────────-> │  Libre   │
-└──────────┘                   ├──────────┤ Marco 4
-                                │    P3    │
-                                └──────────┘
-```
+\begin{center}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/03.png}
+\end{center}
 
 ### Formato de Dirección Lógica
 

@@ -539,7 +539,7 @@ Los ULT dependen completamente de su KLT contenedor. Desde el punto de vista del
 \end{infobox}  
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/tables/cap05-gantt-RR.png}
+\includegraphics[width=\linewidth,keepaspectratio]{src/tables/cap05-gantt-RR.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
