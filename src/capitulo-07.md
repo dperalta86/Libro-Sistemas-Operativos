@@ -188,7 +188,7 @@ Imaginá un esquema de memoria con particiones fijas donde después del SO hay v
 El mecanismo de asignación es extremadamente simple: cuando llega un proceso, se busca una partición libre que lo contenga, el proceso ocupa toda la partición aunque no la use completamente, y al terminar, la partición queda libre para el próximo proceso.
 Las ventajas son tentadoras: implementación extremadamente simple, asignación y liberación en O(1), sin fragmentación externa, y protección fácil porque cada partición tiene base y límite fijos. Sin embargo, las desventajas son severas: fragmentación interna que puede ser brutal, número limitado de procesos fijado al inicio del sistema, procesos grandes pueden simplemente no caber, y memoria desaprovechada si hay particiones vacías.
 \begin{example}
-El problema crítico es evidente con un ejemplo: un proceso de 50 KiB en una partición de 256 KiB desperdicia 206 KiB (lo que representa un 80%). En un sistema real, este desperdicio es inaceptable.
+El problema crítico es evidente con un ejemplo: un proceso de 50 KiB en una partición de 256 KiB desperdicia 206 KiB (lo que representa un 80\%). En un sistema real, este desperdicio es inaceptable.
 \end{example}
 
 \begin{center}
@@ -407,6 +407,10 @@ Un aspecto crucial es la ubicación: la tabla de páginas está en memoria RAM, 
 Esto introduce un problema de rendimiento: cada acceso a memoria requiere 2 accesos reales. Primero hay que leer la entrada de tabla de páginas (en RAM), luego leer el dato solicitado (en RAM). Esto duplica el tiempo de acceso a memoria. La solución es el TLB, una caché de traducciones.
 \end{warning}
 
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/14.png}
+\end{center}
+
 ### Fragmentación Interna en Paginación
 
 Aunque la paginación elimina fragmentación externa, tiene fragmentación interna en la última página de cada proceso. Si un proceso necesita 13.5 KiB con páginas de 4 KiB, se le asignan 4 páginas (16 KiB), desperdiciando 2.5 KiB (15.6\% de fragmentación interna).  
@@ -431,22 +435,6 @@ Desde la perspectiva del programador, un programa NO es un arreglo lineal de byt
 La segmentación divide el espacio de direcciones en segmentos de tamaño variable, donde cada segmento representa una unidad lógica del programa. La diferencia clave con paginación es fundamental: la paginación divide por tamaño fijo usando un criterio técnico (hardware), mientras que la segmentación divide por tamaño variable usando un criterio lógico (programador). La paginación es invisible al programador, la segmentación es visible. La paginación genera fragmentación interna, la segmentación genera fragmentación externa. La protección en paginación es por página, en segmentación es por segmento (más natural). La compartición en paginación es complicada, en segmentación es natural.  
 
 Un proceso puede tener un segmento 0 de código (2000 bytes) con base en 1000 y límite 2000, un segmento 1 de datos (500 bytes) con base en 5000 y límite 500, y un segmento 2 de stack (1000 bytes) con base en 8000 y límite 1000. Cada segmento puede estar en cualquier parte de la memoria física.
-```
-Espacio lógico del proceso:
-┌──────────────────┐ Segmento 0
-│      Código      │ Base: 1000, Límite: 2000
-│   (2000 bytes)   │
-├──────────────────┤ Segmento 1
-│      Datos       │ Base: 5000, Límite: 500
-│   (500 bytes)    │
-├──────────────────┤ Segmento 2
-│      Stack       │ Base: 8000, Límite: 1000
-│   (1000 bytes)   │
-└──────────────────┘
-
-Dirección lógica: (segmento, offset)
-Ejemplo: (1, 250) -> segmento 1, offset 250
-```
 
 *Diferencia clave con paginación:*
 
@@ -459,6 +447,9 @@ Ejemplo: (1, 250) -> segmento 1, offset 250
 | Protección | Por página | Por segmento (más natural) |
 | Compartición | Complicada | Natural |
 
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/20.png}
+\end{center}
 
 ### Formato de Dirección Lógica en Segmentación
 
@@ -487,6 +478,10 @@ Traducir: (1, 600)
 3. ¿600 < 500? No -> TRAP (Segmentation Fault)
 ```
 
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/21.png}
+\end{center}
+
 ### Ventajas de Segmentación
 
 La segmentación refleja la estructura lógica del programa naturalmente, ofrece protección natural (cada segmento tiene sus propios permisos), facilita la compartición (código compartido = mismo segmento), permite crecimiento dinámico de segmentos (heap, stack), y facilita modularidad y librerías compartidas.
@@ -494,20 +489,6 @@ La segmentación refleja la estructura lógica del programa naturalmente, ofrece
 La compartición de código es elegante en segmentación. Si los procesos A y B ejecutan el mismo programa, ambos pueden apuntar al mismo segmento 0 de código (read-only y compartido), mientras mantienen sus propios segmentos 1 de datos privados. Esto es conceptualmente simple y eficiente.
 \end{example}
 Las desventajas son que vuelve a aparecer la fragmentación externa (como en particiones dinámicas), la complejidad de asignación requiere algoritmos First/Best/Worst Fit, eventualmente requiere compactación, y la tabla de segmentos es más compleja que la tabla de páginas.
-
-```
-Proceso A y B ejecutan el mismo programa:
-┌─────────────────┐
-│ Seg 0: Código   │ ← Ambos procesos apuntan aquí
-│   (compartido)  │    (read-only)
-└─────────────────┘
-
-Proceso A:                Proceso B:
-┌──────────────┐          ┌──────────────┐
-│ Seg 1: Datos │          │ Seg 1: Datos │
-│   (privado)  │          │   (privado)  │
-└──────────────┘          └──────────────┘
-```
 
 ### Segmentación con Paginación
 
@@ -526,23 +507,6 @@ Dirección lógica: (s, p, d)
 ```
 
 Intel x86 (arquitectura IA-32) implementa este esquema. Una dirección tiene un selector de segmento de 16 bits que incluye un índice en la GDT (Global Descriptor Table) y un offset. El descriptor de segmento en GDT/LDT proporciona la base del segmento. Esto se combina con el offset que contiene el número de página y el offset dentro de la página. La tabla de páginas del segmento mapea a marcos físicos.  
-```
-┌──────────────────────────────┐
-│  Selector de Segmento (16b)  │ Dirección lógica
-├─────────────┬────────────────┤
-│ Índice GDT  │    Offset      │
-└─────────────┴────────────────┘
-       ↓              ↓
-   [GDT/LDT]      ┌───────┬────┐
-   Descriptor  ->  │ Página│ Off│
-   de Segmento    └───────┴────┘
-       ↓              ↓
-   Base + Límite  [Tabla Páginas]
-       ↓              ↓
-   Dirección      Marco físico
-   lineal             ↓
-                  Dirección física
-```
 
 Las ventajas del esquema híbrido son claras: combina la protección y compartición natural de segmentación con la ausencia de fragmentación externa de paginación. Los segmentos pueden crecer dinámicamente agregando páginas, y el uso de memoria es mejor que segmentación pura.
 
@@ -560,49 +524,52 @@ addr1 XOR addr2 == 2^k
 $$
 
 Veamos la operación completa.  
-```
-Estado inicial: 256 KiB libre
-┌─────────────────────────────────┐
-│           256 KiB                │
-└─────────────────────────────────┘
 
+Estado inicial: 256 KiB libre
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/22.png}
+\end{center}
+```
 Solicitud: 40 KiB
 -> Necesita bloque de 64 KiB (2^6)
 -> Dividir 256 -> 128 + 128
 -> Dividir 128 -> 64 + 64
 -> Asignar primer 64 KiB
+```
 
-Estado después de asignar 40 KiB:
-┌───────────┬───────────┬─────────────────┐
-│ 64 (usado)│ 64 (libre)│   128 (libre)   │
-└───────────┴───────────┴─────────────────┘
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/23.png}
+\end{center}
 
+```
 Solicitud: 35 KiB
 -> Necesita bloque de 64 KiB
 -> Ya hay uno libre, asignar
+```
 
-┌───────────┬───────────┬─────────────────┐
-│ 64 (usado)│ 64 (usado)│   128 (libre)   │
-└───────────┴───────────┴─────────────────┘
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/26.png}
+\end{center}
 
+```
 Liberar primer bloque (64 KiB):
 -> Su buddy (segundo 64 KiB) está ocupado
 -> No se puede fusionar
+```
 
-┌───────────┬───────────┬─────────────────┐
-│ 64 (libre)│ 64 (usado)│   128 (libre)   │
-└───────────┴───────────┴─────────────────┘
-
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/24.png}
+\end{center}
+```
 Liberar segundo bloque (64 KiB):
 -> Su buddy (primer 64 KiB) está libre
 -> Fusionar en 128 KiB
 -> El nuevo 128 tiene buddy libre (otro 128)
 -> Fusionar en 256 KiB
-
-┌─────────────────────────────────┐
-│           256 KiB (libre)        │
-└─────────────────────────────────┘
 ```
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/25.png}
+\end{center}
 
 Las ventajas son asignación y liberación rápidas en O(log n), coalescing automático sin escanear toda la memoria, reduce fragmentación externa comparado con particiones dinámicas, e implementación simple con listas por tamaño. Las desventajas son la fragmentación interna (siempre se asigna potencia de 2), por ejemplo un proceso de 65 KiB recibe 128 KiB desperdiciando 63 KiB, y no es tan eficiente como paginación pura.
 \begin{infobox}
@@ -617,6 +584,10 @@ En un sistema de 32 bits con páginas de 4 KiB, hay $2^{32} = 4 GiB$ de direccio
 
 La solución es paginar la tabla de páginas misma, creando una jerarquía de múltiples niveles.
 
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/15.png}
+\end{center}
+
 #### Paginación de Dos Niveles
 
 En paginación de dos niveles, la tabla de páginas se divide en páginas. Se mantiene un directorio de páginas que apunta a las tablas de páginas de segundo nivel.  
@@ -624,50 +595,23 @@ En paginación de dos niveles, la tabla de páginas se divide en páginas. Se ma
 El formato de dirección lógica se divide en tres partes: directorio (p1), página (p2), y offset (d). La traducción ocurre así: usás p1 para indexar el directorio de páginas y obtener la tabla de nivel 2, usás p2 para indexar la tabla de nivel 2 y obtener el marco, y usás d como offset dentro del marco.
 La ventaja es enorme: si un proceso no usa ciertas regiones de memoria, las tablas de nivel 2 correspondientes NO se crean, ahorrando memoria significativamente.
 
-```
-┌──────────────┬──────────────┬──────────────┐
-│  Directorio  │    Página    │    Offset    │
-│     (p1)     │     (p2)     │     (d)      │
-└──────────────┴──────────────┴──────────────┘
-```
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/16.png}
+\end{center}
 
 En un sistema de 32 bits con páginas de 4 KiB, podés usar 10 bits para directorio (1024 entradas), 10 bits para página (1024 entradas por tabla nivel 2), y 12 bits para offset (4096 bytes). Si un proceso usa solo 4 MiB, requiere 1 entrada en directorio y 1 tabla de nivel 2 (1024 entradas), totalizando $(1024 + 1024) * 4 bytes = 8 KiB$, versus 4 MiB en tabla plana.
 
-```
-Dirección de 32 bits:
-┌────────┬────────┬──────────────┐
-│ 10 bits│ 10 bits│   12 bits    │
-│  (p1)  │  (p2)  │     (d)      │
-└────────┴────────┴──────────────┘
-
-Directorio: 2^10 = 1024 entradas
-Cada tabla nivel 2: 2^10 = 1024 entradas
-Offset: 2^12 = 4096 bytes (4 KiB)
-```
 
 #### Paginación de Tres Niveles
 
 Para espacios de direcciones de 64 bits, se requieren más niveles. La dirección se divide en p1, p2, p3, y offset.  
-```
-┌────────┬────────┬────────┬──────────────┐
-│  (p1)  │  (p2)  │  (p3)  │     (d)      │
-└────────┴────────┴────────┴──────────────┘
-```
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/17.png}
+\end{center}
+
 Por ejemplo, x86-64 con páginas de 4 KiB usa direcciones de 48 bits (no se usan los 64 completos), divididas en 9 bits para cada uno de cuatro niveles (PML4, PDPT, PD, PT), más 12 bits de offset. Esto crea cuatro niveles de traducción: Page Map Level 4 (PML4), Page Directory Pointer Table (PDPT), Page Directory (PD), y Page Table (PT).
 
-```
-Dirección de 48 bits (no se usan los 64 completos):
-┌────────┬────────┬────────┬────────┬──────────────┐
-│ 9 bits │ 9 bits │ 9 bits │ 9 bits │   12 bits    │
-│  PML4  │  PDPT  │   PD   │   PT   │   Offset     │
-└────────┴────────┴────────┴────────┴──────────────┘
-
-4 niveles de traducción:
-1. Page Map Level 4 (PML4)
-2. Page Directory Pointer Table (PDPT)
-3. Page Directory (PD)
-4. Page Table (PT)
-```
 \begin{warning}
 El costo de traducción es significativo: con 3 niveles se necesitan 4 accesos a memoria (3 niveles más el dato). Sin TLB esto sería devastador para el rendimiento. Un hit rate del TLB del 99\% es esencial para mantener el sistema usable.
 \end{warning}
@@ -678,18 +622,9 @@ Un enfoque radicalmente diferente: en lugar de una tabla por proceso, una tabla 
 
 La estructura tiene una entrada por marco físico, conteniendo el PID del proceso dueño, el número de página lógica, y flags de protección y estado. La traducción requiere extraer página p y offset d de la dirección lógica, buscar en la tabla invertida la entrada donde `(PID == actual) AND (Página == p)`, usar el índice de esa entrada como el marco, y calcular `DF = marco * tamaño_página + d`.
 
-```
-Tabla Invertida (una para todo el sistema):
-┌───────┬──────────┬─────────┬──────────┐
-│ Marco │ PID      │ Página  │ Flags    │
-├───────┼──────────┼─────────┼──────────┤
-│   0   │   42     │   7     │ R-X      │
-│   1   │  103     │   2     │ RW-      │
-│   2   │   42     │   15    │ RW-      │
-│  ...  │  ...     │  ...    │ ...      │
-│   n   │  256     │   0     │ R--      │
-└───────┴──────────┴─────────┴──────────┘
-```
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/18.png}
+\end{center}
 El problema crítico es que la búsqueda es O(n) donde n es la cantidad de marcos. Cada acceso a memoria requiere escanear toda la tabla, lo cual es INACEPTABLE sin optimización. La solución es usar una tabla hash para acelerar la búsqueda:  
 ```
 Hash(PID, página) -> índice en tabla hash -> cadena de colisiones -> entrada
@@ -706,41 +641,9 @@ El proceso reorganiza la memoria moviendo procesos activos para eliminar fragmen
 
 El algoritmo implica identificar todos los bloques libres, mover procesos hacia direcciones bajas, actualizar tablas de asignación, y actualizar todas las referencias (registros, punteros, tablas de páginas).
 
-```
-Antes de compactación:
-┌──────┐ 0 KiB
-│  SO  │
-├──────┤ 64 KiB
-│  P1  │ (50 KiB)
-├──────┤ 114 KiB
-│ Libre│ (30 KiB)
-├──────┤ 144 KiB
-│  P2  │ (80 KiB)
-├──────┤ 224 KiB
-│ Libre│ (40 KiB)
-├──────┤ 264 KiB
-│  P3  │ (60 KiB)
-├──────┤ 324 KiB
-│ Libre│ (700 KiB)
-└──────┘ 1024 KiB
-
-Total libre: 770 KiB (fragmentado)
-
-Después de compactación:
-┌──────┐ 0 KiB
-│  SO  │
-├──────┤ 64 KiB
-│  P1  │ (50 KiB)
-├──────┤ 114 KiB
-│  P2  │ (80 KiB)
-├──────┤ 194 KiB
-│  P3  │ (60 KiB)
-├──────┤ 254 KiB
-│ Libre│ (770 KiB)
-└──────┘ 1024 KiB
-
-Total libre: 770 KiB (contiguo)
-```
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/19.png}
+\end{center}
 
 Los costos son considerables: copiar todos los procesos en memoria es muy lento, hay que detener la ejecución durante la compactación, actualizar estructuras del SO, y en un sistema con 1 GiB ocupado, esto puede tomar varios segundos.
 \begin{warning}
@@ -758,10 +661,6 @@ Los sistemas de gestión de memoria incluyen mecanismos de protección para evit
 Los bits de protección en la tabla de páginas incluyen `R` (Read, página legible), `W` (Write, página escribible), y `X` (Execute, página ejecutable). Las combinaciones típicas son `R--` para solo lectura (constantes, código compartido), `RW-` para lectura/escritura (datos, heap, stack), `R-X` para solo lectura y ejecución (código), y `RWX` que es peligroso porque permite ataques de data execution.
 
 ```
-┌────────┬────┬────┬────┬────────┐
-│ Marco  │ R  │ W  │ X  │ Otros  │
-└────────┴────┴────┴────┴────────┘
-
 R (Read):    Página legible
 W (Write):   Página escribible
 X (Execute): Página ejecutable
@@ -801,13 +700,24 @@ Los sistemas modernos permiten que múltiples procesos compartan páginas de mem
 En código compartido, dos procesos ejecutando el mismo programa pueden apuntar al mismo marco físico para su segmento de código (con permisos read-only), mientras mantienen datos y stack privados en marcos separados. Si 100 procesos ejecutan bash (1 MiB de código), sin compartición se necesitarían 100 MiB de código en RAM. Con compartición, se necesita 1 MiB de código más 100 MiB de datos privados, ahorrando 99 MiB.
 
 ```
-Proceso A (PID=100):          Proceso B (PID=200):
-Tabla de páginas:             Tabla de páginas:
-┌────────┬────────┐           ┌────────┬────────┐
-│ Pág 0  │ Marco 5│ ← Código │ Pág 0  │ Marco 5│ Mismo marco
-│ Pág 1  │ Marco 8│ ← Datos  │ Pág 1  │ Marco 9│ Datos privados
-│ Pág 2  │ Marco 7│ ← Stack  │ Pág 2  │ Marco 6│ Stack privado
-└────────┴────────┘           └────────┴────────┘
+Proceso A (PID=100): 
+Tabla de páginas:
+
+┌────────┬────────┐ 
+│ Pág 0  │ Marco 5│ ← Código
+│ Pág 1  │ Marco 8│ ← Datos
+│ Pág 2  │ Marco 7│ ← Stack 
+└────────┴────────┘  
+```
+```
+Proceso B (PID=230):
+Tabla de páginas:  
+
+┌────────┬────────┐ 
+│ Pág 0  │ Marco 5│ ← Código (Mismo marco)
+│ Pág 1  │ Marco 9│ ← Datos Privados
+│ Pág 2  │ Marco 6│ ← Stack Privado
+└────────┴────────┘ 
 ```
 
 Los requisitos para compartir código son que el código debe ser reentrante (no se modifica a sí mismo), las páginas compartidas deben tener permisos R-X (no escribibles), y cada proceso tiene sus propios datos y stack privados.
