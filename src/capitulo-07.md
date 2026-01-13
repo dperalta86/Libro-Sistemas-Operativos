@@ -139,6 +139,10 @@ En los esquemas más simples de gestión de memoria, la MMU usa solo dos registr
 
 La traducción es directa: `Dirección Física = Dirección Lógica + Base`. Pero hay una verificación crítica: `Si (Dirección Lógica >= Límite): Generar TRAP (Segmentation Fault)`.
 
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/08.png}
+\end{center}
+
 \begin{warning}
 La verificación de límites ocurre en HARDWARE mediante un circuito comparador. El SO carga Base y Límite al hacer context switch. Si un proceso intenta acceder fuera de su espacio, el hardware genera un TRAP automáticamente, y el SO maneja el TRAP (típicamente matando el proceso).
 \end{warning}
@@ -216,54 +220,92 @@ La fragmentación externa es progresiva: empeora con el tiempo de ejecución del
 
 ### Algoritmos de Asignación
 
-Cuando llega un proceso que necesita memoria, el SO debe decidir en qué bloque libre ubicarlo. Esta decisión aparentemente simple tiene implicaciones profundas en el rendimiento del sistema. Existen varios algoritmos, cada uno con diferentes trade-offs.
+Cuando llega un proceso que necesita memoria, el SO debe decidir **en qué bloque libre ubicarlo**. Esta decisión aparentemente simple tiene implicaciones profundas en el rendimiento del sistema. Para entender las diferencias, analicemos cada algoritmo usando el mismo escenario.
+
+**Escenario común para todos los algoritmos:**
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/09.png}
+\end{center}
+
+Veamos cómo cada algoritmo maneja esta situación.
 
 #### First Fit (Primer Ajuste)
 
-El algoritmo busca secuencialmente en la lista de bloques libres y asigna el primer bloque suficientemente grande. Por ejemplo, con bloques libres de [50 KiB] [200 KiB] [80 KiB] [300 KiB], si un proceso necesita 70 KiB, First Fit asigna el bloque de 200 KiB, dejando [50 KiB] [70 KiB usado | 130 KiB libre] [80 KiB] [300 KiB].  
-La complejidad es O(n) en el peor caso, pero rápido en promedio. Tiende a dejar bloques pequeños al inicio de la lista, lo que puede ser problemático con el tiempo.
+El algoritmo busca secuencialmente en la lista de bloques libres y asigna el **primer bloque** suficientemente grande.
 
-```
-Bloques libres: [50 KiB] [200 KiB] [80 KiB] [300 KiB]
-Proceso necesita: 70 KiB
+**Decisión de First Fit:**
+- Examina Bloque A (100 KiB): ¿100 ≥ 70? Sí, **asigna aquí**
+- No examina Bloques B ni C (la búsqueda terminó)
 
-First Fit asigna: Bloque de 200 KiB (primero que encontró >= 70 KiB)
-Resultado: [50 KiB] [70 KiB usado|130 KiB libre] [80 KiB] [300 KiB]
-```
+**Resultado:** P4 se asigna en el Bloque A (100 KiB), quedando un fragmento de 30 KiB.
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/10.png}
+\end{center}
+
+La complejidad es O(n) en el peor caso, pero rápido en promedio. Tiende a dejar bloques pequeños al inicio de la lista, lo que puede generar acumulación de fragmentos inútiles en esa zona.
 
 #### Best Fit (Mejor Ajuste)
 
-Este algoritmo busca en toda la lista de bloques libres y asigna el bloque más pequeño que sea suficiente. Con los mismos bloques del ejemplo anterior y un proceso de 70 KiB, Best Fit asigna el bloque de 80 KiB, dejando [50 KiB] [200 KiB] [70 KiB usado | 10 KiB libre] [300 KiB].  
+Este algoritmo busca en **toda** la lista de bloques libres y asigna el **bloque más pequeño** que sea suficiente.
 
-La complejidad es O(n) siempre porque debe recorrer toda la lista. Minimiza el desperdicio por asignación individual, pero genera muchos bloques muy pequeños que terminan siendo inútiles.
-```
-Bloques libres: [50 KiB] [200 KiB] [80 KiB] [300 KiB]
-Proceso necesita: 70 KiB
+**Decisión de Best Fit:**
+- Examina Bloque A (100 KiB): ¿100 ≥ 70? Sí, candidato
+- Examina Bloque B (150 KiB): ¿150 ≥ 70? Sí, candidato (pero peor que A)
+- Examina Bloque C (75 KiB): ¿75 ≥ 70? Sí, candidato **mejor** (75 < 100 < 150)
+- **Asigna en Bloque C** (el más pequeño que alcanza)
 
-Best Fit asigna: Bloque de 80 KiB (el menor >= 70 KiB)
-Resultado: [50 KiB] [200 KiB] [70 KiB usado|10 KiB libre] [300 KiB]
-```
+**Resultado:** P4 se asigna en el Bloque C (75 KiB), quedando un fragmento de 5 KiB.
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/11.png}
+\end{center}
+
+La complejidad es O(n) siempre porque debe recorrer toda la lista. Minimiza el desperdicio por asignación individual, pero genera muchos bloques muy pequeños (como ese fragmento de 5 KiB) que terminan siendo inútiles.
 
 #### Worst Fit (Peor Ajuste)
 
-Contraintuitivamente, este algoritmo busca en toda la lista y asigna el bloque más grande disponible. En nuestro ejemplo, Worst Fit asignaría el bloque de 300 KiB, dejando [50 KiB] [200 KiB] [80 KiB] [70 KiB usado | 230 KiB libre].  
-La complejidad es O(n) siempre, pero deja bloques grandes que son más útiles que los pequeños. En simulaciones, suele tener mejor rendimiento que Best Fit.
-```
-Bloques libres: [50 KiB] [200 KiB] [80 KiB] [300 KiB]
-Proceso necesita: 70 KiB
+Contraintuitivamente, este algoritmo busca en toda la lista y asigna el **bloque más grande** disponible.
 
-Worst Fit asigna: Bloque de 300 KiB
-Resultado: [50 KiB] [200 KiB] [80 KiB] [70 KiB usado|230 KiB libre]
-```
+**Decisión de Worst Fit:**
+- Examina Bloque A (100 KiB): Candidato
+- Examina Bloque B (150 KiB): Candidato **mejor** (el más grande)
+- Examina Bloque C (75 KiB): No supera a B
+- **Asigna en Bloque B** (el más grande disponible)
+
+**Resultado:** P4 se asigna en el Bloque B (150 KiB), quedando un fragmento de 80 KiB.
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/12.png}
+\end{center}
+
+La complejidad es O(n) siempre, pero deja bloques grandes que son más útiles que los pequeños. En simulaciones, suele tener mejor rendimiento que Best Fit.
 
 #### Next Fit (Siguiente Ajuste)
 
-Similar a First Fit, pero continúa la búsqueda desde donde terminó la última asignación en forma circular. Tiene complejidad O(n) en el peor caso, distribuye asignaciones más uniformemente, y evita la concentración de bloques pequeños al inicio de la memoria.
-\begin{theory}
-¿Por qué Worst Fit puede ser más eficiente que Best Fit? Best Fit genera muchos bloques MUY pequeños (1-5 KiB) que son prácticamente inútiles. Worst Fit deja bloques grandes (30-50 KiB) que tienen más probabilidad de ser utilizables para procesos futuros. Esto demuestra que la intuición puede fallar en sistemas complejos.
-\end{theory}
-En la práctica, los sistemas modernos usan variantes de First Fit con optimizaciones como listas ordenadas y segregación por tamaño. La elección del algoritmo depende del patrón de uso esperado del sistema.
+Similar a First Fit, pero continúa la búsqueda desde donde terminó la última asignación en forma circular.
 
+**Decisión de Next Fit:**
+- Supongamos que la última asignación fue el Proceso P3
+- Comienza búsqueda desde "el inicio"
+- Examina Bloque A (100 KiB): ¿100 ≥ 70? Sí, **asigna aquí**
+- La próxima búsqueda comenzará después de este punto
+
+**Resultado:** P4 se asigna en el Bloque A (100 KiB), quedando un fragmento de 30 KiB.  
+*Nota:* En este ejemplo coincide con First Fit, simplemente porque se utilizó como ultimo proceso asignado P3, en cambio si el ultimo asignado hubiera sido P2, el asignado sería Bloque C.
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/13.png}
+\end{center}
+
+Tiene complejidad O(n) en el peor caso, distribuye asignaciones más uniformemente, y evita la concentración de bloques pequeños al inicio de la memoria.
+
+\begin{theory}
+¿Por qué Worst Fit puede ser más eficiente que Best Fit? Best Fit genera muchos bloques MUY pequeños (como ese fragmento de 5 KB) que son prácticamente inútiles. Worst Fit deja bloques grandes (80 KB en nuestro ejemplo) que tienen más probabilidad de ser utilizables para procesos futuros. First Fit deja un fragmento de 30 KB, intermedio entre ambos. Esto demuestra que la intuición puede fallar en sistemas complejos.
+\end{theory}
+
+En la práctica, los sistemas modernos usan variantes de First Fit con optimizaciones como listas ordenadas y segregación por tamaño. La elección del algoritmo depende del patrón de uso esperado del sistema.
 
 ## Paginación Simple
 
@@ -293,15 +335,14 @@ Veamos un ejemplo concreto. Con un espacio de 64 KiB con páginas de 4 KiB, tene
 
 El formato de dirección de 16 bits se divide en 4 bits para el número de página (permitiendo páginas 0-15) y 12 bits para el offset (permitiendo offset 0-4095).
 
-```
-Dirección lógica de 16 bits:
-┌────────┬────────────────────┐
-│ 4 bits │     12 bits        │
-│  (p)   │      (d)           │
-└────────┴────────────────────┘
-Rango páginas: 0-15
-Rango offset: 0-4095
-```
+\begin{center}
+\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/capitulo-07/05.png}
+
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Representación de dirección lógic de 16 bits, utilizando 4 bits (orden superior) para número de página (0-15) y los restantes 12 bits para el desplazamiento (0-4095).
+}
+\end{center}
 
 \begin{excerpt}
 \emph{Formato de Dirección Lógica:}
@@ -323,24 +364,23 @@ Configuración:
 ```
 
 Supongamos una tabla donde la página 0 mapea al marco 5, la página 1 al marco 2, la página 2 al marco 7, y la página 3 al marco 0.
-```
-┌────────┬────────┐
-│ Página │ Marco  │
-├────────┼────────┤
-│   0    │   5    │
-│   1    │   2    │
-│   2    │   7    │
-│   3    │   0    │
-└────────┴────────┘
-```
+
+| Página | Marco |
+|-----------|-----|
+| 0 | 5 |
+| 1 | 2 |
+| 2 | 7 |
+| 3 | 0 |
 
 Para traducir la dirección lógica 1300, primero la convertimos a binario: 1300₁₀ = 10100010100₂. Separamos en página (001 = 1) y offset (0100010100 = 276). 
-```
-┌───────┬──────────────┐
-│ 001   │ 0100010100   │
-│ (p=1) │  (d=276)     │
-└───────┴──────────────┘
-```
+
+\begin{infobox}
+Nota que hay que completar con la cantidad de bits la dirección logica (completar con 0 a la izquierda), de otro modo nos quedaría número de páginas 101 (5).
+\end{infobox}
+
+\begin{center}
+\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/capitulo-07/06.png}
+\end{center}
 
 Consultar tabla: $tabla[1] = marco 2$  
 
@@ -353,32 +393,14 @@ $$
 El proceso de traducción es completamente transparente para el proceso. El programa genera la dirección lógica 1300, pero el hardware accede a la dirección física 2324. El proceso nunca sabe dónde está realmente en memoria.
 \end{example}
 
-```
-CPU genera DL=1300
-       ↓
-┌──────────────┐
-│ p=1 │ d=276  │
-└──────────────┘
-       ↓
- [Tabla de Páginas]
-  p=1 -> marco=2
-       ↓
-DF = 2*1024 + 276 = 2324
-       ↓
-   Acceso a RAM[2324]
-```
-
 ### Tabla de Páginas
 
 La tabla de páginas es una estructura de datos mantenida por el SO que mapea números de página lógica a números de marco físico. Cada proceso tiene su propia tabla de páginas independiente.  
-Cada entrada de la tabla (PTE - Page Table Entry) contiene más que solo el número de marco. Incluye el marco (número de marco físico donde está la página), el bit V (Valid, indica si la página está en memoria o en disco), el bit R (Referenced, para algoritmos de reemplazo), el bit W (Written/Dirty, indica si la página fue modificada), el bit X (Execute, permiso de ejecución), y otros campos para protección, compartición, etc.
+Cada entrada de la tabla (PTE - Page Table Entry) contiene más que solo el número de marco. Incluye el marco (número de marco físico donde está la página), el bit P o V (Presencia/Validate, indica si la página está en memoria o en disco), el bit U o R (Uso/Referenced, para algoritmos de reemplazo), el bit M o W (Modificada/Write/Dirty, indica si la página fue modificada), el bit X (Execute, permiso de ejecución), y otros campos para protección, compartición, etc.
 
-```
-┌────────────┬─────┬─────┬─────┬─────┬──────────┐
-│ Marco (n)  │  V  │  R  │  W  │  X  │  Otros   │
-└────────────┴─────┴─────┴─────┴─────┴──────────┘
-    20 bits   1 bit 1 bit 1 bit 1 bit   8 bits
-```
+\begin{center}
+\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/capitulo-07/07.png}
+\end{center}
 
 Un aspecto crucial es la ubicación: la tabla de páginas está en memoria RAM, no en registros del CPU (son demasiadas entradas). El SO mantiene un registro especial llamado PTBR (Page Table Base Register) que apunta al inicio de la tabla. En cada context switch, el SO actualiza el PTBR con la tabla del nuevo proceso.
 \begin{warning}
@@ -394,17 +416,6 @@ Proceso necesita: 13.5 KiB
 Tamaño de página: 4 KiB
 Páginas asignadas: 4 páginas (16 KiB)
 Fragmentación interna: 16 - 13.5 = 2.5 KiB (15.6%)
-
-┌──────────┐
-│ Página 0 │ 4 KiB (completa)
-├──────────┤
-│ Página 1 │ 4 KiB (completa)
-├──────────┤
-│ Página 2 │ 4 KiB (completa)
-├──────────┤
-│ Página 3 │ 1.5 KiB usado
-│  ········│ 2.5 KiB desperdiciado
-└──────────┘
 ```
 
 La fragmentación promedio es de 0.5 páginas por proceso. Si la página es de 4 KiB, el desperdicio promedio es 2 KiB por proceso. Con 100 procesos, se desperdician 200 KiB. Existe un trade-off: páginas más pequeñas reducen fragmentación interna pero aumentan el overhead de las tablas.
@@ -456,16 +467,14 @@ Una dirección lógica es un par (s, d) donde s es el número de segmento y d es
 Con una tabla donde el segmento 0 tiene base 1000 y límite 2000, el segmento 1 tiene base 5000 y límite 500, y el segmento 2 tiene base 8000 y límite 1000, la dirección (1, 250) se traduce así: $s=1, d=250, base=5000, límite=500$. Como $250 < 500$ es válido, calculamos $DF = 5000 + 250 = 5250$.
 Si intentamos traducir (1, 600), como 600 no es menor que 500, el hardware genera un `TRAP`(Segmentation Fault).
 
-```
-Tabla de segmentos:
-┌─────────┬──────┬────────┐
-│ Segmento│ Base │ Límite │
-├─────────┼──────┼────────┤
-│    0    │ 1000 │  2000  │
-│    1    │ 5000 │   500  │
-│    2    │ 8000 │  1000  │
-└─────────┴──────┴────────┘
 
+| Segmento | Base | Límite |
+|-----------|-----|---------|
+| 0 | 1000 | 2000 |
+| 1 | 5000 | 500 |
+| 2 | 8000 | 1000 |
+
+```
 Traducir: (1, 250)
 1. s=1, d=250
 2. Base=5000, Límite=500
