@@ -225,7 +225,7 @@ Cuando llega un proceso que necesita memoria, el SO debe decidir **en qué bloqu
 **Escenario común para todos los algoritmos:**
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/09.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/09.png}
 \end{center}
 
 Veamos cómo cada algoritmo maneja esta situación.
@@ -241,7 +241,7 @@ El algoritmo busca secuencialmente en la lista de bloques libres y asigna el **p
 **Resultado:** P4 se asigna en el Bloque A (100 KiB), quedando un fragmento de 30 KiB.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/10.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/10.png}
 \end{center}
 
 La complejidad es O(n) en el peor caso, pero rápido en promedio. Tiende a dejar bloques pequeños al inicio de la lista, lo que puede generar acumulación de fragmentos inútiles en esa zona.
@@ -259,7 +259,7 @@ Este algoritmo busca en **toda** la lista de bloques libres y asigna el **bloque
 **Resultado:** P4 se asigna en el Bloque C (75 KiB), quedando un fragmento de 5 KiB.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/11.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/11.png}
 \end{center}
 
 La complejidad es O(n) siempre porque debe recorrer toda la lista. Minimiza el desperdicio por asignación individual, pero genera muchos bloques muy pequeños (como ese fragmento de 5 KiB) que terminan siendo inútiles.
@@ -277,7 +277,7 @@ Contraintuitivamente, este algoritmo busca en toda la lista y asigna el **bloque
 **Resultado:** P4 se asigna en el Bloque B (150 KiB), quedando un fragmento de 80 KiB.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/12.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/12.png}
 \end{center}
 
 La complejidad es O(n) siempre, pero deja bloques grandes que son más útiles que los pequeños. En simulaciones, suele tener mejor rendimiento que Best Fit.
@@ -296,7 +296,7 @@ Similar a First Fit, pero continúa la búsqueda desde donde terminó la última
 *Nota:* En este ejemplo coincide con First Fit, simplemente porque se utilizó como ultimo proceso asignado P3, en cambio si el ultimo asignado hubiera sido P2, el asignado sería Bloque C.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/13.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/13.png}
 \end{center}
 
 Tiene complejidad O(n) en el peor caso, distribuye asignaciones más uniformemente, y evita la concentración de bloques pequeños al inicio de la memoria.
@@ -320,7 +320,7 @@ La paginación es el fundamento de prácticamente todos los sistemas operativos 
 \end{highlight}
 
 \begin{center}
-\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/03.png}
+\includegraphics[width=0.5\linewidth,keepaspectratio]{src/images/capitulo-07/03.png}
 \end{center}
 
 ### Formato de Dirección Lógica
@@ -408,7 +408,7 @@ Esto introduce un problema de rendimiento: cada acceso a memoria requiere 2 acce
 \end{warning}
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/14.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/14.png}
 \end{center}
 
 ### Fragmentación Interna en Paginación
@@ -527,7 +527,7 @@ Veamos la operación completa.
 
 Estado inicial: 256 KiB libre
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/22.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/22.png}
 \end{center}
 ```
 Solicitud: 40 KiB
@@ -538,7 +538,7 @@ Solicitud: 40 KiB
 ```
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/23.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/23.png}
 \end{center}
 
 ```
@@ -548,7 +548,7 @@ Solicitud: 35 KiB
 ```
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/26.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/26.png}
 \end{center}
 
 ```
@@ -558,7 +558,7 @@ Liberar primer bloque (64 KiB):
 ```
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/24.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/24.png}
 \end{center}
 ```
 Liberar segundo bloque (64 KiB):
@@ -568,7 +568,7 @@ Liberar segundo bloque (64 KiB):
 -> Fusionar en 256 KiB
 ```
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/25.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/25.png}
 \end{center}
 
 Las ventajas son asignación y liberación rápidas en O(log n), coalescing automático sin escanear toda la memoria, reduce fragmentación externa comparado con particiones dinámicas, e implementación simple con listas por tamaño. Las desventajas son la fragmentación interna (siempre se asigna potencia de 2), por ejemplo un proceso de 65 KiB recibe 128 KiB desperdiciando 63 KiB, y no es tan eficiente como paginación pura.
@@ -585,7 +585,7 @@ En un sistema de 32 bits con páginas de 4 KiB, hay $2^{32} = 4 GiB$ de direccio
 La solución es paginar la tabla de páginas misma, creando una jerarquía de múltiples niveles.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/15.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/15.png}
 \end{center}
 
 #### Paginación de Dos Niveles
@@ -596,7 +596,7 @@ El formato de dirección lógica se divide en tres partes: directorio (p1), pág
 La ventaja es enorme: si un proceso no usa ciertas regiones de memoria, las tablas de nivel 2 correspondientes NO se crean, ahorrando memoria significativamente.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/16.png}
+\includegraphics[width=0.85\linewidth,keepaspectratio]{src/images/capitulo-07/16.png}
 \end{center}
 
 En un sistema de 32 bits con páginas de 4 KiB, podés usar 10 bits para directorio (1024 entradas), 10 bits para página (1024 entradas por tabla nivel 2), y 12 bits para offset (4096 bytes). Si un proceso usa solo 4 MiB, requiere 1 entrada en directorio y 1 tabla de nivel 2 (1024 entradas), totalizando $(1024 + 1024) * 4 bytes = 8 KiB$, versus 4 MiB en tabla plana.
@@ -699,26 +699,9 @@ El bit NX (No-eXecute) es fundamental para seguridad moderna. Previene ataques d
 Los sistemas modernos permiten que múltiples procesos compartan páginas de memoria para código compartido (múltiples procesos ejecutando el mismo programa), librerías compartidas (libc.so, libpthread.so, etc.), y comunicación entre procesos mediante segmentos de memoria compartida.  
 En código compartido, dos procesos ejecutando el mismo programa pueden apuntar al mismo marco físico para su segmento de código (con permisos read-only), mientras mantienen datos y stack privados en marcos separados. Si 100 procesos ejecutan bash (1 MiB de código), sin compartición se necesitarían 100 MiB de código en RAM. Con compartición, se necesita 1 MiB de código más 100 MiB de datos privados, ahorrando 99 MiB.
 
-```
-Proceso A (PID=100): 
-Tabla de páginas:
-
-┌────────┬────────┐ 
-│ Pág 0  │ Marco 5│ ← Código
-│ Pág 1  │ Marco 8│ ← Datos
-│ Pág 2  │ Marco 7│ ← Stack 
-└────────┴────────┘  
-```
-```
-Proceso B (PID=230):
-Tabla de páginas:  
-
-┌────────┬────────┐ 
-│ Pág 0  │ Marco 5│ ← Código (Mismo marco)
-│ Pág 1  │ Marco 9│ ← Datos Privados
-│ Pág 2  │ Marco 6│ ← Stack Privado
-└────────┴────────┘ 
-```
+\begin{center}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-07/27.png}  
+\end{center}
 
 Los requisitos para compartir código son que el código debe ser reentrante (no se modifica a sí mismo), las páginas compartidas deben tener permisos R-X (no escribibles), y cada proceso tiene sus propios datos y stack privados.
 
@@ -1168,16 +1151,6 @@ Número de páginas = 2^4 = 16 páginas (0-15)
 
 El formato de dirección de 15 bits se divide en 4 bits para página (permitiendo páginas 0-15) y 11 bits para offset (permitiendo offset 0-2047).
 
-```
-Dirección lógica de 15 bits:
-┌────────────┬───────────────────────┐
-│  4 bits    │       11 bits         │
-│  (página)  │      (offset)         │
-└────────────┴───────────────────────┘
-Rango página: 0-15
-Rango offset: 0-2047
-```
-
 Para la traducción de 5000:
 
 ```
@@ -1186,10 +1159,9 @@ Paso 1: Convertir 5000 a binario
 5000₁₀ = 001001110001000₂ (padding con ceros)
 
 Paso 2: Separar página y offset
-┌────────────┬───────────────────────┐
-│ 0010       │ 01110001000           │
-│ (p = 2)    │ (d = 904)             │
-└────────────┴───────────────────────┘
+
+   0010  01110001000
+   (p=2)   (d=904)
 
 Verificación:
 - Página: 0010₂ = 2₁₀
@@ -1217,10 +1189,6 @@ Dirección calculada: 2952
 
 En binario:
 DF = 2952₁₀ = 101110001000₂
-┌────────────┬───────────────────────┐
-│ 00001      │ 01110001000           │
-│ (marco=1)  │ (offset=904)          │
-└────────────┴───────────────────────┘
 ```
 
 *Respuestas finales:*
@@ -1301,12 +1269,6 @@ Tamaño de página: 4096 bytes = 2^12 bytes
 
 Bits para página = 16 - 12 = 4 bits
 Número de páginas = 2^4 = 16 páginas (0-15)
-
-Formato de dirección:
-┌────────────┬───────────────────────┐
-│  4 bits    │       12 bits         │
-│  (página)  │      (offset)         │
-└────────────┴───────────────────────┘
 ```
 
 *Parte 3: Traducir dirección lógica 15000*
@@ -1341,20 +1303,10 @@ DF = 23192 bytes
 DL = 15000₁₀ = 11101010011000₂ (necesitamos 16 bits)
 DL = 0011101010011000₂
 
-┌────────────┬───────────────────────┐
-│ 0011       │ 101010011000          │
-│ (p = 3)    │ (d = 2712)            │
-└────────────┴───────────────────────┘
-
 Página: 0011₂ = 3₁₀ ✓
 Offset: 101010011000₂ = 2712₁₀ ✓
 
 DF = 23192₁₀ = 101101010011000₂
-
-┌─────────────┬───────────────────────┐
-│ 0101        │ 101010011000          │
-│ (marco = 5) │ (offset = 2712)       │
-└─────────────┴───────────────────────┘
 ```
 
 *Respuestas finales:*
@@ -1362,38 +1314,12 @@ DF = 23192₁₀ = 101101010011000₂
 2. Bits para número de página: 4 bits (permite 16 páginas)
 3. Dirección física de 15000: 23192 bytes
 
-*Diagrama resumen del ejercicio:*
-
-```
-Sistema con páginas de 4 KiB:
-
-Espacio Lógico (64 KiB):        Memoria Física:
-┌──────────────┐ Página 0      ┌──────────────┐ Marco 0
-│              │                │              │
-├──────────────┤ Página 1      ├──────────────┤ Marco 1
-│              │                │              │
-├──────────────┤ Página 2      ├──────────────┤ Marco 2
-│              │                │              │
-├──────────────┤ Página 3      ├──────────────┤ Marco 3
-│ DL=12345     │ ──────────┐   │              │
-│ offset=57    │           │   ├──────────────┤ Marco 4
-├──────────────┤ Página 4  │   │              │
-│              │           │   ├──────────────┤ Marco 5
-├──────────────┤ Página 5  │   │ DL=15000     │ ← traduce aquí
-│              │           │   │ offset=2712  │
-├──────────────┤ ...       │   ├──────────────┤ Marco 6
-│              │           │   │              │
-├──────────────┤ Página 15 │   ├──────────────┤ Marco 7
-│              │           └──->│ DF=28729     │ ← traduce aquí
-└──────────────┘               │ offset=57    │
-                                └──────────────┘
-```
-
 ## Síntesis
 
 ### Puntos Clave del Capítulo
 
 La evolución de las técnicas de gestión de memoria muestra una progresión clara. Las particiones fijas eran simples pero con fragmentación interna severa. Las particiones dinámicas eliminaron la fragmentación interna pero crearon fragmentación externa. La paginación eliminó la fragmentación externa pero agregó overhead de traducción. La segmentación ofreció mejor modelo lógico pero volvió a introducir fragmentación externa. Finalmente, los sistemas híbridos de paginación más segmentación combinan ventajas de ambos enfoques.  
+
 | Técnica | Fragm. Interna | Fragm. Externa | Overhead | Complejidad |
 |---------|----------------|----------------|----------|-------------|
 | Particiones Fijas | Alta | No | Mínimo | Baja |
@@ -1425,7 +1351,7 @@ También se relaciona con el *sistema de archivos*. La función mmap() permite m
 ### Errores Comunes en Parciales
 Los errores frecuentes incluyen confundir bits de página con número de páginas (son conceptos diferentes), olvidar que el offset se mantiene igual en la traducción, sumar mal la fórmula (DF = marco * tamaño + offset, no página), no verificar que la dirección calculada sea válida, confundir fragmentación interna con externa, decir que la paginación tiene fragmentación externa (no la tiene), y no considerar que la tabla de páginas está en RAM, no en el CPU.
 \begin{warning}
-Un checklist para ejercicios de traducción debe incluir: identificar el tamaño de página (dato o deducir), calcular bits de offset (log₂ del tamaño de página), calcular bits de página (bits totales menos bits de offset), extraer página de dirección lógica, extraer offset, buscar marco en tabla de páginas, calcular DF $marco * tamaño_página + offset$, y verificar que DF esté en rango válido.
+Un checklist para ejercicios de traducción debe incluir: identificar el tamaño de página (dato o deducir), calcular bits de offset (log₂ del tamaño de página), calcular bits de página (bits totales menos bits de offset), extraer página de dirección lógica, extraer offset, buscar marco en tabla de páginas, calcular DF $marco * tamanio\_pagina + offset$, y verificar que DF esté en rango válido.
 \end{warning}
 
 ### Preguntas de Reflexión
@@ -1445,7 +1371,7 @@ Las lecturas recomendadas incluyen Silberschatz (Capítulo 8: "Memory Management
 Entre los papers clásicos están Denning, P. J. (1970) sobre "Virtual Memory" en ACM Computing Surveys, y Corbató, F. J. et al. (1962) sobre "An Experimental Time-Sharing System", el primer sistema con memoria virtual.
 
 \begin{infobox}
-Para experimentar con estos conceptos, podés usar herramientas como pmap para ver el mapeo de memoria de un proceso, valgrind para detectar errores de memoria, /proc/[pid]/maps para ver regiones de memoria de un proceso, y gdb con comandos info proc mappings. La documentación del kernel de Linux en Documentation/vm/ es invaluable para entender implementaciones reales.
+Para experimentar con estos conceptos, podés usar herramientas como pmap para ver el mapeo de memoria de un proceso, valgrind para detectar errores de memoria, \texttt{/proc/[pid]/maps} para ver regiones de memoria de un proceso, y gdb con comandos info proc mappings. La documentación del kernel de Linux en Documentation/vm/ es invaluable para entender implementaciones reales.
 \end{infobox}
 
 ---
