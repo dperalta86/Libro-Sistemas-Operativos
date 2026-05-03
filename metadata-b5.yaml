@@ -1,0 +1,55 @@
+# =============================================================
+# metadata-b5.yaml — Configuración B5 para impresión
+# Formato recomendado: 176 × 250 mm
+# =============================================================
+
+title: ""
+author: ""
+date: ""
+subject: "Sistemas Operativos"
+keywords: [Sistemas Operativos, Operating Systems, Unix, Linux, Procesos, Memoria, Concurrencia]
+subtitle: ""
+lang: "es"
+
+# --- Portada (eisvogel) ---
+titlepage: true
+titlepage-text-color: "FFFFFF"
+titlepage-rule-color: "360049"
+titlepage-rule-height: 0
+titlepage-background: "src/images/portada.jpeg"
+
+# --- Clase de documento ---
+documentclass: scrbook
+book: true
+classoption: "twoside,openright"
+openright: true
+
+# --- Índice ---
+toc: true
+toc-own-page: true
+toc-title: "Índice de Contenidos"
+toc-depth: 2
+
+# --- Página ---
+papersize: "b5"
+geometry: "left=2.5cm,right=2cm,top=3cm,bottom=3cm"
+fontsize: "10pt"
+page-background: ""
+page-background-opacity: 1
+
+# --- Headers y footers ---
+header-left: "Daniel Peralta"
+header-center: ""
+header-right: "\\leftmark"
+footer-left: ""
+footer-center: "\\thepage"
+footer-right: ""
+
+# --- Código ---
+listings-disable-line-numbers: false
+code-block-font-size: "\\small"
+listings-no-page-break: false
+
+# --- Fuentes ---
+mainfontfallback:
+  - "Noto Color Emoji:mode=harf"
