@@ -1,7 +1,16 @@
-# 📚 Introducción a los Sistemas Operativos
+# Introduccion a los Sistemas Operativos
 
-Un libro colaborativo de Sistemas Operativos diseñado específicamente para estudiantes de Ingeniería, con enfoque en evaluaciones teórico-prácticas y ejercicios tipo parcial.
+> Un libro colaborativo diseñado específicamente para estudiantes de Ingeniería, que quieren entender los **Sistemas Operativos** - no sólo aprobar.
 
+## Si te sirve, apoyá el proyecto
+- ⭐ Dale una estrella en GitHub
+- 📢 Compartilo con tus compañeros
+- 🤝 Sumate como contribuidor
+
+👉 Tu apoyo ayuda a que este material siga siendo gratuito y de calidad
+
+## Descargar gratis
+Descargá la ultima versión disponible...
 
 [![📄 Descargar PDF](https://img.shields.io/github/v/release/dperalta86/Libro-Sistemas-Operativos?label=Descargar%20PDF&style=for-the-badge&color=blue)](https://github.com/dperalta86/Libro-Sistemas-Operativos/releases/latest/download/Introduccion_a_los_Sistemas_Operativos.pdf)
 
@@ -13,97 +22,60 @@ Un libro colaborativo de Sistemas Operativos diseñado específicamente para est
 ![GitHub last commit](https://img.shields.io/github/last-commit/dperalta86/Libro-Sistemas-Operativos)
 ![Downloads](https://img.shields.io/github/downloads/dperalta86/Libro-Sistemas-Operativos/total?style=flat-square&label=Descargas%20totales)
 
-## 🎯 Sobre este proyecto
-
-Este libro surge de la necesidad de contar con material didáctico específico para la cátedra de Sistemas Operativos. Está orientado a estudiantes que cursan la materia y buscan:
-
-- **Explicaciones didácticas** de conceptos complejos
-- **Ejercicios resueltos paso a paso** similares a los de parciales
-- **Código en C comentado** y funcional
-- **Enfoque práctico** basado en sistemas Unix/Linux
-- **Material libre** y accesible para todos
-
-## 📖 Contenido
-
-### Capítulos disponibles
-
-- [x] **Capítulo 1**: Introducción a los Sistemas Operativos
-- [x] **Capítulo 2**: Procesos
-- [x] **Capítulo 3**: Planificación de Procesos
-- [x] **Capítulo 4**: Hilos (Threads)
-- [x] **Capítulo 5**: Sincronización
-- [x] **Capítulo 6**: Interbloqueo (Deadlock)
-- [x] **Capítulo 7**: Gestión de Memoria Real
-- [x] **Capítulo 8**: Memoria Virtual
-- [x] **Capítulo 9**: Sistema de Archivos
-- [x] **Capítulo 10**: I/O - Gestión de Dispositivos
-
-### En desarrollo
-- Modificar/Actualizar imagenes y diagramas
-
-### Leer online
-
-Puedes leer los capítulos individuales directamente en GitHub:
-- [Capítulo 1: Introducción](src/capitulo-01.md)
-- [Capítulo 2: Repaso Arquitectura de Computadores](src/capitulo-02.md)
-- [Capítulo 3: Procesos](src/capitulo-03.md)
-- [Capítulo 4: Planificación](src/capitulo-04.md)
-- [Capítulo 5: Hilos](src/capitulo-05.md)
-- [Capítulo 6: Sincronización](src/capitulo-06.md)
-- [Capítulo 7: Memoria Real](src/capitulo-07.md)
-- [Capítulo 8: Memoria Virtual](src/capitulo-08.md)
-- [Capítulo 9: Sistemas de Archivos](src/capitulo-09.md)
-- [Capítulo 10: I/O - Gestión de Dispositivos](src/capitulo-10.md)
-
-## 🔧 Compilación local
-
-Si querés compilar el libro localmente o contribuir:
-
-### Prerequisitos
+## Comandos rapidos
 
 ```bash
 # Ubuntu/Debian
-sudo apt update
-sudo apt install pandoc texlive-latex-recommended texlive-latex-extra make
+# Version digital (A4)
+make all
 
-# Instalar mermaid-cli para diagramas
-npm install -g @mermaid-js/mermaid-cli
+# Version de imprenta recomendada (B5)
+make print
+# o explicito
+make print-b5
+
+# Otros formatos de impresion
+make print-a4
+make print-a5
+
+# Generar todos los formatos
+make print-all
+
+# Verificar y completar datos editoriales
+make check-datos
+make edit-datos
+make sync-datos
+
+# Utilidades
+make list-todos
+make clean
 ```
 
-### Generar el libro
+PDFs generados en `build/`:
 
-```bash
-# Clonar el repositorio
-git clone https://github.com/dperalta86/Libro-Sistemas-Operativos.git
-cd Libro-Sistemas-Operativos
+- `build/Introduccion_a_los_Sistemas_Operativos-a4.pdf`
+- `build/Introduccion_a_los_Sistemas_Operativos-b5.pdf`
+- `build/Introduccion_a_los_Sistemas_Operativos-a5.pdf`
+- `build/Introduccion_a_los_Sistemas_Operativos-a4-print.pdf`
 
-# Compilar PDF completo
-make
+## Compilacion local (paso a paso)
 
-# Ver otros targets disponibles
-make help
-```
+Para instalacion, dependencias y flujo completo, ver [LOCAL_DEPLOY.md](LOCAL_DEPLOY.md).
 
-El PDF generado estará en `build/Introduccion_a_los_Sistemas_Operativos.pdf`.
+## Leer capitulos
 
-### Estructura del proyecto
+- [Capitulo 1 - Introducción](src/capitulo-01.md)
+- [Capitulo 2 - Repaso Arquitectura de Computadores](src/capitulo-02.md)
+- [Capitulo 3 - Procesos](src/capitulo-03.md)
+- [Capitulo 4 - Planificación de Procesos](src/capitulo-04.md)
+- [Capitulo 5 - Hilos (Threads)](src/capitulo-05.md)
+- [Capitulo 6 - Sincronización](src/capitulo-06.md)
+- [Capitulo 7 - Interbloqueo (Deadlock)](src/capitulo-07.md)
+- [Capitulo 8 - Gestión de Memoria Real](src/capitulo-08.md)
+- [Capitulo 9 - Gestión de Memoria Virtual](src/capitulo-09.md)
+- [Capitulo 10 - Sistema de Archivos (File System)](src/capitulo-10.md)
+- [Capitulo 11 - I/O - Gestión de Dispositivos](src/capitulo-11.md)
 
-```
-libro-sistemas-operativos/
-├── docs/                          # Capítulos en Markdown
-│   ├── cap01-introduccion.md
-│   ├── cap02-procesos.md
-│   └── ...
-├── diagrams/                      # Diagramas en Mermaid
-│   ├── *.mmd
-│   └── generated/                 # Imágenes generadas
-├── build/                         # PDFs compilados
-├── templates/                     # Plantillas Pandoc
-├── Makefile                       # Automatización de build
-├── LICENSE                        # Licencia MIT (código)
-├── CONTENT_LICENSE               # Licencia CC BY-SA 4.0 (contenido)
-└── README.md                     # Este archivo
-```
 
 ## 🤝 Contribuir
 
@@ -117,36 +89,17 @@ libro-sistemas-operativos/
 - **🎨 Diagramas**: Crear o mejorar diagramas y visualizaciones
 - **📋 Ejercicios**: Agregar más ejercicios resueltos
 
-### Proceso de contribución
-
-1. **Fork** el repositorio
-2. **Crea una rama** para tu contribución: `git checkout -b mejora/nuevo-contenido`
-3. **Realiza tus cambios** siguiendo el estilo del libro
-4. **Prueba la compilación**: `make`
-5. **Envía un Pull Request** con descripción clara de los cambios
-
 Ver [CONTRIBUTING.md](CONTRIBUTING.md) para guías detalladas de estilo y contribución.
-
-### Estilo y estructura
-
-Cada capítulo sigue esta estructura:
-- **Objetivos de aprendizaje**
-- **Introducción y contexto**
-- **Conceptos fundamentales**
-- **Análisis técnico detallado**
-- **Código en C comentado**
-- **Casos de estudio y ejercicios**
-- **Síntesis y puntos clave**
 
 ## 📄 Licencias
 
 Este proyecto utiliza dos licencias diferentes:
 
-### 🔧 Código del proyecto (MIT License)
+### Código del proyecto (MIT License)
 Los scripts, Makefile, configuraciones y herramientas están bajo **MIT License**.
 Ver [LICENSE](LICENSE) para detalles completos.
 
-### 📖 Contenido educativo (CC BY-SA 4.0)
+### Contenido educativo (CC BY-SA 4.0)
 El contenido del libro (textos, ejercicios, diagramas) está bajo **Creative Commons Attribution-ShareAlike 4.0**.
 Ver [CONTENT_LICENSE](CONTENT_LICENSE) para detalles completos.
 
@@ -156,7 +109,7 @@ Ver [CONTENT_LICENSE](CONTENT_LICENSE) para detalles completos.
 - ⚠️ **Atribución requerida** al redistribuir el contenido
 - 🔄 **Derivados del contenido** deben mantener la misma licencia libre
 
-## 🙏 Reconocimientos
+## Reconocimientos
 
 ### Autores principales
 - **Daniel Peralta** - Fundador del proyecto e autor principal
@@ -170,7 +123,7 @@ Agradecimientos especiales a todos los que han contribuido:
 - **Silberschatz, A.** - Operating System Concepts
 - **Tanenbaum, A.S.** - Modern Operating Systems
 
-## 💖 Apoyo al proyecto
+## Apoyo al proyecto
 
 Este libro es completamente **gratuito y libre**. Si te ha sido útil y querés apoyar su desarrollo continuo:
 
@@ -182,7 +135,7 @@ Este libro es completamente **gratuito y libre**. Si te ha sido útil y querés 
 
 ### Donaciones voluntarias
 
-Si el libro te ayudó a entender la materia o conseguir mejores notas, y querés hacer una contribución monetaria voluntaria para apoyar el desarrollo:
+Si el libro te ayudó a entender la materia y querés hacer una contribución monetaria voluntaria para apoyar el desarrollo:
 
 - ☕ **[Invitame un café](https://ko-fi.com/dperalta86)** - Ko-fi
 - 💳 **[Donación única](https://paypal.me/dperalta86)** - PayPal
@@ -207,7 +160,7 @@ Las contribuciones ayudan a:
 
 ### Alternativas:
 - 🐛 [Issues](https://github.com/dperalta86/Libro-Sistemas-Operativos/issues) - Para reportar errores específicos
-- **Email** (temas puntuales que no se puedan resolver en un issue): [dp25443@gmil.com]
+- **Email** (temas puntuales que no se puedan resolver en un issue): [dp25443@gmail.com]
 
 ---
 
