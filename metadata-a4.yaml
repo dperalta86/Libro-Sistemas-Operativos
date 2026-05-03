@@ -1,0 +1,41 @@
+# Configuración A4 - PANTALLA/E-BOOK (210 × 297 mm)
+title: ""
+author: ""
+date: ""
+subject: "Sistemas Operativos"
+keywords: [Sistemas Operativos, Operating Systems, Unix, Linux, Procesos, Memoria, Concurrencia]
+subtitle: ""
+lang: "es"
+titlepage: true
+titlepage-text-color: "FFFFFF"
+titlepage-rule-color: "360049"
+titlepage-rule-height: 0
+titlepage-background: "src/images/portada.jpeg"
+documentclass: scrbook
+book: true
+classoption: "twoside,openright"
+openright: true
+
+toc: true
+toc-own-page: true
+toc-title: "Índice de Contenidos"
+toc-depth: 2
+
+page-background: ""
+page-background-opacity: 1
+geometry: "left=3cm,right=2.5cm,top=3.5cm,bottom=3.5cm"
+fontsize: "11pt"
+papersize: "a4"
+
+header-left: "Daniel Peralta"
+header-center: ""
+header-right: "\\leftmark"
+footer-left: ""
+footer-center: "\\thepage"
+footer-right: ""
+listings-disable-line-numbers: false
+code-block-font-size: "\\footnotesize"
+listings-no-page-break: false
+
+mainfontfallback:
+  - "Noto Color Emoji:mode=harf"

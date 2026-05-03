@@ -1,0 +1,144 @@
+# ============================================================
+# Datos Editoriales - COMPLETAR CON INFORMACIÓN REAL
+# ============================================================
+# Este archivo contiene los datos que aparecerán en las 
+# primeras páginas del libro. Reemplaza todos los 
+# [COMPLETAR_CON_...] con los datos reales.
+
+# ============================================================
+# INFORMACIÓN DEL LIBRO
+# ============================================================
+
+titulo: "Introducción a los Sistemas Operativos"
+autor: "Daniel Peralta"
+edicion: "1.0"
+fecha_publicacion: "Mayo 2026"
+
+# ISBN
+isbn: "978-987-12345-67-8"
+
+# Depósito Legal
+depositio_legal: "12345678"
+
+# ============================================================
+# INFORMACIÓN EDITORIAL
+# ============================================================
+
+editorial_nombre: "[COMPLETAR_CON_NOMBRE_EDITORIAL]"
+editorial_direccion: "[COMPLETAR_CON_DIRECCION - ej: Av. Rivadavia 1234, CABA]"
+editorial_telefono: "[COMPLETAR_CON_TELEFONO]"
+editorial_email: "[COMPLETAR_CON_EMAIL]"
+editorial_sitio: "[COMPLETAR_CON_SITIO_WEB]"
+
+# ============================================================
+# INFORMACIÓN DEL AUTOR
+# ============================================================
+
+autor_bio: |
+  Daniel Peralta es estudiante avanzado en Ingeniería en Sistemas de Información en la Universidad 
+  Tecnológica Nacional. Founder de la consultora Madariaga, ha desarrollado ChameleonDB, una herramienta de gestión de bases de datos. 
+  Su pasión por la enseñanza y la documentación técnica lo llevó a crear este 
+  libro como herramienta educativa para futuras generaciones de ingenieros.
+
+autor_email: "daniel@dperalta.com.ar"
+autor_sitio: "www.dperalta.com.ar"
+autor_linkedin: "linkedin.com/in/dperalta86"
+
+# ============================================================
+# DEDICATORIA (OPCIONAL)
+# ============================================================
+
+dedicatoria: |
+  - "A mi esposa Cecilia, por acompañar cada idea sin perder criterio y ayudarme a mantener el rumbo"
+  - "A mis hijos, por inspirarme a crear un legado de conocimiento"
+  - "A mis profesores, que me enseñaron que enseñar es el mejor aprendizaje"
+  - "Para todos los estudiantes que sueñan con entender cómo funcionan las cosas y no se conforman con usar sin saber"
+  - "A la UTN-FRBA, donde nació la pasión por los sistemas operativos y la enseñanza"
+
+# ============================================================
+# INFORMACIÓN DE CÁMARA ARGENTINA DEL LIBRO
+# ============================================================
+
+camara_numero_inscripcion: "123456"  # Número de inscripción en la Cámara Argentina del Libro
+camara_catastro: "Sistemas Operativos"  # Categoría de catastro
+
+# ============================================================
+# DERECHOS Y LICENCIA
+# ============================================================
+
+# Creative Commons - Selecciona la licencia apropiada
+licencia: "CC BY-SA 4.0"  # Atribución-CompartirIgual 4.0
+licencia_url: "https://creativecommons.org/licenses/by-sa/4.0/"
+
+# Para uso comercial, registro de marca, etc.
+marca_registrada: "'Introducción a los Sistemas Operativos' es marca registrada"
+
+# ============================================================
+# INFORMACIÓN DE ACTUALIZACIÓN
+# ============================================================
+
+fecha_ultima_actualizacion: "4 de mayo de 2026"
+version_pdf: "1.0-B5"  # Para tracking de versiones
+github_repo: "https://github.com/dperalta86/Libro-Sistemas-Operativos"
+
+# ============================================================
+# INFORMACIÓN TÉCNICA PARA LA PORTADA
+# ============================================================
+
+imagen_portada: "src/images/portada.jpeg"
+imagen_contraportada: "src/images/contraportada.png"
+
+# Color de tema (hexadecimal)
+color_tema_principal: "#360049"
+color_tema_secundario: "#FFFFFF"
+
+# ============================================================
+# REDES SOCIALES Y CONTACTO
+# ============================================================
+
+twitter: "[COMPLETAR_CON_TWITTER_SI_APLICA]"
+instagram: "@dperalta_ok"
+github_usuario: "dperalta86"
+
+# ============================================================
+# NOTAS LEGALES ADICIONALES
+# ============================================================
+
+nota_legal: |
+  "Este libro contiene referencias y ejemplos de código de sistemas 
+  operativos reales (Unix, Linux, BSD) que son de dominio público o 
+  están bajo licencias de software libre."
+
+# ============================================================
+# INFORMACIÓN PARA DISTRIBUIDORAS
+# ============================================================
+
+precio_sugerido_ars: "175.000 ARS"  # Precio sugerido en pesos argentinos
+precio_sugerido_usd: "125.00 USD"  # Precio sugerido en dólares estadounidenses
+disponible_impreso: true
+disponible_digital: true
+disponible_gratuito_github: true
+
+# ============================================================
+# CLASIFICACIÓN
+# ============================================================
+
+categoria_principal: "Sistemas Operativos"
+categorias_secundarias:
+  - "Ingeniería en Sistemas"
+  - "Educación"
+  - "Programación"
+  - "Unix/Linux"
+
+palabras_clave:
+  - "Sistemas Operativos"
+  - "Operating Systems"
+  - "Unix"
+  - "Linux"
+  - "Procesos"
+  - "Memoria Virtual"
+  - "Sincronización"
+  - "Educación"
+
+edad_recomendada_minima: 18
+nivel_educativo: "Universidad"
