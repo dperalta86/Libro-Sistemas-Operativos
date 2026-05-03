@@ -64,8 +64,8 @@ Para instalacion, dependencias y flujo completo, ver [LOCAL_DEPLOY.md](LOCAL_DEP
 
 ## Leer capitulos
 
-- [Capitulo 1 - Introducción](src/capitulo-01.md)
-- [Capitulo 2 - Repaso Arquitectura de Computadores](src/capitulo-02.md)
+- [Capitulo 1 - Repaso Arquitectura de Computadores](src/capitulo-01.md)
+- [Capitulo 2 - Fundamentos de los Sistemas Operativos](src/capitulo-02.md)
 - [Capitulo 3 - Procesos](src/capitulo-03.md)
 - [Capitulo 4 - Planificación de Procesos](src/capitulo-04.md)
 - [Capitulo 5 - Hilos (Threads)](src/capitulo-05.md)

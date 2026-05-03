@@ -1,107 +1,438 @@
-# Introducción
+# Repaso Arquitectura de Computadores
+## Introducción y Contexto
+### ¿Por qué necesitamos entender la arquitectura?
 
-Bienvenido a **Introducción a los Sistemas Operativos**, un libro colaborativo diseñado específicamente para estudiantes de Ingeniería que enfrentan una de las materias más desafiantes y fascinantes de su carrera.  
+Imaginá que querés entender cómo funciona un auto. Podrías aprender a manejarlo sin saber nada del motor, pero si quieres ser mecánico, necesitas entender pistones, válvulas, y transmisión.
+Con los sistemas operativos pasa lo mismo. Podés usar una computadora sin entender qué hay "debajo del capó", pero para diseñar, optimizar o debuggear un SO, necesitas entender el hardware que administra. 
+Esta comprensión no es opcional: es el fundamento sobre el cual se construyen todos los conceptos posteriores.  
 
-## ¿Qué vas a encontrar en este libro?
+### Los problemas que resuelve esta arquitectura  
 
-Este no es otro "manual básico" ni resumen, es un material didáctico creado con un enfoque práctico que busca conectar la teoría rigurosa con la implementación real. A lo largo de estos capítulos, vas a encontrar conceptos explicados desde lo concreto hacia lo abstracto, porque siempre es más fácil entender una abstracción cuando primero viste cómo funciona en la práctica.
+Todo sistema operativo moderno enfrenta tres desafíos fundamentales que la arquitectura de hardware debe resolver. Veamos cada uno:  
+El primer desafío es la comunicación entre software y hardware. El procesador solo entiende instrucciones binarias, mientras que los dispositivos tienen interfaces completamente diferentes. Se necesita un "traductor" capaz de convertir las intenciones de alto nivel de un programa en señales eléctricas específicas que cada componente pueda comprender.  
+El segundo desafío es la protección del sistema. Sin mecanismos de seguridad, un programa con errores podría crashear toda la máquina, o peor aún, múltiples programas competirían por los mismos recursos sin ningún tipo de arbitraje. La arquitectura debe proporcionar "niveles de privilegio" que limiten lo que cada programa puede hacer.  
+El tercer desafío es el manejo de eventos impredecibles. El usuario puede presionar una tecla en cualquier momento, los datos pueden llegar por la red de forma asincrónica, un proceso puede solicitar un archivo mientras otro está escribiendo en disco. El sistema necesita un mecanismo para "interrumpir" la ejecución normal y atender estos eventos de manera ordenada y eficiente.
 
-El libro combina rigor académico sin caer en complejidad innecesaria. Cada definición teórica viene acompañada de ejemplos reales, y las conexiones entre teoría y práctica están explícitamente señaladas. El principal enfoque es NO asumimir que "ya lo sabés" ni que "es obvio", creo que estos temas son densos y merecen explicaciones claras.
-
-Vas a encontrar código C funcional y comentado en detalle. No son pseudocódigos ni ejemplos simplificados que "casi funcionan". Son implementaciones reales que podés compilar, ejecutar y experimentar. Las syscalls de Unix/Linux están explicadas línea por línea.
-
-\begin{infobox}
-Este libro también incluye preparación específica para evaluaciones. Los ejercicios tipo parcial están resueltos paso a paso, con casos de estudio basados en evaluaciones reales. Además, se marcan explícitamente los errores comunes que se suelen cometer.
-\end{infobox}
-
-El enfoque es iterativo y conectado: cada capítulo se construye sobre los anteriores y prepara el terreno para los siguientes. Al final de cada tema, hay síntesis que te ayudan a conectar lo que acabás de aprender con lo que viene. La idea es que desarrolles una visión integral del sistema operativo como un todo coherente, no como una colección de temas inconexos.
-
-## Metodología de Estudio Sugerida
-
-Cada capítulo está estructurado de forma deliberada para maximizar tu aprendizaje. Idealmente deberías seguir este flujo:
-
-Comenzá leyendo los objetivos del capítulo para saber exactamente qué vas a aprender y por qué es importante. Después, entrá al contexto: entender por qué existe un tema, qué problema resuelve, es fundamental para que los detalles técnicos tengan sentido.
-
-Una vez que tenés el panorama general, dominá los conceptos con la base teórica sólida que presentamos. No saltes esta parte pensando que "ya después lo entendés con el código". La teoría te da el marco conceptual que hace que el código sea comprensible.
-
-Luego analizá la técnica: cómo se implementa realmente lo que acabás de aprender en teoría. Acá es donde conectamos conceptos abstractos con decisiones concretas de implementación. Después, programá y experimentá con el código de ejemplo. No te limites a leerlo; modificalo, rompelo, arreglalo. Esa experimentación activa es donde realmente se consolida el aprendizaje.
-
-Finalmente, practicá con casos reales resolviendo ejercicios tipo parcial, y hacé la síntesis final integrando todo con el panorama completo del sistema operativo.
-
-\begin{excerpt}
-Licencia y Filosofía Colaborativa
-Este libro se distribuye bajo Creative Commons BY-SA 4.0, lo que significa que es libre de usar, modificar y redistribuir. Es un proyecto creado dentro de la comunidad académica para la comunidad académica. Podés reutilizarlo, modificarlo, distribuirlo sin ningún problema de copyright. Encontrá el detalle de la licencia en: https://creativecommons.org/licenses/by-sa/4.0/
-\end{excerpt}
-
-## Introducción a los Sistemas Operativos
-
-### ¿Qué es realmente un Sistema Operativo?
-
-Imagina que acabás de comprar una computadora nueva. La conectás, la prendés y... ¿qué esperás ver? No circuitos ni señales eléctricas, sino una interfaz que te permita ejecutar programas, crear archivos, conectarte a internet. Esa "magia" que transforma el hardware crudo en una máquina útil es el **sistema operativo**.
-
-Pero esta descripción, aunque intuitiva, se queda corta. Un sistema operativo es fundamentalmente un *programa que administra recursos*, pero no es cualquier programa: es el programa más privilegiado de tu computadora, el único con acceso directo al hardware, y el responsable de que todos los demás programas funcionen de manera ordenada y eficiente.
-
-Pensá en el sistema operativo como el gerente de un edificio de oficinas. No hace el trabajo de cada inquilino, pero coordina quién usa qué oficina, cuándo se pueden usar las salas de reuniones, cómo se distribuye la electricidad, y resuelve conflictos cuando dos inquilinos quieren usar el mismo recurso. Sin ese gerente, tendrías el caos: oficinas duplicadas, cortes de luz, reuniones interrumpiéndose mutuamente.
-
-### Los Cuatro Pilares Fundamentales
-
-Todo sistema operativo moderno, desde el que corre en tu teléfono hasta el que controla supercomputadoras, se construye sobre cuatro pilares fundamentales. Entender estos pilares es entender la esencia de lo que hace un sistema operativo.
-
-El primer pilar es la **gestión de procesos**. ¿Cómo puede tu computadora ejecutar el navegador, el reproductor de música y el editor de texto "al mismo tiempo" si solo tiene una CPU? La respuesta está en la capacidad del sistema operativo de crear procesos, programar su ejecución, coordinar su interacción y terminarlos cuando ya no son necesarios. Esta ilusión de simultaneidad es uno de los trucos más elegantes de la computación moderna.
-
-\begin{highlight}
-Un proceso es un programa en ejecución. No es solo el código, sino también el estado completo de esa ejecución: variables, memoria asignada, archivos abiertos, posición en el código. El sistema operativo mantiene toda esta información y la restaura cada vez que le toca el turno al proceso.
-\end{highlight}
-
-El segundo pilar es la **gestión de memoria**. Con múltiples programas ejecutándose, ¿cómo se decide quién usa qué porción de memoria? ¿Qué pasa cuando se agota? ¿Cómo evitamos que un programa corrupto escriba en la memoria de otro? El sistema operativo debe distribuir este recurso crítico, protegerlo contra accesos indebidos, y optimizar su uso para que el sistema completo funcione eficientemente.
-
-La gestión de memoria no es trivial: involucra crear abstracciones que hagan que cada programa "piense" que tiene toda la memoria para sí mismo, mapear direcciones virtuales a físicas, decidir qué hacer cuando la memoria se agota, y mantener todo esto funcionando a velocidades que no degraden el rendimiento general del sistema.
-
-El tercer pilar es la **gestión de almacenamiento**. Desde guardar un documento hasta instalar un programa, el sistema operativo debe organizar información en dispositivos permanentes como discos duros o SSDs. Pero no solo eso: debe crear abstracciones útiles como "archivos" y "directorios", garantizar la integridad de los datos ante fallos de energía o errores de hardware, y proporcionar mecanismos de control de acceso para que no cualquiera pueda leer tus archivos privados.
-
-\begin{example}
-Cuando guardás un archivo de texto de 1KiB, el sistema operativo decide en qué sectores del disco físico va a almacenarlo, actualiza las estructuras de metadatos que permiten encontrarlo después, potencialmente lo fragmenta si no hay espacio contiguo, mantiene una caché en memoria para accesos rápidos, y registra toda la operación para poder recuperarse si hay un fallo.
-\end{example}
-
-El cuarto pilar es la **gestión de E/S y comunicación**. Tu computadora tiene una increíble diversidad de dispositivos: teclado, mouse, pantalla, red, impresora, cámara, micrófonos. Cada uno funciona de manera diferente, con protocolos distintos y velocidades que varían por órdenes de magnitud. El sistema operativo debe manejar esta heterogeneidad y proporcionar interfaces uniformes que permitan a los programas comunicarse con estos dispositivos sin conocer los detalles de bajo nivel de cada uno.
-
-Además, el sistema operativo facilita la comunicación entre procesos: cuando copiás texto de un programa y lo pegás en otro, cuando un servidor web recibe una petición de un navegador, o cuando dos aplicaciones intercambian datos, es el sistema operativo el que hace posible esta comunicación de manera segura y eficiente.
-
-### ¿Por qué es tan Complejo?
-
-Si los pilares fundamentales suenan razonables y hasta obvios, te preguntarás: ¿por qué los sistemas operativos tienen fama de ser tan complejos? La respuesta está en los desafíos únicos que enfrentan, desafíos que raramente aparecen juntos en otros dominios de la computación.
-
-Primero está el problema de la *concurrencia*. No solo hay múltiples actividades simultáneas, sino que estas actividades pueden interferir entre sí de formas sutiles y difíciles de predecir. Dos procesos que intentan actualizar el mismo archivo, un programa que lee mientras otro escribe, hilos que acceden a estructuras de datos compartidas: estos escenarios crean condiciones de carrera, interbloqueos y otros problemas que pueden ocurrir solo una vez en mil ejecuciones, haciendo que sean particularmente difíciles de detectar y corregir.
-
-\begin{warning}
-Los errores de concurrencia son notoriamente difíciles de reproducir y depurar. Un programa puede funcionar perfectamente en pruebas y fallar catastróficamente en producción debido a una condición de carrera que solo ocurre bajo ciertas combinaciones de timing específicas.
-\end{warning}
-
-Luego están los *recursos limitados*. A diferencia de los algoritmos que estudiamos en cursos anteriores, donde a menudo podemos asumir memoria infinita o tiempo ilimitado, los sistemas operativos funcionan en un mundo de límites físicos duros. La CPU tiene un número finito de ciclos por segundo, la memoria tiene un tamaño máximo, el ancho de banda de red es limitado, y la batería se agota. Cada decisión del sistema operativo debe considerar estos límites y hacer compromisos (trade-offs) inteligentes.
-
-La *heterogeneidad* es otro desafío fundamental. El sistema operativo debe funcionar con procesadores de diferentes arquitecturas, dispositivos de almacenamiento con características distintas, aplicaciones con necesidades completamente diferentes. Un servidor web tiene prioridades diferentes que un videojuego, que a su vez son diferentes de un sistema de procesamiento de transacciones financieras. El sistema operativo debe adaptarse a todos estos contextos sin favorecer injustamente a ninguno.
-
-La *confiabilidad* es crítica porque un error en el sistema operativo puede afectar todo el sistema. Si tu navegador se cuelga, cerrás ese programa y listo. Pero si el sistema operativo falla, toda la computadora se detiene. Esta responsabilidad requiere niveles de robustez y manejo de errores que van más allá de lo que necesitan la mayoría de las aplicaciones.
-
-La *seguridad* es un requisito transversal: el sistema operativo debe proteger datos y recursos de accesos no autorizados, prevenir que programas maliciosos comprometan el sistema, y garantizar que diferentes usuarios puedan coexistir sin interferirse mutuamente. Y todo esto debe hacerse sin impactar significativamente el rendimiento.
-
-Finalmente está el desafío del *rendimiento*. Los usuarios esperan que sus sistemas sean rápidos, consuman poca energía, y respondan inmediatamente. Pero optimizar para velocidad puede aumentar el consumo energético, priorizar capacidad de respuesta puede reducir el throughput general, y así sucesivamente. El sistema operativo debe equilibrar constantemente estos objetivos contradictorios.
-
-### El Enfoque Unix/Linux
-
-Este libro se centra en sistemas Unix/Linux, no por preferencia ideológica, sino por razones pedagógicas concretas que hacen que estos sistemas sean ideales para aprender cómo funcionan realmente los sistemas operativos.
-
-La primera razón es la *transparencia*. A diferencia de sistemas propietarios donde el funcionamiento interno es opaco, en Unix/Linux el código fuente está disponible para estudiar. Esto significa que cuando decimos "así funciona la planificación de procesos", podés ir al código del kernel y ver exactamente cómo está implementado. Esta capacidad de "ver por dentro" es invaluable para el aprendizaje profundo.
+## Conceptos Fundamentales
+### Arquitectura de von Neumann
+La arquitectura de von Neumann es el modelo fundamental sobre el cual se construyen prácticamente todas las computadoras modernas. Aunque han surgido variaciones y optimizaciones, los principios básicos permanecen intactos desde su concepción en la década de 1940.
 
 \begin{theory}
-Unix fue diseñado en los años 70 con una filosofía específica: "cada cosa hace una cosa bien". Esta simplicidad conceptual, donde funciones complejas se construyen componiendo herramientas simples, hace que sea más fácil entender el sistema como un todo. Muchos sistemas modernos han abandonado esta filosofía en favor de características más complejas, pero Unix/Linux mantiene estos principios en su núcleo.
+La característica distintiva de la arquitectura de von Neumann es que \textit{programa y datos comparten el mismo espacio de memoria}. Esto permite que los programas sean tratados como datos, habilitando conceptos como compiladores, intérpretes y sistemas operativos que pueden cargar y ejecutar otros programas dinámicamente.
 \end{theory}
 
-Los *estándares abiertos* son otra ventaja. POSIX (Portable Operating System Interface) define interfaces estándar que hacen que el código sea portable entre diferentes sistemas Unix-like. Esto significa que lo que aprendés sobre Linux es aplicable a BSD, macOS, y otros sistemas. Esta estandarización también facilita el aprendizaje porque podés confiar en que ciertos comportamientos son consistentes.
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-01/01.png}
 
-La *relevancia industrial* no puede ignorarse. Unix/Linux domina en servidores (más del 90% de los servidores web corren Linux), sistemas embebidos (desde routers hasta SmartTVs), supercomputadoras (el 100% del Top500 corre Linux), y cada vez más en desktop. Aprender Unix/Linux no es un ejercicio académico: es una habilidad directamente aplicable en la industria.
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Diagrama de la arquitectura básica de una computadora, basado en el modelo de von Neumann, donde se muestran los principales componentes del sistema y su interconexión: CPU, memoria principal y dispositivos de entrada/salida.
+}
+\end{center}
 
-Finalmente, el *ambiente de desarrollo* en Unix/Linux es excepcional. Las herramientas para programación en C, el lenguaje en que están escritos los sistemas operativos, son nativas y poderosas. Los compiladores, debuggers, profilers, y otras herramientas que necesitás para experimentar con código de sistemas están integrados y bien documentados.
+Esta arquitectura se compone de cuatro subsistemas principales que trabajan en conjunto. La **CPU** (Unidad Central de Procesamiento) es el cerebro del sistema, conteniendo la Unidad de Control que decodifica y ejecuta instrucciones, la Unidad Aritmético-Lógica que realiza operaciones matemáticas y lógicas, y un conjunto de registros que proporcionan almacenamiento ultrarrápido dentro del procesador mismo.  
+La **Memoria Principal** (RAM) almacena tanto programas como datos de forma temporal. Su característica de acceso directo y aleatorio significa que cualquier ubicación puede ser accedida en tiempo constante, pero su naturaleza volátil implica que todo su contenido se pierde al apagar el sistema.  
+El **Almacenamiento Secundario** complementa a la RAM proporcionando persistencia. Los discos duros, SSD y otros medios de almacenamiento son significativamente más lentos que la RAM, pero mantienen la información incluso sin energía eléctrica y ofrecen capacidades mucho mayores.
+Los **Dispositivos de E/S** son las interfaces que permiten al sistema interactuar con el mundo exterior: teclado, mouse, pantalla, tarjetas de red, y una variedad de periféricos especializados. 
+
+## Buses de Comunicación
+Los componentes de la arquitectura de von Neumann no pueden funcionar de forma aislada. Los **buses** son las "autopistas" que permiten la comunicación entre CPU, memoria y dispositivos. Sin ellos, tendríamos componentes poderosos pero incapaces de colaborar.  
+El sistema de buses se divide en tres tipos especializados, cada uno con una función específica:  
+El **Bus de Datos** transporta la información real entre componentes. Su ancho, medido en bits, determina cuánta información puede transferirse simultáneamente. Un bus de 64 bits, por ejemplo, puede mover 8 bytes en cada ciclo de reloj, lo que impacta directamente en el rendimiento del sistema.  
+El **Bus de Direcciones** especifica la ubicación de memoria que se desea acceder. Su ancho determina el espacio máximo de direcciones que el sistema puede manejar. Con 32 bits podemos direccionar hasta 4GiB de memoria, mientras que con 64 bits ese límite se extiende hasta 16 exabytes, una cantidad astronómica para estándares actuales.  
+El **Bus de Control** coordina todas las operaciones mediante señales especializadas. Señales como READ, WRITE, IRQ y RESET sincronizan las transferencias entre componentes y aseguran que cada operación se complete correctamente antes de iniciar la siguiente.  
+
+## Registros del Procesador
+Los registros son la forma más rápida de memoria disponible en un sistema de cómputo. Están físicamente integrados en el chip del procesador, lo que los hace extremadamente veloces pero también extremadamente caros. Por esta razón, su número es limitado y cada uno tiene propósitos específicos.  
+
+\begin{infobox}
+La jerarquía de velocidad de memoria va desde los registros (1 ciclo de CPU) hasta el almacenamiento secundario (millones de ciclos). Esta diferencia de velocidad determina muchas de las decisiones de diseño de un sistema operativo.
+\end{infobox}
+
+
+Los registros se dividen en dos categorías principales según su nivel de privilegio:
+Los **Registros Visibles al Usuario** pueden ser utilizados por programas en modo usuario. Entre ellos encontramos los registros de propósito general como EAX, EBX, ECX y EDX en arquitecturas x86-32, o sus equivalentes de 64 bits RAX, RBX, RCX y RDX. Estos registros son la memoria de trabajo del procesador, almacenando valores temporales durante cálculos y operaciones.  
+
+Los registros de índice ESI (Source Index) y EDI (Destination Index) están optimizados para operaciones con strings y arrays, facilitando copias y comparaciones de bloques de memoria. El registro ESP/RSP actúa como puntero de stack, apuntando siempre al tope de la pila actual, mientras que EBP/RBP sirve como frame pointer, facilitando el acceso a parámetros y variables locales de funciones.  
+
+Los **Registros Privilegiados** solo pueden ser accedidos en modo kernel. Los registros de control CR0 a CR4 configuran características fundamentales del procesador. CR0 controla modos de operación básicos, CR2 almacena la dirección que causó el último page fault (crucial para memoria virtual), CR3 contiene el directorio de páginas actual para la MMU, y CR4 habilita extensiones modernas del procesador.
+Los registros de segmento en modo kernel (CS, DS, SS) son críticos para la protección de memoria, especificando qué regiones de memoria puede acceder cada proceso y con qué privilegios.  
+
+## Program Status Word (PSW)
+El **PSW**, también conocido como registro FLAGS, es un registro especial que contiene información sobre el estado actual del procesador. Cada bit en este registro tiene un significado específico y afecta cómo se ejecutan las instrucciones subsiguientes.   
+
+Los flags de condición reflejan el resultado de operaciones aritméticas y lógicas. El Zero Flag (ZF) se activa cuando una operación produce resultado cero, el Carry Flag (CF) indica acarreo en operaciones aritméticas, el Sign Flag (SF) señala si el resultado es negativo, y el Overflow Flag (OF) detecta desbordamientos en aritmética con signo.  
+
+Los flags de control modifican el comportamiento del procesador. El Interrupt Enable Flag (IF) determina si las interrupciones enmascarables están habilitadas, el Direction Flag (DF) controla la dirección de operaciones con strings, y el Trap Flag (TF) activa el modo single-step para debugging.
+Los flags de sistema controlan aspectos avanzados de la ejecución. El I/O Privilege Level (IOPL) especifica el nivel de privilegio necesario para operaciones de E/S, el Nested Task Flag (NT) indica si estamos en una tarea anidada, y el Resume Flag (RF) ayuda en el control de debugging.  
+
+\begin{center}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/images/tables/cap01-psw_register.png}
+\end{center}  
+
+### Ciclo de Instrucción
+
+\begin{center}
+\begin{minipage}{0.45\linewidth}
+    \includegraphics[width=0.8\linewidth,keepaspectratio]{src/diagrams/cap01-cicloInstruccion.png}
+\end{minipage}%
+\hspace{0.05\linewidth}%
+\begin{minipage}{0.45\linewidth}
+\textbf{Fase 1: FETCH} \\
+PC apunta a próxima instrucción → se carga en IR → PC se incrementa automáticamente. \\[2mm]
+
+\textbf{Fase 2: DECODE} \\
+Unidad de Control interpreta la instrucción → determina operación y operandos → prepara rutas de datos. \\[2mm]
+
+\textbf{Fase 3: OPERAND FETCH} \\
+Si la instrucción requiere datos: dirección en bus → dato desde memoria → carga en registro temporal/ALU. \\[2mm]
+
+\textbf{Fase 4: EXECUTE} \\
+ALU ejecuta la operación → actualización de registros y flags → resultados a memoria si aplica. \\[2mm]
+
+\end{minipage}
+\end{center}
+\textbf{Fase 5: WRITE BACK} \\
+Resultados transferidos a registro destino → PSW actualizado → CPU lista para nuevo ciclo. \\[2mm]
+
+\textbf{Fase 0: CHECK INTERRUPT} \\
+Se verifica interrupción → si hay ISR: guarda contexto, salta a rutina de servicio → al terminar, retorno al ciclo normal.
+
+## Sistema de Interrupciones
+Las interrupciones son posiblemente el mecanismo de hardware más importante para un sistema operativo. Sin ellas, el SO no podría mantener control sobre el sistema ni implementar multitasking efectivo.  
+
+\begin{excerpt}
+\emph{Definición:}
+Una interrupción es un mecanismo hardware que permite detener temporalmente la ejecución normal del procesador para atender un evento urgente, sea este generado por hardware externo, por software, o por condiciones excepcionales durante la ejecución.
+\end{excerpt}
+
+Existen tres categorías principales de interrupciones, cada una con características y propósitos distintos. Las interrupciones de hardware son generadas por dispositivos externos al procesador, como el teclado cuando se presiona una tecla, el timer del sistema que marca intervalos regulares, o la tarjeta de red al recibir paquetes. Estas interrupciones son asincrónicas: pueden ocurrir en cualquier momento, independientemente de lo que esté ejecutando el procesador.  
+
+Las interrupciones de software son generadas explícitamente por instrucciones del programa. Las system calls, por ejemplo, son interrupciones de software que solicitan servicios al sistema operativo. A diferencia de las interrupciones de hardware, estas son sincrónicas: ocurren en puntos predecibles del programa.  
+
+Las excepciones son eventos síncronos generados por condiciones de error durante la ejecución. Una división por cero, un acceso a memoria inválida, o una instrucción ilegal generan excepciones que deben ser manejadas inmediatamente.  
+
+\begin{center}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-01/bloque-interrupciones.png}
+\end{center}
+
+### Interrupciones Enmascarables (Maskable Interrupts)
+Pueden ser temporalmente deshabilitadas por software mediante el control del bit IF (Interrupt Flag) en el registro de estado del procesador (PSW/EFLAGS).
+
+
+Control:  
+- **CLI** (Clear Interrupt Flag): Deshabilita interrupciones  
+- **STI** (Set Interrupt Flag): Habilita interrupciones  
+
+Ejemplos:  
+- Timer del sistema (IRQ0 - genera multitasking preemptivo)  
+- Teclado (IRQ1) y mouse (IRQ12)  
+- Tarjeta de red (IRQ variable)  
+- Controladores de disco (IRQ14, IRQ15)  
+- Puertos serie (IRQ3, IRQ4)  
+
+```c
+// Pseudocódigo de sección crítica
+cli();              // Deshabilitar interrupciones
+// ... código crítico que no debe ser interrumpido ...
+// Ejemplo: manipulación de estructuras del kernel
+update_process_table();
+modify_memory_mapping();
+sti();              // Rehabilitar interrupciones
+```
+
+\begin{warning}
+Deshabilitar interrupciones por períodos prolongados puede causar pérdida de eventos y afectar la responsividad del sistema. Las secciones críticas deben ser lo más breves posible.
+\end{warning}
+
+
+### Interrupciones No Enmascarables (NMI - Non-Maskable Interrupts)
+
+Algunas situaciones son tan críticas que no pueden esperar. Las interrupciones no enmascarables tienen prioridad absoluta y no pueden ser deshabilitadas por software, ni siquiera por el kernel. Estas interrupciones se reservan para eventos que requieren atención inmediata del sistema.  
+
+Los eventos que generan NMI típicamente indican condiciones catastróficas: errores de paridad en memoria RAM que podrían corromper datos, fallas críticas de hardware como sobrecalentamiento extremo, watchdog timers que detectan que el sistema está completamente colgado, errores en el bus del sistema, o fallos de alimentación eléctrica inminentes.  
+
+\begin{infobox}
+Las NMI pueden interrumpir incluso al kernel en medio de secciones críticas. Esto significa que el handler de NMI debe ser extremadamente cuidadoso y no puede asumir que las estructuras del kernel están en estado consistente.
+\end{infobox}
+
+
+## Jerarquía de Prioridades
+
+```
+NMI (Prioridad 0 - más alta)
+  ↓
+Interrupciones de Hardware IRQ0-IRQ15 (Prioridad por IRQ)
+  ↓
+Excepciones del Procesador (Divide by zero, Page Fault)
+  ↓
+Interrupciones de Software (INT 0x80, syscalls)
+  ↓
+Trampas y Breakpoints (más baja)
+```
+
+## IRQ (Interrupt Request Lines)
+
+### Controlador PIC (Programmable Interrupt Controller)
+
+**PIC Primario (IRQ0-7)**:
+```
+IRQ 0  → Timer del sistema (8253/8254)
+IRQ 1  → Teclado PS/2
+IRQ 2  → Cascade a PIC secundario
+IRQ 3  → Puerto serie COM2/COM4
+IRQ 4  → Puerto serie COM1/COM3
+IRQ 5  → Tarjeta de sonido/LPT2
+IRQ 6  → Controlador de disquete
+IRQ 7  → Puerto paralelo LPT1
+```
+
+**PIC Secundario (IRQ8-15)** - conectado via IRQ2:
+```
+IRQ 8  → Reloj de tiempo real (CMOS)
+IRQ 9  → Redireccionado desde IRQ2
+IRQ 10 → Libre (tarjetas de red)
+IRQ 11 → Libre (USB, tarjetas PCI)
+IRQ 12 → Mouse PS/2
+IRQ 13 → Coprocesador matemático
+IRQ 14 → Controlador IDE primario
+IRQ 15 → Controlador IDE secundario
+```
+\begin{infobox}
+En sistemas modernos con APIC, el número de IRQs disponibles se extiende hasta 256, y múltiples procesadores pueden recibir interrupciones simultáneamente. Sin embargo, el modelo conceptual permanece similar.
+\end{infobox}
+
+
+## Interrupt Handlers (Manejadores de Interrupción)
+Cada tipo de interrupción debe tener asociado un handler: una rutina de código que sabe cómo responder a ese evento específico. Los handlers son las piezas de código más críticas del sistema operativo, y deben seguir reglas estrictas.  
+
+### Estructura de un Handler
+Un handler de interrupción debe ser eficiente y predecible. La estructura típica sigue este patrón:  
+
+```c
+// Prototipo genérico de handler
+void interrupt_handler(int irq_number, struct pt_regs *regs) {
+    // 1. Guardar contexto (automático en entrada)
+    // 2. Identificar fuente de interrupción
+    // 3. Ejecutar lógica específica
+    // 4. Enviar EOI (End of Interrupt)
+    // 5. Restaurar contexto (automático en salida)
+}
+
+// Ejemplo: Handler del timer del sistema
+void timer_interrupt_handler(int irq, struct pt_regs *regs) {
+    // Incrementar jiffies (contador global de tiempo)
+    jiffies++;
+    
+    // Actualizar estadísticas del proceso actual
+    current->utime++;
+    
+    // Verificar si el quantum del proceso expiró
+    if (--current->time_slice <= 0) {
+        current->need_resched = 1;  // Marcar para replanificación
+    }
+    
+    // Ejecutar timers pendientes
+    run_timer_list();
+    
+    // EOI al controlador de interrupciones
+    send_eoi(IRQ_TIMER);
+}
+```
+Este ejemplo muestra el handler del timer del sistema, una de las interrupciones más importantes. Cada "tick" del timer permite al sistema operativo mantener noción del tiempo transcurrido y decidir si es momento de cambiar al siguiente proceso.  
+
+### Interrupciones Anidadas
+
+Una característica avanzada de muchos sistemas es la capacidad de permitir que una interrupción de mayor prioridad interrumpa el procesamiento de una de menor prioridad. Esto se conoce como **anidamiento de interrupciones.**
+
+```c
+// Ejemplo de manejo de interrupciones anidadas
+void high_priority_handler(int irq, struct pt_regs *regs) {
+    // Esta interrupción puede ser interrumpida por NMI
+    disable_interrupts();  // Opcional: crear sección crítica
+    
+    // Procesar evento crítico
+    handle_critical_event();
+    
+    enable_interrupts();   // Permitir interrupciones anidadas
+    
+    // Continuar con procesamiento menos crítico
+    handle_normal_processing();
+}
+```
+El anidamiento ofrece ventajas significativas: mejor tiempo de respuesta para eventos críticos, priorización automática, y maximización del throughput del sistema. Sin embargo, introduce desafíos de complejidad en la gestión del stack, posibles deadlocks si no se maneja correctamente, y riesgo de overflow del stack si las interrupciones se anidan demasiado profundamente.  
+
+```c
+// Control de profundidad de anidamiento
+#define MAX_NESTED_INTERRUPTS 8
+static int nested_count = 0;
+
+void generic_handler(int irq, struct pt_regs *regs) {
+    if (++nested_count > MAX_NESTED_INTERRUPTS) {
+        panic("Interrupt nesting overflow");
+    }
+    
+    // ... lógica del handler ...
+    
+    --nested_count;
+}
+```
+
+## Estados de Interrupciones
+El sistema operativo necesita control fino sobre cuándo las interrupciones pueden ocurrir. Esto se logra mediante mecanismos que permiten habilitar y deshabilitar interrupciones a diferentes niveles de granularidad.  
+
+### Disable/Enable a Nivel de Sistema
+El control global de interrupciones se realiza mediante instrucciones que afectan el flag IF del procesador:  
+
+```c
+// Macros comunes en kernels Unix
+#define local_irq_disable()     asm volatile("cli" ::: "memory")
+#define local_irq_enable()      asm volatile("sti" ::: "memory")
+
+// Con salvado y restauración de estado
+unsigned long flags;
+local_irq_save(flags);      // Guarda estado actual y deshabilita
+// ... sección crítica ...
+local_irq_restore(flags);   // Restaura estado previo
+```
+La variante con salvado y restauración es preferible porque no asume que las interrupciones estaban habilitadas antes de entrar a la sección crítica.  
+
+### Disable/Enable por IRQ Específico
+En ocasiones es necesario deshabilitar solo una fuente de interrupciones específica, sin afectar a las demás:  
+
+```c
+// Deshabilitar IRQ específico en PIC
+void disable_irq(int irq) {
+    uint16_t port;
+    uint8_t value;
+    
+    if (irq < 8) {
+        port = 0x21;    // PIC primario
+    } else {
+        port = 0xA1;    // PIC secundario
+        irq -= 8;
+    }
+    
+    value = inb(port) | (1 << irq);
+    outb(port, value);
+}
+```
+
+Este nivel de control permite, por ejemplo, deshabilitar el IRQ del teclado durante una actualización crítica de las estructuras de entrada, sin afectar el timer del sistema o la red.
+\begin{theory}
+El sistema de interrupciones es fundamental para implementar:
+\begin{itemize}
+\item \textbf{Multitasking preemptivo}: Timer interrupts permiten cambios de contexto forzados
+\item \textbf{Manejo eficiente de E/S}: Los dispositivos notifican al CPU cuando tienen datos
+\item \textbf{Gestión de memoria virtual}: Page faults son excepciones que permiten demand paging
+\item \textbf{Comunicación inter-procesos}: Señales se implementan sobre el sistema de interrupciones
+\item \textbf{Detección de errores}: Excepciones capturan condiciones anómalas inmediatamente
+\end{itemize}
+\end{theory}
+
+### Modos de Operación del Procesador
+La arquitectura moderna del procesador distingue entre dos modos de operación fundamentales que son la base de toda la seguridad y estabilidad del sistema.  
+
+En **Modo Kernel** (también llamado Supervisor o modo privilegiado), el procesador tiene acceso sin restricciones. Puede ejecutar cualquier instrucción, modificar registros críticos del sistema, acceder directamente a cualquier dispositivo hardware, y reconfigurar aspectos fundamentales de la operación del procesador. Este modo es extremadamente poderoso, pero también extremadamente peligroso: un error en modo kernel puede crashear todo el sistema. Por esta razón, solo el código del sistema operativo ejecuta en este modo.  
+
+En **Modo Usuario** (user mode), el procesador opera con un subconjunto restringido de instrucciones. No puede acceder directamente a hardware, no puede modificar configuraciones críticas del sistema, y no puede acceder a memoria que no le pertenece. Todas las aplicaciones de usuario ejecutan en este modo, lo que las aísla tanto del hardware como entre ellas.  
+
+\begin{infobox}
+Esta separación de modos es la base de la seguridad y estabilidad del sistema. Sin ella, cualquier programa podría crashear la máquina o acceder a datos privados de otros procesos. Es la razón por la que un navegador web con errores puede cerrarse sin afectar al resto del sistema.
+\end{infobox} 
+
+### Cambio de Procesos
+Cuándo por algún motivo existe un cambio de proceso en ejecución (los motivos se verán en detalle mas adelante), se realizan varias tareas que son "transparentes" para el usuario final.  
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-01/03.png}
+
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Diagrama del cambio de contexto entre procesos, donde el sistema operativo guarda el estado del proceso en ejecución en su PCB y restaura el estado de otro proceso para continuar su ejecución.
+}
+\end{center}
+
+<!-- 
+![Diagrama del cambio de contexto entre procesos, donde el sistema operativo guarda el estado del proceso en ejecución en su PCB y restaura el estado de otro proceso para continuar su ejecución.](src/images/capitulo-01/03.png){ width=0.8\linewidth height=370px style="display: block; margin: auto;" }
+ -->
+\begin{center}
+\begin{minipage}{0.45\linewidth}
+\textbf{Cambio de procesos en sistemas Unix} \\
+Cuando el sistema operativo interrumpe la ejecución de un proceso y decide continuar con otro, se produce un cambio de contexto. Este mecanismo implica la intervención tanto del hardware como del software (kernel). \\[2mm]
+
+\textbf{Rol del Hardware:} \\
+El hardware se encarga de detectar la interrupción (timer, E/S o syscall), cambiar automáticamente a modo kernel y guardar información mínima como el contador de programa y los flags. Luego transfiere el control al vector de interrupción correspondiente. \\[2mm]
+
+\textbf{Rol del Software (Kernel):} \\
+A partir de allí, el software del kernel toma el control: guarda el estado completo del proceso en su PCB, actualiza las estructuras del planificador y contabiliza uso de CPU y señales pendientes. El scheduler selecciona el nuevo proceso a ejecutar y el kernel restaura su estado desde el PCB.
+\end{minipage}%
+\hspace{0.05\linewidth}%
+\begin{minipage}{0.45\linewidth}
+    \includegraphics[width=\linewidth,keepaspectratio]{src/diagrams/cap01-cambioDeProcesos.png}
+\end{minipage}
+\end{center}
+
+\vspace{3mm}
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\textbf{Finalización del Proceso:} \\
+Antes de retornar al usuario, se actualiza el espacio de direcciones (MMU/TLB) y se realiza el cambio de modo kernel → usuario. \\[2mm]
+
+\textbf{Consideraciones de Performance:} \\
+Este procedimiento asegura la correcta continuidad de los procesos, pero introduce un overhead inevitable: acceso a memoria para guardar/restaurar registros, invalidación de TLB y caches, y lógica extra del planificador. Por este motivo, sistemas I/O-bound suelen generar más cambios de contexto que los CPU-bound, y su rendimiento depende en gran medida de la eficiencia del scheduler y de las optimizaciones del hardware.
+\end{minipage}
+\end{center}  
+
+
+\begin{center}
+\begin{minipage}{0.52\linewidth}
+\textbf{Fases del Context Switch en Sistemas Unix} \\[2mm]
+
+\textbf{Fase Inicial - Ejecución Normal:}\\
+\textbf{0.} P₀ ejecuta en modo usuario → Estado normal usando su espacio de direcciones y time slice vigente.\\[1mm]
+
+\textcolor{orange!70!black}{\textbf{Detección del Evento [Hardware]:}\\
+\textbf{1.} Se dispara evento → Timer interrupt, IRQ de E/S o trap por syscall/exception\\
+\textbf{2.} Cambio automático a modo kernel → CPU guarda PC y PSW/EFLAGS, cambia a stack de kernel\\
+\textbf{3.} Búsqueda en vector/IDT → Hardware obtiene dirección del handler apropiado\\[1mm]
+}
+
+\textcolor{blue!50!black}{\textbf{Guardar Estado [Software]:}\\
+\textbf{4.} Prólogo del handler → Kernel salva registros volátiles, arma frame de interrupción\\
+\textbf{5.} Decisión de reschedule → Marca need\_resched según tipo de evento\\
+\textbf{6.} Guardar contexto de P₀ → Registros GPR, SP, FP, TLS; FPU/SIMD en forma lazy\\
+\textbf{7.} Contabilidad y señales → Actualiza uso de CPU, entrega señales pendientes\\[1mm]
+}
+
+\textcolor{blue!50!black}{\textbf{Selección y Carga [Software]:}\\
+\textbf{8.} Actualizar colas y estado → Mueve P₀ de running → ready/blocked; ajusta prioridad\\
+\textbf{9.} Scheduler elige P₁ → Aplica política de planificación (CFS, prioridades, afinidad CPU)\\
+\textbf{10.} Preparar espacio de P₁ → Carga CR3/tablas de páginas; puede requerir TLB flush\\
+\textbf{11.} Recargar contexto de P₁ → Restaura registros, SP, FP, TLS, stack de usuario\\[1mm]
+}
+\end{minipage}%
+\hspace{0.04\linewidth}%
+\begin{minipage}{0.42\linewidth}
+    \includegraphics[width=\linewidth,keepaspectratio]{src/diagrams/cap01-cambioDeProcesosCompleto.jpeg}
+\end{minipage}
+\end{center}
+
+\vspace{2mm}
+
+\textcolor{orange!70!black}{\textbf{Retorno a Ejecución [Hardware]:}\\
+\textbf{12.} Epílogo y retorno → Prepara iret/sysret, re-habilita interrupciones\\
+\textbf{13.} Kernel → modo usuario → CPU restaura PSW/EFLAGS y PC, salta a P₁\\
+\textbf{14.} P₁ ejecuta en modo usuario → Continúa hasta el próximo evento\\[2mm]
+}
+
+\begin{warning}
+\textbf{Overhead: }\emph{El costo inevitable del cambio de contexto}\\
+Cada cambio de contexto tiene un precio en rendimiento que no podemos evitar. Primero está el acceso a memoria para guardar y restaurar todos los registros del procesador, una operación que, aunque rápida, no es instantánea. Pero el impacto va más allá: cuando cambiamos de proceso, la TLB (Translation Lookaside Buffer) y las cachés del procesador quedan invalidadas porque contienen datos del proceso anterior, forzando al nuevo proceso a "cargar" estas estructuras nuevamente desde cero.
+\end{warning}
+A esto se suma la lógica del planificador mismo: decidir qué proceso ejecutar siguiente, actualizar estadísticas, verificar prioridades. Todo esto consume ciclos de CPU que podrían estar haciendo trabajo útil.
+Particularmente crítico es entender que los sistemas I/O-bound (que pasan mucho tiempo esperando entrada/salida) generan significativamente más cambios de contexto que los sistemas CPU-bound (que hacen cálculos intensivos). Esto es porque cada operación de I/O típicamente bloquea el proceso, forzando un context switch. Un servidor web manejando miles de conexiones puede estar cambiando de contexto miles de veces por segundo.
 
 ### Resumen y Hoja de Ruta
 
@@ -112,10 +443,10 @@ Los primeros capítulos establecen los **fundamentos**. Comenzamos con arquitect
 \begin{infobox}
 Estructura del Libro:\\
 - Capítulos 1-2: Fundamentos - Arquitectura de computadores y concepto de proceso\\
-- Capítulos 3-6: Concurrencia - Planificación, hilos, sincronización e interbloqueos\\
-- Capítulos 7-8: Memoria - Gestión de memoria real y virtual\\
-- Capítulo 9: Almacenamiento - Sistemas de archivos\\
-- Capitulo 10: I/O - Gestión de Dispositivos\\
+- Capítulos 3-7: Concurrencia - Planificación, hilos, sincronización e interbloqueos\\
+- Capítulos 8-9: Memoria - Gestión de memoria real y virtual\\
+- Capítulo 10: Almacenamiento - Sistemas de archivos\\
+- Capitulo 11: I/O - Gestión de Dispositivos\\
 \end{infobox}
 
 La sección de **concurrencia** es el corazón del libro. Acá estudiamos cómo el sistema operativo crea la ilusión de múltiples actividades simultáneas: cómo planifica qué proceso se ejecuta en cada momento, cómo los hilos permiten paralelismo dentro de un proceso, cómo se sincronizan accesos a recursos compartidos, y cómo se previenen y resuelven interbloqueos. Esta sección es particularmente importante porque los problemas de concurrencia están entre los más sutiles y difíciles de la programación de sistemas.
