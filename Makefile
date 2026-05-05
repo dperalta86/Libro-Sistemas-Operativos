@@ -24,12 +24,10 @@ CAPITULOS = $(SRC_DIR)/prefacio.md \
 # Archivos de configuración por formato
 METADATA_A4 = metadata-a4.yaml
 METADATA_B5 = metadata-b5.yaml
-METADATA_A5 = metadata-a5.yaml
 METADATA = metadata-a4.yaml
 COMBINED_MD = libro-completo.md
 COMBINED_MD_A4 = libro-a4.md
 COMBINED_MD_B5 = libro-b5.md
-COMBINED_MD_A5 = libro-a5.md
 TEMPLATE = templates/eisvogel-modified.latex
 
 # Diagramas Mermaid
@@ -47,23 +45,23 @@ ALL_PNG := $(PNG_DIAGRAMS) $(PNG_TABLES)
 # Targets principales por formato
 # ===========================
 # Pantalla/E-book (A4)
-all: setup $(OUTPUT_DIR)/$(BOOK_NAME)-a4.pdf
+all: setup $(OUTPUT_DIR)/$(BOOK_NAME).pdf
 
 # Impresión - Targets específicos por formato
 print: print-b5
 	@echo "✅ Versión de impresión recomendada (B5) generada"
 
-print-a4: setup $(OUTPUT_DIR)/$(BOOK_NAME)-a4-print.pdf
+print-a4: setup $(OUTPUT_DIR)/$(BOOK_NAME).pdf
 	@echo "✅ PDF A4 para impresión generado"
 
 print-b5: setup $(OUTPUT_DIR)/$(BOOK_NAME)-b5.pdf
 	@echo "✅ PDF B5 (formato recomendado) generado"
 
-print-a5: setup $(OUTPUT_DIR)/$(BOOK_NAME)-a5.pdf
-	@echo "✅ PDF A5 (compacto) generado"
+## print-a5 removed to simplify formats (A4 default, B5 available)
 
 # Generar todos los formatos de impresión
-print-all: print-a4 print-b5 print-a5
+
+print-all: print-a4 print-b5
 	@echo "✅ Todos los formatos de impresión generados en $(OUTPUT_DIR)/"
 
 # ===========================
@@ -163,20 +161,7 @@ $(COMBINED_MD_B5): $(METADATA_B5) $(CAPITULOS)
 		fi \
 	done
 
-# Versión A5
-$(COMBINED_MD_A5): $(METADATA_A5) $(CAPITULOS)
-	@echo "🔄 Combinando archivos markdown (A5)..."
-	@echo "---" > $(COMBINED_MD_A5)
-	@cat $(METADATA_A5) >> $(COMBINED_MD_A5)
-	@echo "..." >> $(COMBINED_MD_A5)
-	@echo "" >> $(COMBINED_MD_A5)
-	@for capitulo in $(CAPITULOS); do \
-		if [ -f "$$capitulo" ]; then \
-			echo "" >> $(COMBINED_MD_A5); \
-			cat "$$capitulo" >> $(COMBINED_MD_A5); \
-			echo "" >> $(COMBINED_MD_A5); \
-		fi \
-	done
+## A5 support removed from Makefile to simplify metadata management
 
 # ===========================
 # Renderizar diagramas
@@ -228,32 +213,11 @@ tables: install-deps
 	fi
 
 # ===========================
-# Generar PDF - A4 (Pantalla/E-book)
+# Generar PDF - A4 (Pantalla/E-book) - DEFAULT
+# Produce: $(OUTPUT_DIR)/$(BOOK_NAME).pdf (sin sufijos)
 # ===========================
-$(OUTPUT_DIR)/$(BOOK_NAME)-a4.pdf: $(COMBINED_MD_A4) $(ALL_PNG) $(TEMPLATE) $(METADATA_A4)
-	@echo "📚 Generando PDF A4 (versión digital/pantalla)..."
-	@mkdir -p $(OUTPUT_DIR)
-	pandoc $(COMBINED_MD_A4) \
-		-o $(OUTPUT_DIR)/$(BOOK_NAME)-a4.pdf \
-		--from markdown \
-		--metadata-file $(METADATA_A4) \
-		--template $(TEMPLATE) \
-		--pdf-engine=xelatex \
-		--pdf-engine-opt=-shell-escape \
-		--top-level-division="chapter" \
-		--number-sections \
-		--highlight-style tango \
-		--listings \
-		--shift-heading-level-by=0 \
-		--verbose
-	@echo "✅ PDF A4 digital generado: $(OUTPUT_DIR)/$(BOOK_NAME)-a4.pdf"
-	@ls -lh $(OUTPUT_DIR)/$(BOOK_NAME)-a4.pdf
-
-# ===========================
-# Generar PDF - A4 (Impresión)
-# ===========================
-$(OUTPUT_DIR)/$(BOOK_NAME)-a4-print.pdf: $(COMBINED_MD_A4) $(ALL_PNG) $(TEMPLATE) $(METADATA_A4)
-	@echo "📚 Generando PDF A4 para impresión..."
+$(OUTPUT_DIR)/$(BOOK_NAME).pdf: $(COMBINED_MD_A4) $(ALL_PNG) $(TEMPLATE) $(METADATA_A4)
+	@echo "📚 Generando PDF A4 (versión por defecto)..."
 	@mkdir -p $(OUTPUT_DIR)
 	pandoc $(COMBINED_MD_A4) \
 		-o $(OUTPUT_DIR)/$(BOOK_NAME).pdf \
@@ -269,8 +233,10 @@ $(OUTPUT_DIR)/$(BOOK_NAME)-a4-print.pdf: $(COMBINED_MD_A4) $(ALL_PNG) $(TEMPLATE
 		--shift-heading-level-by=0 \
 		-V include-before='\input{frontmatter-a4.tex}' \
 		--verbose
-	@echo "✅ PDF A4 para impresión generado: $(OUTPUT_DIR)/$(BOOK_NAME)-a4-print.pdf"
-	@ls -lh $(OUTPUT_DIR)/$(BOOK_NAME)-a4-print.pdf
+	@echo "✅ PDF A4 generado: $(OUTPUT_DIR)/$(BOOK_NAME).pdf"
+	@ls -lh $(OUTPUT_DIR)/$(BOOK_NAME).pdf
+
+# Nota: la variante de impresión A4 usa la versión por defecto
 
 # ===========================
 # Generar PDF - B5 (Impresión recomendada: 176×250mm)
@@ -295,27 +261,7 @@ $(OUTPUT_DIR)/$(BOOK_NAME)-b5.pdf: $(COMBINED_MD_B5) $(ALL_PNG) $(TEMPLATE) $(ME
 	@echo "✅ PDF B5 generado: $(OUTPUT_DIR)/$(BOOK_NAME)-b5.pdf"
 	@ls -lh $(OUTPUT_DIR)/$(BOOK_NAME)-b5.pdf
 
-# ===========================
-# Generar PDF - A5 (Impresión compacta: 148×210mm)
-# ===========================
-$(OUTPUT_DIR)/$(BOOK_NAME)-a5.pdf: $(COMBINED_MD_A5) $(ALL_PNG) $(TEMPLATE) $(METADATA_A5)
-	@echo "📚 Generando PDF A5 (impresión compacta)..."
-	@mkdir -p $(OUTPUT_DIR)
-	pandoc $(COMBINED_MD_A5) \
-		-o $(OUTPUT_DIR)/$(BOOK_NAME)-a5.pdf \
-		--from markdown \
-		--metadata-file $(METADATA_A5) \
-		--template $(TEMPLATE) \
-		--pdf-engine=xelatex \
-		--pdf-engine-opt=-shell-escape \
-		--top-level-division="chapter" \
-		--number-sections \
-		--highlight-style tango \
-		--listings \
-		--shift-heading-level-by=0 \
-		--verbose
-	@echo "✅ PDF A5 generado: $(OUTPUT_DIR)/$(BOOK_NAME)-a5.pdf"
-	@ls -lh $(OUTPUT_DIR)/$(BOOK_NAME)-a5.pdf
+## A5 target removed
 
 # ===========================
 # Primeras Páginas y Datos Editoriales
@@ -372,7 +318,7 @@ debug: $(COMBINED_MD)
 	@echo "📊 Tablas: $(TABLES)"
 
 clean:
-	rm -f $(COMBINED_MD) $(COMBINED_MD_A4) $(COMBINED_MD_B5) $(COMBINED_MD_A5)
+	rm -f $(COMBINED_MD) $(COMBINED_MD_A4) $(COMBINED_MD_B5)
 	rm -f pandoc.log
 	rm -rf $(OUTPUT_DIR)
 	rm -f $(PNG_DIAGRAMS) $(PNG_TABLES)
