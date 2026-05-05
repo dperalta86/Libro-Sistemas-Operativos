@@ -273,7 +273,7 @@ Este programa demuestra varios aspectos cruciales de la programación multihilo.
 La función `thread_function()` acepta un puntero genérico `void*` como argumento, permitiendo pasar cualquier tipo de dato. En este caso, pasamos una estructura `thread_args_t` que contiene múltiples parámetros. Esta técnica es común cuando necesitamos proporcionar más de un valor al hilo.  
 El valor de retorno del hilo también es un `void*`, permitiendo retornar cualquier tipo de dato. Aquí asignamos dinámicamente un entero con `malloc()`, lo asignamos y lo retornamos. El hilo principal recupera este valor mediante `pthread_join()` y debe recordar liberar la memoria asignada.
 \begin{warning}
-Es crítico entender el ciclo de vida de los datos pasados a los hilos. Las estructuras \texttt{thread\_args\[i\]} deben permanecer válidas hasta que cada hilo las haya leído completamente. Por eso las declaramos como un array en la función principal en lugar de variables locales de un bucle. Si pasáramos la dirección de una variable local que cambia en cada iteración, todos los hilos podrían ver el mismo valor (el último) debido a una race condition.
+Es crítico entender el ciclo de vida de los datos pasados a los hilos. Las estructuras \texttt{thread\_args[i]} deben permanecer válidas hasta que cada hilo las haya leído completamente. Por eso las declaramos como un array en la función principal en lugar de variables locales de un bucle. Si pasáramos la dirección de una variable local que cambia en cada iteración, todos los hilos podrían ver el mismo valor (el último) debido a una race condition.
 \end{warning}
 
 ### Diferencias clave respecto a procesos
@@ -332,23 +332,20 @@ thread_pool_t pool;
 
 // Función del hilo trabajador
 void* worker_thread(void* arg) {
-    printf("Worker iniciado - TID: %lu\n", pthread_self());
+    printf("Worker iniciado - TID: %p\n", (void*)pthread_self());
     
     while (1) {
         pthread_mutex_lock(&pool.queue_mutex);
         
-        // Esperar hasta que haya tareas o shutdown
         while (pool.task_queue == NULL && !pool.shutdown) {
             pthread_cond_wait(&pool.queue_condition, &pool.queue_mutex);
         }
         
-        // Verificar shutdown
         if (pool.shutdown) {
             pthread_mutex_unlock(&pool.queue_mutex);
             break;
         }
         
-        // Tomar tarea de la cola
         task_t* task = pool.task_queue;
         pool.task_queue = task->next;
         if (pool.task_queue == NULL) {
@@ -357,13 +354,12 @@ void* worker_thread(void* arg) {
         
         pthread_mutex_unlock(&pool.queue_mutex);
         
-        // Ejecutar tarea
-        printf("Worker %lu ejecutando tarea\n", pthread_self() % 10000);
+        printf("Worker %p ejecutando tarea\n", (void*)pthread_self());
         task->function(task->argument);
         free(task);
     }
     
-    printf("Worker %lu terminando\n", pthread_self() % 10000);
+    printf("Worker %p terminando\n", (void*)pthread_self());
     return NULL;
 }
 
@@ -406,25 +402,47 @@ void pool_init() {
 
 // Tarea de ejemplo
 void example_task(void* arg) {
-    int task_id = *(int*)arg;
+    int* task_id_ptr = (int*)arg;
+    int task_id = *task_id_ptr;
+    free(arg);  // Liberar el argumento malloceado
+    
     printf("  Ejecutando tarea %d...\n", task_id);
-    sleep(2);  // Simular trabajo
+    sleep(2);
     printf("  Tarea %d completada\n", task_id);
+    
+    // Incrementar contador de tareas completadas
+    pthread_mutex_lock(&done_mutex);
+    tasks_done++;
+    if (tasks_done == total_tasks) {
+        pthread_cond_signal(&done_cond);
+    }
+    pthread_mutex_unlock(&done_mutex);
 }
+
 
 int main() {
     pool_init();
     
-    // Agregar tareas al pool
-    int task_ids[10];
-    for (int i = 0; i < 10; i++) {
-        task_ids[i] = i + 1;
-        pool_add_task(example_task, &task_ids[i]);
+    // Variables para espera determinística
+    total_tasks = 10;
+    tasks_done = 0;
+    pthread_mutex_init(&done_mutex, NULL);
+    pthread_cond_init(&done_cond, NULL);
+    
+    // Agregar tareas al pool (con memoria dinámica)
+    for (int i = 0; i < total_tasks; i++) {
+        int* arg = malloc(sizeof(int));
+        *arg = i + 1;
+        pool_add_task(example_task, arg);
         printf("Tarea %d agregada al pool\n", i + 1);
     }
     
-    // Esperar que se procesen todas las tareas
-    sleep(8);
+    // Esperar DETERMINÍSTICAMENTE a que terminen todas las tareas
+    pthread_mutex_lock(&done_mutex);
+    while (tasks_done < total_tasks) {
+        pthread_cond_wait(&done_cond, &done_mutex);
+    }
+    pthread_mutex_unlock(&done_mutex);
     
     // Shutdown del pool
     pthread_mutex_lock(&pool.queue_mutex);
@@ -432,12 +450,17 @@ int main() {
     pthread_cond_broadcast(&pool.queue_condition);
     pthread_mutex_unlock(&pool.queue_mutex);
     
-    // Esperar workers
     for (int i = 0; i < POOL_SIZE; i++) {
         pthread_join(pool.workers[i], NULL);
     }
     
-    printf("Pool terminado\n");
+    // Limpiar recursos
+    pthread_mutex_destroy(&pool.queue_mutex);
+    pthread_cond_destroy(&pool.queue_condition);
+    pthread_mutex_destroy(&done_mutex);
+    pthread_cond_destroy(&done_cond);
+    
+    printf("Pool terminado correctamente\n");
     return 0;
 }
 ```
@@ -539,7 +562,7 @@ Los ULT dependen completamente de su KLT contenedor. Desde el punto de vista del
 \end{infobox}  
 
 \begin{center}
-\includegraphics[width=\linewidth,keepaspectratio]{src/tables/cap05-gantt-RR.png}
+\includegraphics[width=\linewidth,keepaspectratio]{src/images/tables/cap05-gantt-RR.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
