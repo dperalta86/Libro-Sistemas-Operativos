@@ -45,11 +45,13 @@ typedef struct thread_control_block {
     int state;                  // READY, RUNNING, BLOCKED, TERMINATED
     void* stack_pointer;        // Puntero al tope del stack privado
     void* program_counter;      // Próxima instrucción a ejecutar
-    register_set_t registers;   // Estado completo de registros
-    void* stack_base;          // Base del stack (para cleanup)
-    size_t stack_size;         // Tamaño del stack
-    int priority;              // Prioridad de planificación
-    struct thread_control_block* next;  // Lista enlazada de hilos
+    // NOTA: 'register_set_t' es conceptual; en implementaciones reales
+    // se usa un arreglo o estructura específica por arquitectura
+    unsigned long registers[16]; // Simplificación didáctica
+    void* stack_base;           // Base del stack
+    size_t stack_size;          // Tamaño del stack
+    int priority;               // Prioridad de planificación
+    struct thread_control_block* next;
 } tcb_t;
 ```
 
@@ -104,6 +106,17 @@ void ult_context_switch(ult_t *from, ult_t *to) {
 ```
 
 Esta implementación ilustra la simplicidad fundamental de los ULT. Las funciones `setjmp()` y `longjmp()` de la biblioteca estándar de C capturan y restauran el estado de ejecución, permitiendo "saltar" entre diferentes puntos del programa. El scheduler de usuario simplemente decide qué hilo debe ejecutar a continuación y realiza el salto correspondiente.  
+
+\begin{warning}
+\textbf{NOTA IMPORTANTE:}\\
+El uso de \texttt{setjmp()}/\texttt{longjmp()} aquí es únicamente una simplificación conceptual para mostrar cómo se guarda/restaura el contexto de ejecución.\\
+En una implementación real de ULT se necesita también:\\
+- Asignar stacks independientes (con malloc o mmap)\\
+- Cambiar el stack pointer (setjmp NO lo hace automáticamente)\\
+- Manejar señales o sigaltstack para cambios de contexto preemptivos\\
+
+Bibliotecas reales como Protothreads, libpth o Goroutines usan técnicas más avanzadas.
+\end{warning}
 
 La planificación de ULT típicamente sigue un modelo cooperativo. Cada hilo debe voluntariamente ceder el control, ya sea llamando explícitamente a una función de yield o al realizar operaciones de I/O. Esto elimina la necesidad de interrupciones de timer, pero introduce el riesgo de que un hilo monopolice el CPU si no coopera adecuadamente.
 
@@ -311,6 +324,12 @@ Un patrón arquitectural fundamental en aplicaciones de alto rendimiento es el p
 #define POOL_SIZE 4
 #define QUEUE_SIZE 100
 
+// Variables globales para sincronización de finalización
+pthread_mutex_t done_mutex;
+pthread_cond_t done_cond;
+int tasks_done = 0;
+int total_tasks = 0;
+
 // Estructura para tareas en cola
 typedef struct task {
     void (*function)(void*);
@@ -486,9 +505,8 @@ Con hilos a nivel usuario, la biblioteca de hilos implementa su propio scheduler
 void ult_scheduler() {
     static int current = 0;
     static int quantum_remaining = QUANTUM;
-    
+
     quantum_remaining--;
-    
     if (quantum_remaining <= 0 || threads[current].state != ULT_RUNNING) {
         // Buscar próximo hilo READY
         int next = current;
@@ -781,21 +799,22 @@ int in = 0, out = 0;
 sem_t empty, full;
 pthread_mutex_t buffer_mutex;
 
+// Versión simplificada y didáctica
 void* producer(void* arg) {
     int item = 1;
     
     while (1) {
-        sem_wait(&empty);                    // Esperar espacio libre
-        pthread_mutex_lock(&buffer_mutex);   // Acceso exclusivo al buffer
+        sem_wait(&empty);
+        pthread_mutex_lock(&buffer_mutex);
         
         buffer[in] = item++;
         printf("Producido: %d en posición %d\n", buffer[in], in);
         in = (in + 1) % BUFFER_SIZE;
         
         pthread_mutex_unlock(&buffer_mutex);
-        sem_post(&full);                     // Señalar item disponible
+        sem_post(&full);
         
-        sleep(rand() % 3);  // Simular tiempo de producción variable
+        sleep(1);  // Simular tiempo fijo (seguro y predecible)
     }
 }
 
@@ -803,8 +822,8 @@ void* consumer(void* arg) {
     int consumer_id = *(int*)arg;
     
     while (1) {
-        sem_wait(&full);                     // Esperar item disponible
-        pthread_mutex_lock(&buffer_mutex);   // Acceso exclusivo al buffer
+        sem_wait(&full);
+        pthread_mutex_lock(&buffer_mutex);
         
         int item = buffer[out];
         printf("Consumidor %d tomó: %d de posición %d\n", 
@@ -812,9 +831,9 @@ void* consumer(void* arg) {
         out = (out + 1) % BUFFER_SIZE;
         
         pthread_mutex_unlock(&buffer_mutex);
-        sem_post(&empty);                    // Señalar espacio libre
+        sem_post(&empty);
         
-        sleep(rand() % 2);  // Simular tiempo de consumo
+        sleep(1);  // Simular tiempo fijo
     }
 }
 ```
@@ -840,9 +859,11 @@ Estos modelos representan un cambio filosófico. Los hilos tradicionales son pre
 En sistemas con múltiples procesadores o muchos cores, mantener un hilo ejecutando en el mismo core puede mejorar dramáticamente el rendimiento. Esto se debe a la jerarquía de caches: cada core tiene caches L1 y L2 privadas que contienen los datos que el hilo usó recientemente. Si el scheduler migra el hilo a otro core, esas caches se pierden y deben reconstruirse.
 
 ```c
+// NOTA: Esta función es específica de Linux (pthread_setaffinity_np).
+// En sistemas BSD/macOS no está disponible.
+#ifdef __linux__
 #include <sched.h>
 
-// Configurar affinity de CPU para un hilo
 void set_thread_affinity(pthread_t thread, int cpu_core) {
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
@@ -853,6 +874,14 @@ void set_thread_affinity(pthread_t thread, int cpu_core) {
         perror("pthread_setaffinity_np");
     }
 }
+#else
+void set_thread_affinity(pthread_t thread, int cpu_core) {
+    // No-op en sistemas no Linux
+    (void)thread;
+    (void)cpu_core;
+    printf("Advertencia: thread affinity solo disponible en Linux\n");
+}
+#endif
 
 // Ejemplo de uso para optimizar cache locality
 void create_affine_threads() {
