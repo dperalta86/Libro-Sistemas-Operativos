@@ -9,6 +9,7 @@
 *.pdf
 /build/
 libro-completo.md
+libro*.md
 
 # Plantilla Eisvogel
 /Eisvogel-3.2.0
@@ -22,3 +23,6 @@ node_modules
 # Make y Metadata (Modificaciones minimalistas en local)
 Makefile
 metadata.yaml
+
+# Dev files
+.dev/

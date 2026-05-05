@@ -1,12 +1,12 @@
 % =============================================================
-% frontmatter-b5.tex — Primeras páginas B5
-% Orden: contraportada → presentación → créditos → nota UTN →
-%        dedicatoria → mensaje estudiantes → [blanco] → TOC
+% frontmatter.tex — Primeras páginas
+% Orden: portadilla → créditos → dedicatoria → nota UTN → [blanco] → TOC
+% Prefacio y Mensaje a los Estudiantes van DESPUÉS del TOC
 % =============================================================
 
-% ------------------------------------------------------------------
-% PÁGINA 1: Contraportada (imagen a página completa)
-% ------------------------------------------------------------------
+%% ------------------------------------------------------------
+% Contraportada (página 0, antes de la portadilla)
+%% ------------------------------------------------------------
 \newpage
 \thispagestyle{empty}
 \tikz[remember picture,overlay]
@@ -14,195 +14,160 @@
     {\includegraphics[width=\paperwidth,height=\paperheight]{src/images/contraportada.png}};
 
 % ------------------------------------------------------------------
-% PÁGINA 2: Presentación
+% PÁGINA 1: Portadilla (Half-title / Bastard title)
 % ------------------------------------------------------------------
 \newpage
 \thispagestyle{empty}
 \null\vfill
 \begin{center}
-  {\LARGE\textbf{Introducción a los Sistemas Operativos}}\\[0.8cm]
-  {\large\textit{Un enfoque práctico y progresivo para entender}}\\
-  {\large\textit{cómo funcionan los sistemas operativos modernos.}}
+  {\Huge\textbf{Introducción a los}}\\[0.4em]
+  {\Huge\textbf{Sistemas Operativos}}\\[1.2cm]
+  {\large Fundamentos teóricos, ejercicios y código de ejemplo en C}\\[2.5cm]
+  {\large Daniel Isaías Peralta}\\[0.6em]
+  {\normalsize\textit{1\textsuperscript{a} edición — Mayo 2026}}
 \end{center}
 \vfill
 \begin{center}
-  \texttt{github.com/dperalta86/Libro-Sistemas-Operativos}\\[0.3em]
-  {\small Licencia: Creative Commons BY-SA 4.0}
+  {\small Longchamps, Argentina}
 \end{center}
 
 % ------------------------------------------------------------------
-% PÁGINA 3: Créditos e ISBN (aligerada)
+% PÁGINA 2: Créditos e ISBN  (verso de la portadilla)
 % ------------------------------------------------------------------
 \newpage
 \thispagestyle{empty}
-\vspace*{2cm}
+\vspace*{\fill}
 
-\noindent{\large\textbf{Introducción a los Sistemas Operativos}}\\[0.4em]
-\noindent\textit{Autor:} Daniel Peralta\\[0.2em]
-\noindent\textit{Versión:} 1.0 (Mayo 2026)
+\begin{center}
+\begin{minipage}{0.82\textwidth}
 
-\vspace{1.2cm}
-\noindent\rule{\textwidth}{0.4pt}
-\vspace{0.4cm}
+% ── Entrada bibliográfica CDD (exactamente como lo requiere la CAL) ──
+\begin{tcolorbox}[
+  colback=white,
+  colframe=black!55,
+  arc=2pt,
+  boxrule=0.5pt,
+  left=14pt, right=14pt, top=11pt, bottom=11pt
+]
+{\small
+\noindent Peralta, Daniel Isaías\\[0.4em]
+\hspace*{1.6em}\textit{Introducción a los sistemas operativos~:
+fundamentos teóricos, ejercicios y código de ejemplo en~C}~/
+Daniel Isaías Peralta. ---
+1\textsuperscript{a}~ed. ---
+Longchamps~: Daniel Isaías Peralta, 2026.\\[0.4em]
+\hspace*{1.6em}Libro digital, PDF\\[0.5em]
+\hspace*{1.6em}Archivo digital: descarga y online\\
+\hspace*{1.6em}Creada PARCIALMENTE con IA\,/\,ChatGPT (OpenAI)\\[0.5em]
+\hspace*{1.6em}\textbf{ISBN} 978-631-01-5312-4
+}
 
-\noindent\textbf{ISBN:} 978-987-12345-67-8\\[0.2em]
-\noindent\textbf{Depósito Legal:} N\textordmasculine\ 12345678
+\vspace{0.55em}
+\noindent\rule{\linewidth}{0.25pt}
+\vspace{0.3em}
 
-\vspace{1cm}
+{\small
+\noindent 1.~Sistemas Operativos.\quad I.~Título.\\
+CDD~003
+}
+\end{tcolorbox}
 
-\noindent{\small
-\textbf{Licencia:} Creative Commons Atribución-CompartirIgual 4.0.
-Sos libre de compartir, copiar, distribuir y adaptar este material
-bajo los términos de la misma licencia.\\[0.3em]
+\vspace{1.1em}
+
+% ── Datos de edición ─────────────────────────────────────────────
+{\small
+\noindent\textbf{Primera edición:} mayo de 2026\\[0.25em]
+\noindent\textbf{Versión del archivo:} 1.0
+}
+
+\vspace{0.9em}
+\noindent\rule{\linewidth}{0.25pt}
+\vspace{0.7em}
+
+% ── Licencia ─────────────────────────────────────────────────────
+{\small
+\noindent\textbf{Licencia:}
+Creative Commons Atribución-CompartirIgual 4.0 Internacional
+(\textsc{cc~by-sa}~4.0).\\[0.25em]
+Este material puede ser compartido, copiado, distribuido y adaptado
+libremente, siempre que se cite al autor y se mantenga la misma
+licencia en las obras derivadas.\\[0.3em]
 \texttt{https://creativecommons.org/licenses/by-sa/4.0/}
 }
 
-\vspace{0.8cm}
+\vspace{0.9em}
+\noindent\rule{\linewidth}{0.25pt}
+\vspace{0.7em}
 
-\noindent{\small
-\textbf{Código fuente y actualizaciones:}\\[0.2em]
-\texttt{github.com/dperalta86/Libro-Sistemas-Operativos}\\[0.2em]
-Para reportar erratas o sugerencias, abrí un \textit{issue} en GitHub.
-}
-
-\vspace{0.8cm}
-
-\noindent{\small
-\textbf{Contacto:}
-\texttt{daniel@dperalta.com.ar} ---
+% ── Código fuente y contacto ─────────────────────────────────────
+{\small
+Contacto:\\
+\texttt{hola@dperalta.com.ar}\enspace---\enspace
 \texttt{www.dperalta.com.ar}
 }
 
-% ------------------------------------------------------------------
-% PÁGINA 4: Nota institucional (separada para no cargar p3)
-% ------------------------------------------------------------------
-\newpage
-\thispagestyle{empty}
-\vspace*{3cm}
-
-\begin{center}
-  {\small
-  Este libro surge en el marco de la materia \textbf{Sistemas Operativos}\\
-  de la carrera de Ingeniería en Sistemas de Información\\[0.4em]
-  \textbf{Universidad Tecnológica Nacional}\\
-  Facultad Regional Buenos Aires (UTN-FRBA)\\[1.5cm]
-  \textit{Este es un material independiente creado por un estudiante.\\
-  No constituye material oficial de la cátedra ni de la UTN-FRBA.}
-  }
-\end{center}
-
-% ------------------------------------------------------------------
-% PÁGINA 5: Dedicatoria
-% ------------------------------------------------------------------
-\newpage
-\thispagestyle{empty}
-\vspace*{5cm}
-
-\begin{center}
-  \textit{A mi esposa Cecilia por ser ese equilibrio constante:}\\
-  \textit{La que escucha cada idea, incluso las más desordenadas, la que baja todo a tierra cuando hace falta, pero nunca para frenar, sino para ayudarme a seguir mejor.}\\
-  \textit{Por acompañarme sin imponer, por sostenerme sin limitar.}\\[0.5em]
-  \textit{A mis hijos, Tomás y Jazmín por ser el motor y motivo.}\\
-  \textit{Por recordarme, todos los días, para qué vale la pena hacer las cosas bien.}
-\end{center}
-
-% ------------------------------------------------------------------
-% PÁGINA 6: Mensaje a los Estudiantes
-% ------------------------------------------------------------------
-\newpage
-\thispagestyle{empty}
-\vspace*{2cm}
-
-\begin{center}
-  {\Large\textit{Mensaje a los Estudiantes}}
-\end{center}
-\vspace{1.2cm}
-
-\begin{center}
-  \begin{minipage}{0.85\textwidth}
-    \setlength{\parskip}{0.8em}
-    Este material recopila y organiza los conceptos fundamentales de Sistemas Operativos,
-    con un enfoque tanto teórico como práctico. Mi intención no es reemplazar las clases
-    ni los apuntes, sino ofrecer una guía clara que pueda servir de apoyo al momento
-    de estudiar, repasar o preparar exámenes.
-
-    Quiero compartirles también que, al momento de escribir estas páginas,
-    todavía sigo siendo estudiante, sigo aprendiendo, cometiendo errores y descubriendo
-    nuevas formas de entender estos temas. Por eso, más que un ``manual cerrado'',
-    este libro es una invitación a investigar, conocer y aprender.
-
-    Si te resulta útil para aclarar dudas, ordenar ideas o ganar confianza en la materia,
-    entonces habrá cumplido su propósito.
-
-    \vspace{0.8cm}
-    \centering\textbf{¡Muchos éxitos en la cursada!}
-  \end{minipage}
-\end{center}
-
-% ------------------------------------------------------------------
-% PÁGINA 7: Prefacio
-% ------------------------------------------------------------------
-\newpage
-\thispagestyle{empty}
-\vspace*{2cm}
-
-{\Large\textit{Prefacio}}\\
-\vspace{1.2cm}
-
-\begin{center}
-  \begin{minipage}{0.9\textwidth}
-    \setlength{\parskip}{0.8em}
-    Bienvenido a \textbf{Introducción a los Sistemas Operativos}, un libro colaborativo diseñado específicamente 
-    para estudiantes de Ingeniería que enfrentan una de las materias más desafiantes y fascinantes de su carrera.\\
-
-    ¿Qué vas a encontrar en este libro?\\
-    Este no es otro "manual básico" ni resumen, es un material didáctico creado con un enfoque práctico que busca 
-    conectar la teoría rigurosa con la implementación real. A lo largo de estos capítulos, vas a encontrar 
-    conceptos explicados desde lo concreto hacia lo abstracto, porque siempre es más fácil entender una abstracción 
-    cuando primero viste cómo funciona en la práctica.\\
-
-    El libro combina rigor académico sin caer en complejidad innecesaria. Cada definición teórica viene acompañada 
-    de ejemplos reales, y las conexiones entre teoría y práctica están explícitamente señaladas. El principal 
-    enfoque es NO asumimir que "ya lo sabés" ni que "es obvio", creo que estos temas son densos y merecen explicaciones claras.\\
-    Vas a encontrar código C funcional y comentado en detalle. No son pseudocódigos ni ejemplos simplificados que 
-    "casi funcionan". Son implementaciones reales que podés compilar, ejecutar y experimentar. Las syscalls de 
-    Unix/Linux están explicadas línea por línea.\\
-
-    Este libro también incluye preparación específica para evaluaciones. Los ejercicios tipo parcial están resueltos 
-    paso a paso, con casos de estudio basados en evaluaciones reales. Además, se marcan explícitamente los errores 
-    comunes que se suelen cometer.\\
-
-    El enfoque es iterativo y conectado: cada capítulo se construye sobre los anteriores y prepara el terreno para 
-    los siguientes. Al final de cada tema, hay síntesis que te ayudan a conectar lo que acabás de aprender con lo 
-    que viene. La idea es que desarrolles una visión integral del sistema operativo como un todo coherente, no como 
-    una colección de temas inconexos.\\
-  \end{minipage}
-\end{center}
-%------------------------------------------------------------------
-\newpage
-\thispagestyle{empty}
-
-\begin{minipage}{0.9\textwidth}
-  Metodología de Estudio Sugerida:\\
-  Cada capítulo está estructurado de forma deliberada para maximizar tu aprendizaje. 
-
-  Idealmente deberías seguir este flujo:\\
-  Comenzá leyendo los objetivos del capítulo para saber exactamente qué vas a aprender y por qué es importante. 
-  Después, entrá al contexto: entender por qué existe un tema, qué problema resuelve, es fundamental para 
-  que los detalles técnicos tengan sentido.\\
-
-  Una vez que tenés el panorama general, dominá los conceptos con la base teórica sólida que presentamos. 
-  No saltes esta parte pensando que "ya después lo entendés con el código". La teoría te da el marco conceptual 
-  que hace que el código sea comprensible.\\
-  
-  Luego analizá la técnica: cómo se implementa realmente lo que acabás de aprender en teoría. Acá es donde conectamos 
-  conceptos abstractos con decisiones concretas de implementación. Después, programá y experimentá con el código de ejemplo. 
-  No te limites a leerlo; modificalo, rompelo, arreglalo. Esa experimentación activa es donde realmente se consolida el aprendizaje.\\
-  Finalmente, practicá con casos reales resolviendo ejercicios tipo parcial, y hacé la síntesis final integrando todo con el panorama completo del sistema operativo.
 \end{minipage}
+\end{center}
+
+\vspace*{\fill}
 
 % ------------------------------------------------------------------
-% PÁGINA 8: Intencionalmente en Blanco
+% PÁGINA 3: Dedicatoria
+% ------------------------------------------------------------------
+\newpage
+\thispagestyle{empty}
+\null\vspace*{4.5cm}
+
+\begin{flushright}
+\begin{minipage}{0.72\textwidth}
+  \setlength{\parskip}{0.5em}
+  \raggedleft\itshape
+  A mi esposa Cecilia por ser ese equilibrio constante:\\[0.2em]
+  la que escucha cada idea, incluso las más desordenadas,\\
+  la que baja todo a tierra cuando hace falta,\\
+  pero nunca para frenar, sino para ayudarme a seguir mejor.\\
+  Por acompañarme sin imponer, por sostenerme sin limitar.\\[0.8em]
+  A mis hijos Tomás y Jazmín, por ser el motor y el motivo.\\
+  Por recordarme, todos los días,\\
+  para qué vale la pena hacer las cosas bien.
+\end{minipage}
+\end{flushright}
+
+% ------------------------------------------------------------------
+% PÁGINA 4: Nota institucional UTN-FRBA
+% ------------------------------------------------------------------
+\newpage
+\thispagestyle{empty}
+\null\vfill
+
+\begin{center}
+\begin{minipage}{0.78\textwidth}
+\begin{tcolorbox}[
+  colback=gray!5,
+  colframe=black!40,
+  arc=2pt,
+  boxrule=0.4pt,
+  left=13pt, right=13pt, top=10pt, bottom=10pt
+]
+{\small\centering
+Este libro surge en el marco de la materia \textbf{Sistemas Operativos}
+de la carrera de Ingeniería en Sistemas de Información\\[0.4em]
+\textbf{Universidad Tecnológica Nacional}\\
+Facultad Regional Buenos Aires (UTN-FRBA)\\[0.9em]
+\noindent\rule{0.5\linewidth}{0.25pt}\\[0.7em]
+\textit{Este es un material de elaboración independiente creado por un
+estudiante de la carrera. No constituye material oficial de la cátedra
+ni de la Universidad Tecnológica Nacional — FRBA, y no ha sido revisado
+ni avalado por ninguna autoridad académica de la institución.}
+}
+\end{tcolorbox}
+\end{minipage}
+\end{center}
+
+\vfill\null
+
+% ------------------------------------------------------------------
+% PÁGINA 5: En blanco (verso de la nota UTN — buena práctica editorial)
 % ------------------------------------------------------------------
 \newpage
 \thispagestyle{empty}

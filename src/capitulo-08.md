@@ -1,1531 +1,1379 @@
-# Gestión de Memoria Virtual
+# Gestión de Memoria Real
 
 ## Objetivos de Aprendizaje
 
 Al finalizar este capítulo, el estudiante debe ser capaz de:
 
-- Comprender la diferencia entre espacio de direcciones virtual y físico
-- Explicar el concepto de page fault como evento normal del sistema
-- Describir el flujo completo de manejo de un page fault
-- Entender el principio de localidad y su importancia crítica
-- Diferenciar entre demand paging y prepaging
-- Explicar Copy-on-Write y memory-mapped files
-- Analizar y comparar algoritmos de reemplazo de páginas
-- Identificar thrashing y sus causas
-- Aplicar algoritmos FIFO, LRU, Clock y Clock-M a secuencias de referencias
-- Implementar un simulador de algoritmo de reemplazo
-- Evaluar el rendimiento de diferentes políticas de reemplazo
+- Distinguir entre direcciones lógicas, relativas y físicas
+- Explicar los momentos de binding de direcciones (compilación, carga, ejecución)
+- Identificar fragmentación interna vs externa y sus causas
+- Analizar ventajas y desventajas de particiones fijas y dinámicas
+- Aplicar algoritmos de asignación: First Fit, Best Fit, Worst Fit, Next Fit
+- Calcular direcciones físicas a partir de direcciones lógicas en paginación
+- Determinar el formato de dirección lógica (bits de página y offset)
+- Explicar el funcionamiento de MMU, TLB y registros base/límite
+- Comparar paginación simple, multinivel y segmentación
+- Resolver ejercicios de traducción de direcciones con tablas de páginas
+- Comprender el rol del Buddy System en asignación de memoria
+- Evaluar cuándo aplicar compactación y sus costos
 
 ## Introducción y Contexto
 
-### El Problema Fundamental
+### ¿Por qué necesitamos gestionar la memoria?
 
-Imaginemos que estamos desarrollando un sistema operativo en 1960. La situación es desafiante: tenemos apenas 64 KiB de memoria RAM (extremadamente cara en esa época), pero nuestros programas necesitan 128 KiB, 256 KiB o incluso más. Para empeorar las cosas, queremos ejecutar múltiples procesos simultáneamente.
+Imaginemos una biblioteca con espacio limitado para libros. Si cada estudiante llega y toma el espacio que necesita sin control alguno, pronto tendremos espacios desaprovechados entre libros, imposibilidad de ubicar libros nuevos aunque haya espacio total suficiente, estudiantes accediendo a libros que no les pertenecen, y caos al intentar encontrar un libro específico.  
+Lo mismo sucede con la memoria RAM en un sistema operativo multiprogramado. Con múltiples procesos ejecutándose simultáneamente, el SO debe asignar memoria de manera eficiente, proteger la memoria de cada proceso, permitir compartir memoria cuando sea apropiado, y traducir direcciones para que cada proceso "crea" que tiene toda la memoria disponible.
 
-La pregunta fundamental es inevitable: *¿cómo ejecutamos un programa más grande que la RAM disponible?*
+### El problema fundamental
 
-Las primeras soluciones fueron manuales y requirieron un esfuerzo considerable por parte de los programadores. La técnica dominante en la década de 1960 se llamaba **overlays**, y era tan tediosa como efectiva.
+En los primeros sistemas, un programa accedía directamente a direcciones físicas de memoria. Esto presentaba problemas críticos: un proceso podía sobrescribir memoria del SO, era imposible reubicar un programa una vez cargado, no se podía ejecutar más de un programa simultáneamente, y errores de programación podían corromper todo el sistema.
 
 \begin{warning}
-\textbf{Overlays (década de 1960):}
-
-El programador debía dividir manualmente el código en secciones. Solo una sección se cargaba en memoria a la vez, y el programador tenía que escribir código explícito para cargar y descargar secciones según fuera necesario. Este enfoque era extremadamente tedioso y propenso a errores. Por ejemplo, al terminar la fase de input, el programador debía escribir código para cargar la fase de procesamiento.
+El direccionamiento directo a memoria física es incompatible con sistemas multiprogramados seguros. Sin una capa de abstracción, cualquier error de programación puede destruir el sistema completo.
 \end{warning}
 
-Un ejemplo conceptual de overlays muestra cómo el programador manejaba esto:
+La solución fue introducir una capa de abstracción: el concepto de espacio de direcciones lógicas. Esta abstracción permite que cada proceso opere en su propio espacio virtual, completamente aislado de otros procesos y del sistema operativo.
 
-```c
-// Ejemplo conceptual de overlays (código del programador)
-void fase1_input() {
-    // ... leer datos ...
-    // Termina fase 1, descargar de memoria
-}
+### Evolución histórica
 
-void cargar_fase2() {
-    // Cargar manualmente fase2 desde disco
-    read_from_disk("fase2.code", memoria);
-}
-
-void fase2_procesamiento() {
-    // ... procesar datos ...
-}
-```
-Esta carga manual de código era frustrante y limitaba severamente la productividad del desarrollo de software. Necesitábamos una solución mejor.
-
-**La solución moderna: Memoria Virtual**
-
-La memoria virtual representa uno de los avances más significativos en el diseño de sistemas operativos. Es una técnica que permite ejecutar procesos cuyo espacio de direcciones total excede la memoria física disponible, creando la ilusión de que cada proceso tiene acceso a un espacio de direcciones enorme y contiguo. Todo esto se gestiona automáticamente por el hardware y el sistema operativo, sin intervención del programador.
-
-\begin{highlight}
-La memoria virtual permite ejecutar procesos cuyo espacio de direcciones total excede la memoria física disponible, mediante la ilusión de que cada proceso tiene acceso a un espacio de direcciones enorme y contiguo, gestionado automáticamente por el hardware y el sistema operativo.
-\end{highlight}
-
-Las ventajas de este enfoque fueron revolucionarias. Primero, es completamente transparente al programador: no más overlays manuales. Cada proceso opera bajo la creencia de que tiene toda la memoria para sí, lo que simplifica enormemente la programación. Podemos ejecutar programas más grandes que la RAM disponible, y obtenemos protección automática entre procesos. Además, el código puede compartirse eficientemente entre múltiples procesos.
-
-### ¿Cómo es posible?
-
-La viabilidad de la memoria virtual se basa en dos observaciones fundamentales. Primero, no todo el programa necesita estar en RAM simultáneamente (esto se conoce como el *principio de localidad*). Segundo, podemos usar el disco como extensión de la RAM, con traducción automática de direcciones.
-
-\begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-08/01.png}
-
-\vspace{0.3em}
-{\small\itshape\color{gray!65}
-Un proceso de 1 GiB puede correr con aprox. 37 MiB en RAM, y el resto en almacenamiento secundario (swap).
-}
-\end{center}
-
-## Recap: Conceptos del Capítulo 7
-
-Antes de sumergirnos en los detalles de la memoria virtual, necesitamos repasar brevemente los conceptos de paginación que estudiamos en el Capítulo 7. Estos conceptos son la base sobre la cual construiremos nuestra comprensión de la memoria virtual.
-
-### Paginación Básica (Recap)
-
-En el Capítulo 7 aprendimos que el espacio lógico se divide en *páginas* de tamaño fijo (típicamente 4 KiB), mientras que la memoria física se divide en *marcos* del mismo tamaño. Una tabla de páginas mapea páginas lógicas a marcos físicos, y la MMU (Memory Management Unit) traduce direcciones automáticamente en hardware.
-
-```
-Dirección Lógica:
-┌────────────────┬─────────────────────┐
-│ Número Página  │      Offset         │
-│     (p)        │       (d)           │
-└────────────────┴─────────────────────┘
-       ↓                    ↓
-[Tabla de Páginas]          │
-       ↓                    │
-┌────────────────┬─────────────────────┐
-│ Número Marco   │      Offset         │
-└────────────────┴─────────────────────┘
-    Dirección Física
-```
-
-### TLB (Recap)
-
-El Translation Lookaside Buffer es una caché hardware que acelera dramáticamente la traducción de direcciones. Almacena traducciones recientes (típicamente entre 64 y 512 entradas) y puede accederlas en menos de 1 nanosegundo, comparado con aproximadamente 100 nanosegundos si hay que buscar en la tabla de páginas. El hit rate típico es de 98-99%, lo que hace que este mecanismo sea extremadamente efectivo.
-
+La gestión de memoria ha evolucionado siguiendo un patrón de "problema → solución → nuevo problema". La memoria compartida sin protección permitía que un programa destruyera todo el sistema, lo que llevó a las particiones fijas. Estas eliminaron el caos pero introdujeron desperdicio de memoria por fragmentación interna. Las particiones dinámicas resolvieron este problema, pero generaron fragmentación externa severa. La paginación eliminó la fragmentación externa al costo de agregar overhead de traducción. La segmentación ofreció un mejor modelo lógico pero con mayor complejidad. Finalmente, los sistemas híbridos combinaron ventajas de múltiples técnicas, aunque con complejidad adicional.
 \begin{infobox}
-El TLB es crítico en memoria virtual, donde cada acceso requiere traducción. Sin él, el overhead de traducción de direcciones sería inaceptable.
+Este capítulo recorre esta evolución histórica no solo por interés académico, sino porque entender por qué cada técnica surgió nos ayuda a comprender las decisiones de diseño de los sistemas modernos.
 \end{infobox}
-
-### Lo Nuevo en Memoria Virtual
-
-En el Capítulo 7, todas las páginas del proceso estaban en RAM. Esta es la diferencia fundamental con memoria virtual: ahora, no todas las páginas están en RAM simultáneamente. Algunas páginas residen en disco (en el swap space), y el *bit presencia* en la tabla de páginas indica dónde está cada página. Cuando se intenta acceder a una página no presente, se produce un **page fault**.
-
-\begin{warning}
-\textbf{Diferencia clave:}
-
-Capítulo 7: La tabla de páginas mapea TODAS las páginas a marcos físicos.
-
-Capítulo 8: La tabla de páginas puede indicar "esta página NO está en RAM".
-\end{warning}
-
-Para más detalles sobre paginación básica, tablas multinivel, TLB y segmentación, podés consultar el Capítulo 7.
 
 ## Conceptos Fundamentales
 
-### Espacio de Direcciones Virtual vs Físico
+### Espacios de Direcciones
 
-El espacio de direcciones virtual es el rango completo de direcciones que un proceso puede generar, completamente independiente de la cantidad de memoria física disponible. En un sistema de 32 bits, este espacio va de 0 a 4 GiB. En sistemas de 64 bits, el rango teórico es de 0 a 16 exabytes, aunque en la práctica se usa un subconjunto más pequeño.
+Un espacio de direcciones es el conjunto de direcciones que una entidad puede usar para referenciar memoria. Existen tres tipos fundamentales, cada uno con su propósito específico en la jerarquía de traducción de direcciones.
 
-\begin{highlight}
-El espacio de direcciones virtual es el rango completo de direcciones que un proceso puede generar, independiente de la cantidad de memoria física disponible.
-\end{highlight}
+#### Dirección Lógica (Virtual)
 
-Veamos un ejemplo práctico de cómo funciona esto:
+La dirección lógica es generada por el CPU durante la ejecución de un programa. Es la dirección que "ve" el proceso. Por ejemplo, cuando un programa en C hace:
 
 ```c
-#include <stdio.h>
-#include <stdlib.h>
-
-int main() {
-    // En un sistema de 64 bits, este proceso "ve" un espacio
-    // de direcciones de ~16 exabytes, aunque la máquina
-    // solo tenga 8 GiB de RAM física
-    
-    void *ptr = malloc(1024 * 1024 * 1024); // 1 GiB
-    printf("Dirección virtual: %p\n", ptr);
-    
-    // Esta dirección es VIRTUAL
-    // Puede ser 0x7f8a3c000000 (ejemplo)
-    // Pero físicamente puede estar en marco 2847 de RAM
-    // O ni siquiera estar en RAM (en disco)
-    
-    free(ptr);
-    return 0;
-}
+int x = 42;
+printf("Dirección de x: %p\n", &x);
 ```
 
-Este programa ilustra un punto crucial: la dirección que vemos (como `0x7f8a3c000000`) es completamente virtual. Físicamente, esos datos pueden estar en el marco 2847 de RAM, o incluso no estar en RAM en absoluto, sino en disco.
+La dirección mostrada es una dirección lógica. El proceso no sabe (ni le importa) dónde está físicamente en RAM. Esta independencia es fundamental: permite que el sistema operativo reubique el proceso en memoria sin que este se entere, facilita la protección entre procesos, y hace posible la memoria virtual.  
 
-La separación entre espacios virtual y físico tiene consecuencias profundas. Ambos procesos pueden usar la misma dirección virtual (digamos, `0x1000`), pero estas se mapean a marcos físicos completamente diferentes. Esto proporciona protección automática: un proceso no puede acceder al marco de otro. Además, simplifica enormemente la programación, ya que cada proceso comienza en `0x0` y el programador no tiene que preocuparse de dónde están otros procesos en memoria.
+Las direcciones lógicas son independientes de la ubicación física, permiten reubicación del proceso, cada proceso tiene su propio espacio lógico aislado, y típicamente van desde 0 hasta el límite del proceso.
+
+#### Dirección Relativa
+
+Es una dirección expresada como desplazamiento desde un punto de referencia, típicamente el inicio del programa. Si un programa se compila y la variable `x` está en el offset 100 desde el inicio del código, su dirección relativa es 100, sin importar dónde se cargue el programa en memoria. Este concepto es clave para generar código reubicable.
+
+#### Dirección Física (Real)
+
+Es la dirección real en los módulos de RAM. El hardware usa estas direcciones para acceder a la memoria física. Hay algo crucial que debés entender: el proceso NUNCA ve direcciones físicas. La traducción la hace el hardware (MMU) de forma transparente, y el SO solo configura los parámetros de traducción.
+\begin{highlight}
+La separación entre direcciones lógicas y físicas es el fundamento de todos los sistemas operativos modernos. Sin esta abstracción, no existirían la multiprogramación segura, la memoria virtual, ni la protección entre procesos.
+\end{highlight}
+
+### Binding de Direcciones
+
+El binding es el proceso de asignar direcciones de programa a direcciones reales de memoria. El momento en que esto ocurre tiene implicaciones profundas en la flexibilidad y eficiencia del sistema. Puede ocurrir en tres momentos diferentes, cada uno con sus ventajas y limitaciones.
+
+#### En Tiempo de Compilación
+
+El compilador genera direcciones físicas absolutas directamente en el código ejecutable.
+
+```c
+// El compilador coloca 'x' en la dirección física 0x1000
+int x = 10;  // Compilado como: MOV [0x1000], 10
+```
+
+Este enfoque tiene desventajas severas: el programa solo funciona en esa ubicación específica de memoria, es imposible ejecutar múltiples instancias del mismo programa, no hay protección entre procesos, y hay que recompilar si se cambia la ubicación. Su uso histórico se limitó a sistemas embebidos antiguos y programas únicos en memoria.
+
+#### En Tiempo de Carga
+
+El loader (cargador) ajusta las direcciones cuando carga el programa en memoria. El compilador genera código reubicable, y el loader determina la base al momento de cargar.
+
+```c
+// El compilador genera código reubicable
+int x = 10;  // Compilado como: MOV [BASE+100], 10
+// El loader determina BASE al cargar
+```
+
+Aunque mejor que el binding en compilación, tiene limitaciones importantes: una vez cargado, no se puede mover el proceso en memoria, el tiempo de carga aumenta porque hay que ajustar todas las direcciones, y no permite compactación de memoria. Se usó históricamente en sistemas batch y con overlays.
+
+#### En Tiempo de Ejecución
+Las direcciones se traducen dinámicamente durante la ejecución usando hardware especial (MMU). El compilador genera direcciones lógicas, y la MMU traduce cada acceso a memoria en tiempo real.
+
+```c
+// El compilador genera direcciones lógicas
+int x = 10;  // Genera: MOV [100], 10 (dirección lógica)
+// La MMU traduce 100 -> dirección física en cada acceso
+```
+
+Esta técnica ofrece ventajas fundamentales: el proceso puede moverse en memoria mediante compactación, la protección entre procesos es automática, soporta memoria virtual con swap, y permite compartir memoria entre procesos de forma controlada.
+
+\begin{theory}
+El binding dinámico es la ÚNICA forma de soportar multiprogramación con protección, memoria virtual, compactación dinámica y espacios de direcciones independientes. Sin binding dinámico, no existirían los sistemas operativos modernos tal como los conocemos.
+\end{theory}
+
+### Componentes Hardware
+
+#### Memory Management Unit (MMU)
+
+La MMU es un circuito hardware que traduce direcciones lógicas a físicas en tiempo de ejecución. Opera a velocidad del CPU sin intervención del SO, lo cual es absolutamente necesario para mantener el rendimiento del sistema.
+
+El funcionamiento básico es simple en concepto pero crítico en implementación: el CPU genera una dirección lógica, la MMU calcula la dirección física aplicando una función con ciertos parámetros, y la RAM recibe la dirección física resultante. El SO configura los parámetros (registros base/límite, tablas de páginas), pero la traducción es 100% hardware.
+
+\begin{example}
+¿Por qué la MMU debe ser hardware y no software? La respuesta está en los números: se ejecuta en CADA acceso a memoria, un programa hace millones de accesos por segundo, si fuera software el sistema sería inutilizable, y el overhead debe ser menor a 10 nanosegundos por traducción. A esa velocidad, solo el hardware puede operar.
+\end{example}
+
+#### Translation Lookaside Buffer (TLB)
+
+La MMU necesita consultar tablas de páginas en RAM para traducir direcciones. Como esto es lento (más de 100 nanosegundos), existe una caché especial dentro del CPU llamada TLB.
+
+El TLB es una caché hardware de alta velocidad que almacena traducciones recientes de páginas. Típicamente contiene entre 64 y 512 entradas, con tiempo de acceso menor a 1 nanosegundo. El proceso de traducción con TLB funciona así: el CPU genera una dirección lógica, la MMU busca en TLB en menos de 1 nanosegundo. Si hay un *TLB hit*, usa la traducción cacheada y el acceso total toma alrededor de 10 nanosegundos. Si hay un *TLB miss*, busca en la tabla de páginas en RAM, lo que toma alrededor de 100 nanosegundos. Si fue miss, la entrada se cachea en TLB para futuros accesos.
+
+La efectividad del TLB es impresionante: el hit rate típico es de 98-99%, gracias a la localidad espacial (los procesos acceden memoria cercana) y temporal (mismas páginas repetidamente). Una aplicación bien escrita puede tener un hit rate mayor al 99%, lo que hace que el overhead de traducción sea casi imperceptible.
+
+#### Registros Base y Límite
+
+En los esquemas más simples de gestión de memoria, la MMU usa solo dos registros especiales. El **registro base** contiene la dirección física donde comienza el proceso, y el **registro límite** especifica el tamaño máximo del espacio del proceso.
+
+La traducción es directa: `Dirección Física = Dirección Lógica + Base`. Pero hay una verificación crítica: `Si (Dirección Lógica >= Límite): Generar TRAP (Segmentation Fault)`.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-08/02.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/08.png}
+\end{center}
+
+\begin{warning}
+La verificación de límites ocurre en HARDWARE mediante un circuito comparador. El SO carga Base y Límite al hacer context switch. Si un proceso intenta acceder fuera de su espacio, el hardware genera un TRAP automáticamente, y el SO maneja el TRAP (típicamente matando el proceso).
+\end{warning}
+
+### Fragmentación
+
+La fragmentación es el desperdicio de memoria que no puede usarse eficientemente. Entender la diferencia entre sus dos tipos es fundamental para comprender las ventajas y desventajas de cada técnica de gestión de memoria.
+
+#### Fragmentación Interna
+
+La fragmentación interna es memoria desperdiciada DENTRO de una región asignada. Ocurre cuando se asigna más memoria de la necesitada. Imaginá que un proceso necesita 19 KiB pero el sistema asigna bloques de 4 KiB. Se asignan 5 bloques (20 KiB), desperdiciando 1 KiB.
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/01.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
-Ambos procesos pueden usar la misma dirección virtual 0x1000, se mapean a marcos físicos diferentes.
+El último "bloque" asignado queda con un sector inutilizable, en el ejemplo 1kiB.
 }
 \end{center}
 
-### El Bit Presencia: El Héroe de Memoria Virtual
+Las causas principales son la asignación en bloques de tamaño fijo, políticas de alineación de memoria, y overhead de estructuras administrativas. Ocurre típicamente en particiones fijas, paginación (desperdicio en última página), y Buddy System.
 
-En el Capítulo 7, cada entrada de tabla de páginas era simplemente un número de marco. Ahora, agregamos información crucial que hace posible la memoria virtual. La estructura expandida incluye varios bits de control, siendo el más importante el *bit presencia*.
+#### Fragmentación Externa
 
-```
-Entrada de Tabla de Páginas (expandida):
-┌────────────┬───┬───┬───┬───┬───────────┐
-│ Marco (20) │ P │ U │ M │ X │ Protec.   │
-└────────────┴───┴───┴───┴───┴───────────┘
-              ↑
-              Bit presencia (P)
-```
+La fragmentación externa es memoria desperdiciada ENTRE regiones asignadas. Hay suficiente memoria libre total, pero no es contigua. Por ejemplo, si tenés memoria total de 64 MiB con 16 MiB libres, pero en distintos bloques no contiguos, no podés asignar un proceso de 10 MiB a pesar de tener espacio suficiente.
+
+Las causas son la asignación y liberación de bloques de tamaño variable, los procesos que terminan dejan huecos, y con el tiempo la memoria se "perfora". Ocurre en particiones dinámicas, segmentación, y cualquier esquema de asignación variable. La solución es la compactación (mover procesos para consolidar memoria libre), pero es costosa.  
 
 \begin{highlight}
-El bit presencia (P) indica si la página está presente en memoria RAM (P=1) o está en disco/swap (P=0). Es la base del mecanismo de memoria virtual.
+La fragmentación externa es uno de los problemas más insidiosos en gestión de memoria. Puede hacer que un sistema con 50\% de memoria libre sea incapaz de asignar nuevos procesos. La paginación fue inventada específicamente para resolver este problema.
 \end{highlight}
 
-Los bits de control tienen diferentes significados según el estado de la página. Cuando P=1, la página está en RAM, y los otros bits indican si fue accedida recientemente (U=1), si fue modificada (M=1, también llamada *dirty*), y permisos de ejecución (X). Cuando P=0, la página no está en RAM y reside en disco, haciendo que los otros bits sean irrelevantes en ese momento.
+## Técnicas de Asignación Contigua
 
-Consideremos un ejemplo concreto de una tabla de páginas con memoria virtual:
+Las primeras técnicas de gestión de memoria asignaban espacios contiguos a cada proceso. Aunque simples, estas técnicas nos enseñan lecciones importantes sobre los trade-offs en diseño de sistemas.
 
-```
-Proceso con 8 páginas:
-┌────┬───────┬───┬───┬───┬──────────────┐
-│Pág │ Marco │ P │ U │ M │ Ubicación    │
-├────┼───────┼───┼───┼───┼──────────────┤
-│ 0  │   5   │ 1 │ 1 │ 0 │ RAM (marco 5)│
-│ 1  │   -   │ 0 │ - │ - │ Disco blq 10 │
-│ 2  │   8   │ 1 │ 0 │ 1 │ RAM (marco 8)│
-│ 3  │   -   │ 0 │ - │ - │ Disco blq 15 │
-│ 4  │   2   │ 1 │ 1 │ 1 │ RAM (marco 2)│
-│ 5  │   -   │ 0 │ - │ - │ Disco blq 20 │
-│ 6  │   -   │ 0 │ - │ - │ Nunca usada  │
-│ 7  │   1   │ 1 │ 0 │ 0 │ RAM (marco 1)│
-└────┴───────┴───┴───┴───┴──────────────┘
+### Particiones Fijas
 
-Solo 4 de 8 páginas en RAM
-Proceso usa 8 × 4 KiB = 32 KiB virtual
-Pero solo 4 × 4 KiB = 16 KiB físicos
-```
+En los primeros sistemas multiprogramados, la memoria se dividía en particiones de tamaño fijo al inicio del sistema. Esta decisión de diseño priorizaba la simplicidad sobre la eficiencia.
+Imaginá un esquema de memoria con particiones fijas donde después del SO hay varias particiones de diferentes tamaños: 128 KiB, 256 KiB, 512 KiB, y 64 KiB, ocupando todo el espacio hasta 1024 KiB.  
 
-La ventaja es crítica: un proceso de 1 GiB puede ejecutarse con solo 50 MiB en RAM. El resto permanece en disco hasta que se necesite, permitiendo una utilización mucho más eficiente de la memoria física.
+El mecanismo de asignación es extremadamente simple: cuando llega un proceso, se busca una partición libre que lo contenga, el proceso ocupa toda la partición aunque no la use completamente, y al terminar, la partición queda libre para el próximo proceso.
+Las ventajas son tentadoras: implementación extremadamente simple, asignación y liberación en O(1), sin fragmentación externa, y protección fácil porque cada partición tiene base y límite fijos. Sin embargo, las desventajas son severas: fragmentación interna que puede ser brutal, número limitado de procesos fijado al inicio del sistema, procesos grandes pueden simplemente no caber, y memoria desaprovechada si hay particiones vacías.
+\begin{example}
+El problema crítico es evidente con un ejemplo: un proceso de 50 KiB en una partición de 256 KiB desperdicia 206 KiB (lo que representa un 80\%). En un sistema real, este desperdicio es inaceptable.
+\end{example}
 
-### Page Fault: Evento Normal, NO Error
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/04.png}
+\end{center}
 
-Este es un punto que genera mucha confusión en estudiantes, y es importante aclararlo desde el principio. Un page fault es una interrupción generada por la MMU cuando el CPU intenta acceder a una página cuyo bit presencia está en 0 (página no presente en RAM). Contrario a lo que el nombre podría sugerir, es un mecanismo normal y esperado del sistema de memoria virtual, no un error de programación.
+### Particiones Dinámicas
 
-\begin{highlight}
-Un page fault es una interrupción generada por la MMU cuando el CPU intenta acceder a una página cuyo bit presencia está en 0. Es un mecanismo normal y esperado del sistema de memoria virtual, NO un error de programación.
-\end{highlight}
+Para resolver la fragmentación interna de las particiones fijas, se desarrollaron las particiones dinámicas: cada proceso recibe exactamente la cantidad de memoria que necesita. Esto parece la solución perfecta, pero como veremos, introduce nuevos problemas.  
+
+La evolución de la memoria con particiones dinámicas muestra el problema claramente. Al inicio, el sistema arranca con todo el espacio libre. Cuando llega el primer proceso (P1 de 100 KiB), se le asigna exactamente ese espacio. Luego llegan P2 (200 KiB) y P3 (150 KiB), ocupando sus espacios precisos. Hasta acá todo perfecto: no hay desperdicio.  
+
+El problema aparece cuando P1 termina. Queda un hueco de 100 KiB entre el SO y P2. Luego P2 termina, dejando otro hueco de 200 KiB. Ahora tenemos memoria libre total de 810 KiB, pero fragmentada en tres bloques separados. Un proceso que necesite 400 KiB no puede ejecutarse, a pesar de que hay 810 KiB libres en total. Esta es la esencia de la fragmentación externa.  
+Las ventajas iniciales son claras: sin fragmentación interna, número dinámico de procesos, y uso eficiente de memoria al principio. Pero las desventajas son significativas: fragmentación externa severa con el tiempo, algoritmo de asignación más complejo, requiere compactación periódica que es costosa, y estructuras de datos para rastrear bloques libres.
+\\vfill
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/02.jpg}
+
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Debido a la fragmentación externa, existe la posibilidad de no poder alocar un proceso aún contando con memoria disponible.
+}
+\end{center}
 
 \begin{warning}
-\textbf{¡IMPORTANTE!}
-
-Page Fault ≠ Segmentation Fault
-
-- Page Fault: Evento normal que el SO maneja transparentemente\\
-- Segmentation Fault: Error de acceso a memoria inválida
+La fragmentación externa es progresiva: empeora con el tiempo de ejecución del sistema. Un sistema que funciona bien al arrancar puede volverse ineficiente después de horas de operación.
 \end{warning}
 
-La distinción es crucial. Un page fault ocurre cuando se accede a una página con P=0, y el SO lo maneja transparentemente cargando la página desde disco. El proceso ni siquiera se entera de que ocurrió. Por otro lado, un segmentation fault es un acceso fuera del espacio válido del proceso, lo que causa que el SO termine el proceso enviando la señal SIGSEGV.
+### Algoritmos de Asignación
 
-### Swap Space (Backing Store)
+Cuando llega un proceso que necesita memoria, el SO debe decidir **en qué bloque libre ubicarlo**. Esta decisión aparentemente simple tiene implicaciones profundas en el rendimiento del sistema. Para entender las diferencias, analicemos cada algoritmo usando el mismo escenario.
 
-El swap space es el área del disco duro reservada para almacenar páginas que no están en RAM. Actúa como una extensión de la memoria física, permitiendo que el sistema ejecute más procesos o procesos más grandes de lo que la RAM física permitiría por sí sola.
+**Escenario común para todos los algoritmos:**
 
-\begin{highlight}
-El swap space es el área del disco duro reservada para almacenar páginas que no están en RAM. Actúa como extensión de la memoria física.
-\end{highlight}
+\begin{center}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/09.png}
+\end{center}
 
-En Linux, podemos ver la configuración del swap con el comando `swapon --show`. Una configuración típica podría mostrar una partición de 8 GiB y un archivo de swap de 4 GiB. El swap puede implementarse tanto como una partición dedicada como un archivo regular en el sistema de archivos.
+Veamos cómo cada algoritmo maneja esta situación.
 
-La estructura del disco duro típicamente incluye una o más particiones para el sistema de archivos, y una partición o archivo dedicado al swap. Esta área almacena las páginas que no están actualmente en RAM, organizadas en bloques que corresponden a las páginas de los diferentes procesos.
+#### First Fit (Primer Ajuste)
 
-\begin{warning}
-El swap es aproximadamente 1000 veces más lento que la RAM cuando se usa un disco duro tradicional (HDD). Con SSDs, la diferencia se reduce a unas 100 veces, pero sigue siendo significativa. Por eso es crítico minimizar los page faults. El sistema operativo intenta mantener las páginas "calientes" (frecuentemente accedidas) en RAM.
-\end{warning}
+El algoritmo busca secuencialmente en la lista de bloques libres y asigna el **primer bloque** suficientemente grande.
 
-La relación entre el tamaño de la RAM y el swap ha evolucionado con el tiempo. En sistemas con 8 GiB de RAM, es común configurar entre 8 y 16 GiB de swap. Con 16 GiB de RAM, típicamente se usa entre 8 y 16 GiB de swap. En sistemas con 32 GiB o más de RAM, el swap puede ser de solo 4 a 8 GiB, o incluso menos. La razón es simple: con más RAM disponible, hay menos page faults y, por lo tanto, se necesita menos espacio de swap.
+**Decisión de First Fit:**
+- Examina Bloque A (100 KiB): ¿100 ≥ 70? Sí, **asigna aquí**
+- No examina Bloques B ni C (la búsqueda terminó)
 
-## Page Fault: Anatomía Completa
+**Resultado:** P4 se asigna en el Bloque A (100 KiB), quedando un fragmento de 30 KiB.
 
-Ahora que entendemos qué es un page fault y por qué es necesario, veamos en detalle el flujo completo de lo que sucede cuando ocurre uno. Este proceso involucra una coordinación compleja entre el hardware y el sistema operativo.
+\begin{center}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/10.png}
+\end{center}
 
-### Flujo Paso a Paso
+La complejidad es O(n) en el peor caso, pero rápido en promedio. Tiende a dejar bloques pequeños al inicio de la lista, lo que puede generar acumulación de fragmentos inútiles en esa zona.
 
-El proceso comienza cuando el CPU ejecuta una instrucción como `MOV R1, [0x2000]`. La MMU intenta traducir la dirección virtual `0x2000` a una dirección física, determinando que corresponde a la página 2. Al consultar la tabla de páginas, descubre que el bit presencia está en 0, lo que indica que la página no está en RAM.
+#### Best Fit (Mejor Ajuste)
 
-En este punto, la MMU genera una interrupción especial llamada *trap*, específicamente un trap de page fault. El hardware automáticamente guarda el estado completo del proceso, incluyendo todos los registros y el contador de programa (PC). El control pasa entonces al sistema operativo, específicamente al manejador de page faults.
+Este algoritmo busca en **toda** la lista de bloques libres y asigna el **bloque más pequeño** que sea suficiente.
 
-El sistema operativo tiene varias responsabilidades críticas. Primero, debe verificar si el acceso es válido. Si el acceso es a una dirección completamente fuera del espacio válido del proceso, el SO envía una señal SIGSEGV (segmentation fault) y termina el proceso. Si el acceso es válido, el proceso continúa.
+**Decisión de Best Fit:**
+- Examina Bloque A (100 KiB): ¿100 ≥ 70? Sí, candidato
+- Examina Bloque B (150 KiB): ¿150 ≥ 70? Sí, candidato (pero peor que A)
+- Examina Bloque C (75 KiB): ¿75 ≥ 70? Sí, candidato **mejor** (75 < 100 < 150)
+- **Asigna en Bloque C** (el más pequeño que alcanza)
+
+**Resultado:** P4 se asigna en el Bloque C (75 KiB), quedando un fragmento de 5 KiB.
+
+\begin{center}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/11.png}
+\end{center}
+
+La complejidad es O(n) siempre porque debe recorrer toda la lista. Minimiza el desperdicio por asignación individual, pero genera muchos bloques muy pequeños (como ese fragmento de 5 KiB) que terminan siendo inútiles.
+
+#### Worst Fit (Peor Ajuste)
+
+Contraintuitivamente, este algoritmo busca en toda la lista y asigna el **bloque más grande** disponible.
+
+**Decisión de Worst Fit:**
+- Examina Bloque A (100 KiB): Candidato
+- Examina Bloque B (150 KiB): Candidato **mejor** (el más grande)
+- Examina Bloque C (75 KiB): No supera a B
+- **Asigna en Bloque B** (el más grande disponible)
+
+**Resultado:** P4 se asigna en el Bloque B (150 KiB), quedando un fragmento de 80 KiB.
+
+\begin{center}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/12.png}
+\end{center}
+
+La complejidad es O(n) siempre, pero deja bloques grandes que son más útiles que los pequeños. En simulaciones, suele tener mejor rendimiento que Best Fit.
+
+#### Next Fit (Siguiente Ajuste)
+
+Similar a First Fit, pero continúa la búsqueda desde donde terminó la última asignación en forma circular.
+
+**Decisión de Next Fit:**
+- Supongamos que la última asignación fue el Proceso P3
+- Comienza búsqueda desde "el inicio"
+- Examina Bloque A (100 KiB): ¿100 ≥ 70? Sí, **asigna aquí**
+- La próxima búsqueda comenzará después de este punto
+
+**Resultado:** P4 se asigna en el Bloque A (100 KiB), quedando un fragmento de 30 KiB.  
+*Nota:* En este ejemplo coincide con First Fit, simplemente porque se utilizó como ultimo proceso asignado P3, en cambio si el ultimo asignado hubiera sido P2, el asignado sería Bloque C.
+
+\begin{center}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/13.png}
+\end{center}
+
+Tiene complejidad O(n) en el peor caso, distribuye asignaciones más uniformemente, y evita la concentración de bloques pequeños al inicio de la memoria.
 
 \begin{theory}
-El manejador de page faults debe distinguir entre tres situaciones:
-
-1. Acceso válido a página que está en disco (page fault normal)\\
-2. Acceso a página que nunca ha sido asignada (primer acceso)\\
-3. Acceso inválido a memoria fuera del espacio del proceso (segmentation fault)
+¿Por qué Worst Fit puede ser más eficiente que Best Fit? Best Fit genera muchos bloques MUY pequeños (como ese fragmento de 5 KB) que son prácticamente inútiles. Worst Fit deja bloques grandes (80 KB en nuestro ejemplo) que tienen más probabilidad de ser utilizables para procesos futuros. First Fit deja un fragmento de 30 KB, intermedio entre ambos. Esto demuestra que la intuición puede fallar en sistemas complejos.
 \end{theory}
 
-Solo en el tercer caso se termina el proceso. Los primeros dos son situaciones normales que el SO maneja transparentemente.
+En la práctica, los sistemas modernos usan variantes de First Fit con optimizaciones como listas ordenadas y segregación por tamaño. La elección del algoritmo depende del patrón de uso esperado del sistema.
 
+## Paginación Simple
 
-El siguiente paso es buscar un marco libre en RAM. Si hay un marco disponible, se usa directamente. Si no hay marcos libres, el SO debe ejecutar un algoritmo de reemplazo para seleccionar una página víctima que será desalojada. Si esta página víctima tiene el bit modificado (M=1), lo que significa que fue modificada desde que se cargó, debe escribirse a disco antes de ser reemplazada. Esta escritura toma entre 5 y 10 milisegundos en un disco duro tradicional.
+La idea central de la paginación es dividir el espacio de direcciones lógicas y la memoria física en bloques de tamaño fijo llamados páginas y marcos (frames). Una página es un bloque de memoria lógica, típicamente de 4 KiB. Un marco es un bloque de memoria física del mismo tamaño que una página. La tabla de páginas es la estructura que mapea páginas a marcos.  
 
-Una vez que tenemos un marco disponible (ya sea porque estaba libre o porque desalojamos una página), el SO lee la página necesaria desde disco. Esta operación también toma entre 5 y 10 milisegundos en HDD. Después de cargar la página en el marco seleccionado, el SO actualiza la tabla de páginas, estableciendo el número de marco, poniendo P=1, y reiniciando los bits U y M a 0.
+La ventaja fundamental es que las páginas de un proceso NO necesitan estar contiguas en memoria física. Esto resuelve completamente el problema de fragmentación externa.
+Imaginá el espacio lógico de un proceso con páginas 0, 1, 2 y 3. En memoria física, la página 0 puede estar en el marco 5, la página 1 en el marco 2, la página 2 en el marco 7, y la página 3 en el marco 4. No importa que estén dispersas: la MMU traduce cada acceso correctamente.  
 
-Un detalle importante es la invalidación del TLB. Si existía una entrada anterior para esta página en el TLB (por ejemplo, de cuando la página estaba en RAM anteriormente), debe invalidarse para forzar una nueva traducción que use la tabla de páginas actualizada.
-
-Finalmente, el SO retorna de la interrupción. El hardware restaura automáticamente los registros del proceso, y el CPU reintenta la instrucción `MOV R1, [0x2000]`. Esta vez, como P=1, la traducción es exitosa y el acceso a RAM se completa normalmente.
-
-### Tiempos Aproximados
-
-Los tiempos involucrados en un page fault son significativos y vale la pena analizarlos en detalle. Estos valores están basados en mediciones de sistemas reales y literatura técnica estándar.
-
-\begin{infobox}
-\textbf{Tiempos típicos de page fault (validados):}
-
-La detección por hardware (MMU) toma aproximadamente 1 nanosegundo. El context switch al manejador del SO requiere entre 1 y 5 microsegundos. La búsqueda de marco libre o ejecución del algoritmo de reemplazo toma entre 1 y 10 microsegundos.
-
-Las operaciones de disco son las más costosas. La escritura de una página dirty a disco HDD toma entre 5 y 10 milisegundos, mientras que la lectura desde disco HDD también requiere 5 a 10 milisegundos. Con SSDs, estos tiempos se reducen dramáticamente: entre 0.1 y 0.5 milisegundos para escritura, y entre 0.1 y 0.5 milisegundos para lectura.
-
-La actualización de estructuras del SO requiere entre 1 y 5 microsegundos, y el context switch de vuelta al proceso toma otros 1 a 5 microsegundos.
-
-Total con HDD: 10-20 milisegundos\\
-Total con SSD: 0.2-1 milisegundo
-\end{infobox}
-
-Para poner estos números en perspectiva, comparémoslos con un acceso normal a RAM. Un acceso con TLB hit toma aproximadamente 10 nanosegundos (0.00001 ms). Un acceso con TLB miss requiere unos 100 nanosegundos (0.0001 ms). Un page fault con SSD toma alrededor de 500 microsegundos (0.5 ms), lo que es aproximadamente 50,000 veces más lento. Un page fault con HDD toma unos 10 milisegundos, lo que es aproximadamente 1,000,000 veces más lento que un acceso normal a RAM.
-
-\begin{warning}
-\textbf{Consecuencia crítica:}
-
-Un solo page fault equivale a aproximadamente 100,000 accesos normales a RAM. Por eso el principio de localidad es fundamental para el rendimiento del sistema. Minimizar page faults es esencial para mantener un rendimiento aceptable.
-\end{warning}
-
-\begin{warning}
-En un CPU de 3 GHz, un ciclo de reloj dura aproximadamente 0.33 ns.\\
-Un acceso a RAM de 10 ns equivale a unos 30 ciclos de CPU, mientras que un page fault con SSD puede costar más de 1.5 millones de ciclos, y con HDD más de \textbf{30 millones de ciclos.}
-\end{warning}
-
-### Casos Especiales
-
-Existen varios casos especiales de page faults que vale la pena examinar, cada uno con características únicas.
-
-#### Caso 1: Primera Referencia (Demand Paging)
-
-Cuando se crea un proceso nuevo, todas sus páginas tienen inicialmente el bit presencia en 0. La primera referencia a la página 0 (típicamente código) genera un page fault, y el SO carga esa página desde el archivo ejecutable. La primera referencia a la página 1 genera otro page fault, y así sucesivamente.
-
-Este enfoque se llama *demand paging* (paginación bajo demanda) porque las páginas se cargan solo cuando se necesitan. Es fundamentalmente diferente de cargar todo el programa en memoria antes de ejecutarlo, lo que sería más lento y desperdiciaría memoria en páginas que nunca se usan.
-
-#### Caso 2: Copy-on-Write
-
-Copy-on-Write es una optimización elegante que exploraremos en detalle más adelante. Cuando un proceso hace `fork()`, el proceso hijo no copia inmediatamente todas las páginas del padre. En su lugar, ambos procesos comparten las mismas páginas físicas, pero marcadas como solo lectura.
-
-Si el hijo intenta escribir en una página compartida, se genera un page fault (por intento de escritura en una página de solo lectura). El SO detecta que es un caso de Copy-on-Write, copia la página a un nuevo marco, y actualiza la tabla del hijo para apuntar a esta copia privada. Ahora el hijo puede escribir en su propia copia sin afectar al padre.
-
-#### Caso 3: Memory-Mapped Files
-
-Los archivos mapeados en memoria son otro caso especial fascinante. Cuando llamamos a `mmap()` para mapear un archivo de 1 MiB, la llamada no carga el archivo completo inmediatamente. Solo mapea direcciones virtuales al archivo.
-
-La primera lectura de la dirección mapeada genera un page fault. El SO carga la página correspondiente desde el archivo (no desde el swap). Si escribimos en esta dirección y la página no está en RAM, también habrá un page fault. Una vez en RAM, la página se marca como dirty (M=1), y el SO eventualmente escribirá los cambios de vuelta al archivo.
-
-### Diagrama de Flujo
-
-El diagrama completo del flujo de un page fault muestra todas estas decisiones y transiciones:
-
-```
-[Insertar aquí: cap08-pageFaultFlow.mmd]
-```
-
-Este diagrama incluye la detección por MMU, verificación de validez del acceso, búsqueda de marco libre, ejecución del algoritmo de reemplazo si es necesario, operaciones de lectura y escritura a disco, actualización de todas las estructuras relevantes, y finalmente el retry de la instrucción original.
-
-## Principio de Localidad
-
-El principio de localidad es la razón fundamental por la cual la memoria virtual funciona eficientemente. Sin este principio, cada proceso necesitaría todas sus páginas en RAM todo el tiempo, haciendo que la memoria virtual fuera impráctica.
-
-### ¿Qué es el Principio de Localidad?
-
-El principio de localidad es una observación empírica sobre el comportamiento de los programas. Los programas tienden a acceder un subconjunto relativamente pequeño de su espacio de direcciones en cualquier intervalo de tiempo dado. Este principio se divide en dos tipos fundamentales: localidad temporal y localidad espacial.
-
+Las ventajas de la paginación son significativas: elimina fragmentación externa completamente, la asignación y liberación es simple (solo buscar marcos libres), permite compartir páginas entre procesos, facilita la implementación de memoria virtual, y ofrece protección a nivel de página. Las desventajas incluyen fragmentación interna en la última página, overhead de la tabla de páginas, cada acceso a memoria requiere traducción, y complejidad adicional en hardware.
 \begin{highlight}
-El principio de localidad es la observación de que los programas tienden a acceder un subconjunto relativamente pequeño de su espacio de direcciones en cualquier intervalo de tiempo dado. Se divide en localidad temporal y localidad espacial.
-\end{highlight}
-
-La importancia de este principio para la memoria virtual no puede subestimarse. Si un proceso de 1 GiB necesitara acceder aleatoriamente todas sus páginas constantemente, tendríamos page faults continuos, el disco trabajando sin parar, y un rendimiento catastrófico. Pero gracias a la localidad, el proceso típicamente solo accede activamente a unos 50 MiB en cualquier momento, permitiendo que funcione eficientemente con poca RAM física.
-
-### Localidad Temporal
-
-\begin{highlight}
-La localidad temporal se refiere al fenómeno de que si se referencia una ubicación de memoria en el tiempo $t$, es muy probable que se referencie nuevamente en un futuro cercano $(t + Δt)$.
-\end{highlight}
-
-El ejemplo clásico de localidad temporal son las variables en un bucle:
-
-```c
-#include <stdio.h>
-
-int main() {
-    int suma = 0;        // Variable local en stack
-    int contador = 0;    // Variable local en stack
-    
-    // Estas dos variables se acceden repetidamente
-    // en cada iteración del bucle
-    for (contador = 0; contador < 1000000; contador++) {
-        suma += contador;
-        // 'suma' y 'contador' se referencian una y otra vez
-        // → Localidad temporal
-        // → Muy probable que estén en caché y en RAM
-    }
-    
-    printf("Suma: %d\n", suma);
-    return 0;
-}
-```
-
-¿Qué está pasando con las páginas en este ejemplo? El proceso tiene la página 0 conteniendo el código (las instrucciones del bucle), y la página 1 conteniendo el stack (las variables `suma` y `contador`). Durante la ejecución del bucle, se accede a la página 0 un millón de veces, y a la página 1 otro millón de veces. En total, solo 2 páginas están activas de quizás 100 páginas totales del proceso.
-
-Otros ejemplos comunes de localidad temporal incluyen funciones que se llaman frecuentemente (permanecen "calientes" en memoria), variables globales usadas en múltiples funciones, y especialmente código en bucles internos (*hot loops*) que se ejecutan millones de veces.
-
-### Localidad Espacial
-
-\begin{highlight}
-La localidad espacial describe el fenómeno de que si se referencia una ubicación de memoria en la dirección $X$, es muy probable que se referencien ubicaciones cercanas $(X ± δ)$ en un futuro próximo.
-\end{highlight}
-
-El ejemplo clásico es el recorrido secuencial de un array:
-
-```c
-#include <stdio.h>
-#define SIZE 1000000
-
-int main() {
-    int array[SIZE];  // 4 MiB en heap
-    int suma = 0;
-    
-    // Inicializar array
-    for (int i = 0; i < SIZE; i++) {
-        array[i] = i;
-        // Acceso secuencial: array[0], array[1], array[2], ...
-        // → Localidad espacial
-    }
-    
-    // Sumar elementos
-    for (int i = 0; i < SIZE; i++) {
-        suma += array[i];
-        // Nuevamente acceso secuencial
-        // → Localidad espacial
-    }
-    
-    printf("Suma: %d\n", suma);
-    return 0;
-}
-```
-
-Para entender el impacto, consideremos cómo se organizan estos datos en páginas. Un array de 4 MiB con páginas de 4 KiB significa que los elementos `array[0..1023]` están en la página 0, `array[1024..2047]` en la página 1, y así sucesivamente.
-
-Cuando accedemos `array[0]`, traemos la página 0 completa (que contiene `array[0..1023]`). Los próximos 1023 accesos no generan page faults porque todos esos elementos ya están en RAM, en la misma página.
-
-El impacto en page faults es dramático. Para un array de 1,000,000 elementos (4 MiB total), necesitamos 1024 páginas. Con acceso secuencial (que tiene localidad espacial), tenemos exactamente 1024 page faults: uno por página, la primera vez que la accedemos. Los restantes 998,976 accesos no generan page faults.
-
-Con acceso aleatorio (sin localidad espacial), cada acceso potencialmente va a una página diferente. Podríamos tener cientos de miles de page faults, resultando en un rendimiento desastroso.
-
-\begin{example}
-\textbf{Impacto medible de la localidad espacial:}
-
-Array de 1,000,000 elementos (int):
-- Tamaño: 4 MiB
-- Páginas necesarias: 1024 páginas
-
-Acceso secuencial:
-- Page faults: 1024 (uno por página)
-- Accesos sin PF: 998,976
-- Tiempo: ~10 ms + tiempo de procesamiento
-
-Acceso aleatorio:
-- Page faults: potencialmente cientos de miles
-- Rendimiento: 100-1000 veces peor
-\end{example}
-
-### Localidad en Programas Reales
-
-Para ver cómo el principio de localidad funciona en la práctica, consideremos un navegador web real. El código del navegador puede ocupar 50 MiB, y las páginas web cargadas otros 500 MiB, para un total de 550 MiB de espacio de direcciones virtual.
-
-Sin embargo, en cualquier momento de 10 segundos, solo está activo aproximadamente 5 MiB de código (el motor de renderizado, la máquina virtual de JavaScript) y unos 20 MiB de datos (la página web actual y las imágenes visibles). El total activo es de solo 25 MiB.
-
-El ratio es revelador: 25/550 = 4.5% del espacio total está en uso activo. La localidad hace viable ejecutar este navegador con mucha menos RAM de la que su tamaño total sugeriría.
-
-### Working Set
-
-Este concepto de "conjunto activo" se formaliza en la noción de *working set*.
-
-\begin{highlight}
-El \textbf{working set} (conjunto de trabajo) es el conjunto de páginas que un proceso está usando activamente en un intervalo de tiempo dado. Representa el "tamaño mínimo de RAM" que el proceso necesita para ejecutar eficientemente.
-\end{highlight}
-
-El working set cambia con el tiempo a medida que el proceso pasa por diferentes fases de ejecución. Por ejemplo, en los primeros 5 segundos, un proceso podría tener un working set de las páginas {0,1,2,5,7}. En los siguientes 5 segundos, el working set podría ser {0,1,2,3,8}. Y en los siguientes 5 segundos, {0,1,10,11,12}.
-
-La clave está en el tamaño del working set. Si le damos al proceso menos páginas de RAM que su working set, tendremos page faults continuos, una condición conocida como *thrashing* que estudiaremos más adelante. Si le damos al proceso suficientes páginas para cubrir su working set (en este ejemplo, 5 páginas o más), funcionará eficientemente.
-
-\begin{infobox}
-\textbf{Importancia del working set:}
-
-El sistema operativo intenta estimar continuamente el working set de cada proceso. Asigna suficientes marcos de RAM para cubrirlo, permitiendo que el proceso ejecute sin thrashing. Si el sistema no puede satisfacer los working sets de todos los procesos activos, debe suspender algunos procesos temporalmente para prevenir el colapso del rendimiento. Algoritmos avanzados como Working Set y PFF (Page Fault Frequency) se basan explícitamente en esta idea.
-\end{infobox}
-
-### ¿Por Qué Funciona en Práctica?
-
-El principio de localidad no es un accidente: surge naturalmente de cómo escribimos y estructuramos programas. Existen varias razones fundamentales por las cuales los programas exhiben localidad.
-
-Primero, la estructura misma de los programas promueve localidad. El código se organiza en funciones, y las funciones activas en cualquier momento dado son relativamente pocas (localidad temporal de funciones). Los datos se organizan en arrays y estructuras, promoviendo accesos cercanos en memoria (localidad espacial).
-
-Los bucles son particularmente importantes para la localidad. Las instrucciones dentro del bucle se ejecutan repetidamente, permaneciendo "calientes" en las cachés y en RAM. Las variables utilizadas en el bucle se acceden miles o millones de veces sin moverse de su ubicación en memoria.
-
-Las llamadas a funciones también contribuyen a la localidad. Mientras una función está activa, usa repetidamente su stack frame, que permanece en la misma región de memoria. Cuando la función retorna al caller, volvemos a código que ya estaba en memoria.
-
-El acceso secuencial a datos es omnipresente en programación. Los archivos típicamente se leen o escriben secuencialmente, y los arrays se procesan elemento por elemento. La organización natural de datos también ayuda: las estructuras agrupan datos relacionados que se acceden juntos, y objetos relacionados tienden a alocarse cerca en memoria.
-
-#### Contraejemplo: Programa SIN localidad
-
-Consideremos un programa patológico que accede memoria completamente al azar:
-
-```c
-// Programa patológico: acceso completamente aleatorio
-#include <stdlib.h>
-#include <time.h>
-
-#define PAGES 10000
-
-int main() {
-    int *huge_array = malloc(PAGES * 4096);  // 40 MiB
-    srand(time(NULL));
-    
-    // Acceso completamente aleatorio a páginas
-    for (int i = 0; i < 1000000; i++) {
-        int random_page = rand() % PAGES;
-        int random_offset = rand() % 1024;
-        int index = random_page * 1024 + random_offset;
-        huge_array[index] = i;
-        // → NO hay localidad
-        // → Page faults constantes
-        // → Rendimiento terrible
-    }
-    
-    free(huge_array);
-    return 0;
-}
-```
-
-Este programa tendría un rendimiento ~1000 veces peor que uno con acceso secuencial, porque viola completamente el principio de localidad. Cada acceso aleatorio tiene alta probabilidad de ir a una página diferente, generando page faults constantes.
-
-## Demand Paging vs Prepaging
-
-Ahora que entendemos el principio de localidad, podemos explorar las estrategias que usa el sistema operativo para decidir cuándo cargar páginas en memoria. La pregunta fundamental es: cuando se carga un proceso, ¿cargamos todas sus páginas inmediatamente o esperamos a que se necesiten?
-
-### Demand Paging (Paginación Bajo Demanda)
-
-La estrategia más común en sistemas modernos es *demand paging*, donde las páginas se cargan en memoria solo cuando se referencian por primera vez, generando un page fault.
-
-\begin{highlight}
-En demand paging, las páginas se cargan en memoria SOLO cuando se referencian por primera vez, generando un page fault. Es la estrategia más común en sistemas modernos.
-\end{highlight}
-
-Cuando se crea un proceso nuevo, su tabla de páginas se inicializa con todas las entradas marcadas como no presentes (P=0). Ninguna página está en RAM inicialmente. La primera instrucción del programa intentará acceder a la página 0 (código), generando un page fault. El sistema operativo maneja este fault cargando la página 0 desde el archivo ejecutable y marcándola como presente (P=1).
-
-A medida que el programa continúa ejecutando, cada nueva página que accede genera su propio page fault inicial. El acceso a datos genera page faults para las páginas del heap y el stack. Gradualmente, el working set del proceso se carga en memoria, pero solo las páginas realmente necesarias.
-
-Las ventajas de demand paging son significativas. Solo se cargan páginas realmente necesarias, ahorrando tanto memoria como tiempo de I/O. El startup es rápido porque no esperamos a cargar todo el programa. Las páginas que nunca se usan (como código de manejo de errores raros) nunca se cargan, ahorrando recursos valiosos. Esto permite ejecutar programas más grandes que la RAM disponible.
-
-\begin{warning}
-\textbf{Desventajas de demand paging:}
-
-El inicio del programa genera muchos page faults (cold start), causando latencia inicial. La latencia en la primera referencia a cada página es impredecible, lo que puede ser problemático para aplicaciones de tiempo real. Cada página nueva implica el overhead completo de un page fault, incluyendo la interrupción, el context switch, y la I/O de disco.
-\end{warning}
-
-Un ejemplo práctico ilustra cómo funciona esto.
-```c
-// Programa de 100 páginas
-int main() {
-    // Al iniciar: 0 páginas en RAM
-    
-    funcion_principal();  // Carga páginas 0-5 (código)
-    // Ahora: 6 páginas en RAM
-    
-    if (condicion_rara) {
-        // Este código casi nunca se ejecuta
-        funcion_rara();   // Páginas 50-55 nunca se cargan
-    }
-    
-    // Final: solo ~10-20 páginas cargadas de 100 totales
-    return 0;
-}
-```
-Cuando comienza a ejecutar, llama a `funcion_principal()`, lo que carga las páginas 0-5 de código. Ahora tenemos 6 páginas en RAM. Si hay un `if (condicion_rara)` que casi nunca se evalúa como verdadero, las páginas 50-55 que contienen `funcion_rara()` nunca se cargan. Al final de la ejecución, solo unas 10-20 páginas fueron cargadas de las 100 totales.
-
-### Prepaging (Paginación Anticipada)
-
-Una alternativa es *prepaging*, donde el sistema operativo intenta predecir qué páginas se necesitarán pronto y las carga anticipadamente, antes de que se generen page faults.
-
-\begin{highlight}
-En prepaging, el SO intenta predecir qué páginas se necesitarán pronto y las carga anticipadamente, antes de que se generen page faults.
-\end{highlight}
-
-Existen varias estrategias de prepaging. Una es cargar páginas contiguas: cuando se accede a la página 5 y se genera un page fault, el SO carga no solo la página 5 sino también las páginas 6, 7 y 8, anticipando acceso secuencial debido a la localidad espacial.
-
-Otra estrategia usa el histórico de acceso. Si el SO observa que un proceso siempre accede las páginas en el orden 0 → 1 → 5 → 10, al cargar el proceso puede traer ese conjunto completo desde el principio.
-
-Una tercera estrategia aprovecha el working set previo. Cuando un proceso se suspende con las páginas {0,1,2,5,7} en RAM, al reanudarlo el SO puede cargar ese working set completo, asumiendo que será necesario nuevamente.
-
-Las ventajas de prepaging son claras cuando la predicción es correcta. Se reducen los page faults durante la ejecución, mejorando el rendimiento para patrones predecibles. Es particularmente útil al reanudar procesos que fueron suspendidos, ya que podemos restaurar su working set previo.
-
-\begin{warning}
-\textbf{Desventajas de prepaging:}
-
-Si la predicción falla, desperdiciamos I/O y memoria cargando páginas que nunca se usan. La implementación es más compleja que demand paging simple, requiriendo mantener estadísticas y hacer predicciones. El trade-off fundamental es: prepaging solo vale la pena si la predicción es correcta más del 80\% del tiempo.
-\end{warning}
-
-En sistemas operativos reales, vemos mayormente demand paging con prepaging limitado en casos específicos. Linux usa principalmente demand paging, pero implementa *readahead* para archivos que se acceden secuencialmente, y carga páginas de código contiguas cuando detecta ejecución secuencial. Windows es similar, usando demand paging como base pero con un sistema de *prefetch* que almacena patrones de inicio de aplicaciones y precarga páginas según el histórico de arranques previos.
-
-## Shared Pages y Técnicas Avanzadas
-
-Hasta ahora hemos considerado principalmente las páginas como recursos privados de cada proceso. Sin embargo, algunos de los usos más poderosos de la memoria virtual involucran compartir páginas entre múltiples procesos de manera eficiente y segura.
-
-### Copy-on-Write (COW)
-
-Copy-on-Write es una optimización crucial que hace viable la operación `fork()` en sistemas Unix/Linux. Sin esta técnica, crear un proceso hijo sería prohibitivamente costoso.
-
-\begin{highlight}
-Copy-on-Write (COW) es una técnica donde múltiples procesos comparten las mismas páginas físicas de memoria mientras sean solo lectura. Al intentar escribir, se crea una copia privada de la página para ese proceso.
-\end{highlight}
-
-Para entender el problema que resuelve COW, consideremos qué pasaría sin esta optimización.
-
-```c
-pid_t pid = fork();
-
-// Sin COW: fork() debe copiar TODAS las páginas del padre
-// Padre tiene 100 MiB en RAM
-// → Copiar 100 MiB toma ~100 ms
-// → Desperdicio si el hijo hace exec() inmediatamente
-```
-
-Cuando un proceso hace `fork()`, el sistema operativo tendría que copiar todas las páginas del padre. Si el padre tiene 100 MiB en RAM, copiar todo tomaría aproximadamente 100 milisegundos. Esto sería un desperdicio enorme, especialmente considerando que el caso más común es que el hijo haga `exec()` inmediatamente, reemplazando todo su espacio de direcciones.
-
-La solución con COW es elegante. Antes del `fork()`, el proceso padre tiene sus páginas marcadas como lectura-escritura (RW). Después del `fork()`, tanto el padre como el hijo tienen tablas de páginas que apuntan a los mismos marcos físicos, pero ahora marcados como solo lectura (R/O). Ambos procesos comparten la memoria física sin copiarla.
-
-```
-ANTES del fork():
-Proceso Padre:
-┌────┬───────┬───┬───┬───┐
-│Pág │ Marco │ P │ R │ W │
-├────┼───────┼───┼───┼───┤
-│ 0  │   5   │ 1 │ 1 │ 1 │  RW (read-write)
-│ 1  │   8   │ 1 │ 1 │ 1 │  RW
-└────┴───────┴───┴───┴───┘
-
-DESPUÉS del fork():
-Proceso Padre:              Proceso Hijo:
-┌────┬───────┬───┬───┬───┐ ┌────┬───────┬───┬───┬───┐
-│Pág │ Marco │ P │ R │ W │ │Pág │ Marco │ P │ R │ W │
-├────┼───────┼───┼───┼───┤ ├────┼───────┼───┼───┼───┤
-│ 0  │   5   │ 1 │ 1 │ 0 │ │ 0  │   5   │ 1 │ 1 │ 0 │  Mismo marco!
-│ 1  │   8   │ 1 │ 1 │ 0 │ │ 1  │   8   │ 1 │ 1 │ 0 │  Mismo marco!
-└────┴───────┴───┴───┴───┘ └────┴───────┴───┴───┴───┘
-     ↑ W=0 (ahora R/O)          ↑ W=0 (ahora R/O)
-     
-Ambos comparten marcos 5 y 8 (pero en modo solo lectura)
-```
-
-El momento crítico ocurre cuando uno de los procesos intenta escribir. Supongamos que el hijo ejecuta `x = 20`, intentando modificar una variable.
-
-```c
-// Proceso hijo
-int main() {
-    int x = 10;  // Variable en página 1 (marco 8)
-    x = 20;      // INTENTO DE ESCRITURA
-    
-    // → Page fault (intento de escritura en página R/O)
-    
-    return 0;
-}
-```
-Esto genera un page fault porque la página está marcada como solo lectura. El sistema operativo detecta que no es un error sino un caso de COW. En respuesta, asigna un nuevo marco (digamos, el marco 12), copia el contenido del marco compartido a este nuevo marco, actualiza la tabla del hijo para apuntar al nuevo marco con permisos de escritura, y finalmente reintenta la instrucción, que ahora tiene éxito.
-
-```
-Proceso Padre:              Proceso Hijo:
-┌────┬───────┬───┬───┬───┐ ┌────┬───────┬───┬───┬───┐
-│Pág │ Marco │ P │ R │ W │ │Pág │ Marco │ P │ R │ W │
-├────┼───────┼───┼───┼───┤ ├────┼───────┼───┼───┼───┤
-│ 0  │   5   │ 1 │ 1 │ 0 │ │ 0  │   5   │ 1 │ 1 │ 0 │  Aún compartida
-│ 1  │   8   │ 1 │ 1 │ 0 │ │ 1  │  12   │ 1 │ 1 │ 1 │  Ahora privada!
-└────┴───────┴───┴───┴───┘ └────┴───────┴───┴───┴───┘
-```
-\begin{example}
-\textbf{Estadísticas reales de COW:}
-
-En el caso común de `fork()` seguido de `exec()`:
-- Sin COW: copiar 100 MiB → ~100 ms
-- Con COW: copiar 0 MiB → ~1 ms (solo estructuras del SO)
-
-Cuando el hijo modifica el 10% de las páginas:
-- Sin COW: copiar 100 MiB → ~100 ms
-- Con COW: copiar 10 MiB bajo demanda → ~10 ms total
-
-El ahorro es dramático en ambos casos.
-\end{example}
-
-### Memory-Mapped Files
-
-Memory-mapped files representan otra técnica poderosa que aprovecha la memoria virtual para simplificar el I/O y la compartición de datos.
-
-\begin{highlight}
-Memory-mapped files mapean un archivo del disco directamente al espacio de direcciones virtual de un proceso, permitiendo acceder al archivo como si fuera un array en memoria.
-\end{highlight}
-
-La syscall principal es `mmap()`. Cuando mapeamos un archivo de 1 MiB, la llamada no carga el archivo completo inmediatamente. Solo configura las estructuras del sistema operativo para que las direcciones virtuales correspondan a bloques del archivo. Es otra forma de demand paging, pero usando el archivo como backing store en lugar del swap.
-
-
-```c
-#include <sys/mman.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <unistd.h>
-
-int main() {
-    // Abrir archivo
-    int fd = open("datos.bin", O_RDWR);
-    
-    // Mapear archivo a memoria (1 MiB)
-    void *addr = mmap(
-        NULL,                   // SO elige dirección
-        1024*1024,              // 1 MiB
-        PROT_READ | PROT_WRITE, // Permisos
-        MAP_SHARED,             // Cambios visibles en archivo
-        fd,                     // File descriptor
-        0                       // Offset en archivo
-    );
-    
-    // Ahora 'addr' apunta a las páginas mapeadas
-    // NO se cargó nada en RAM todavía (demand paging)
-    
-    // Primera lectura
-    char c = ((char*)addr)[0];
-    // → Page fault
-    // → SO carga página desde archivo (no desde swap)
-    // → Ahora página está en RAM
-    
-    // Escritura
-    ((char*)addr)[100] = 'X';
-    // → Marca página como dirty (M=1)
-    // → Cambio se escribirá al archivo eventualmente
-    
-    // Deshacer mapeo
-    munmap(addr, 1024*1024);
-    close(fd);
-    
-    return 0;
-}
-```
-
-Internamente, después de `mmap()`, la tabla de páginas tiene todas las entradas con P=0, pero en lugar de apuntar al swap, cada entrada indica qué offset del archivo contiene los datos para esa página.
-
-```
-Estado inicial (después de mmap):
-┌────┬───────┬───┬─────────────┐
-│Pág │ Marco │ P │ Backing     │
-├────┼───────┼───┼─────────────┤
-│ 0  │   -   │ 0 │ datos.bin:0 │  No en RAM
-│ 1  │   -   │ 0 │ datos.bin:4K│  No en RAM
-│ 2  │   -   │ 0 │ datos.bin:8K│  No en RAM
-└────┴───────┴───┴─────────────┘
-
-Primera lectura de página 0:
-→ Page fault
-→ SO lee bloque 0 de datos.bin → marco 5
-┌────┬───────┬───┬─────────────┐
-│ 0  │   5   │ 1 │ datos.bin:0 │  EN RAM
-│ 1  │   -   │ 0 │ datos.bin:4K│
-│ 2  │   -   │ 0 │ datos.bin:8K│
-└────┴───────┴───┴─────────────┘
-
-Escritura en página 0:
-→ Marca M=1 (dirty)
-→ Eventualmente SO escribe marco 5 → datos.bin:0
-```
-Las ventajas de memory-mapped files son sustanciales. El I/O se simplifica dramáticamente: los archivos se tratan como arrays en memoria, eliminando las llamadas explícitas a `read()` y `write()`. La compartición entre procesos es fácil usando `MAP_SHARED`. El sistema operativo maneja el caché automáticamente, y se evitan copias entre user space y kernel space, mejorando el rendimiento.
-
-\begin{example}
-\textbf{Casos de uso de memory-mapped files:}
-
-Bases de datos: Mapean el archivo de BD completo y acceden a registros directamente sin `read/write`, permitiendo índices eficientes y acceso aleatorio rápido.
-
-Librerías compartidas (.so, .dll): Múltiples procesos mapean `libc.so`, compartiendo el código en RAM y ahorrando masivamente memoria.
-
-IPC (Inter-Process Communication): El proceso A y B mapean el mismo archivo con \texttt{MAP\_SHARED}, permitiendo que ambos vean los cambios del otro en tiempo real.
-\end{example}
-
-### Shared Libraries
-
-Las librerías compartidas son un caso especial particularmente importante de shared pages. Cuando tres procesos ejecutan programas que usan `libc`, sin compartición necesitaríamos tres copias completas de la librería en RAM. Con shared pages, los tres procesos apuntan a los mismos marcos físicos para el código de la librería.
-
-```
-Proceso A:                Proceso B:                Proceso C:
-Tabla de Páginas         Tabla de Páginas         Tabla de Páginas
-┌────┬───────┬───┐       ┌────┬───────┬───┐       ┌────┬───────┬───┐
-│Pág │ Marco │ W │       │Pág │ Marco │ W │       │Pág │ Marco │ W │
-├────┼───────┼───┤       ├────┼───────┼───┤       ├────┼───────┼───┤
-│ 0  │  100  │ 0 │ ──┐   │ 0  │  200  │ 0 │       │ 0  │  300  │ 0 │
-│... │  ...  │...│   │   │... │  ...  │...│       │... │  ...  │...│
-│ 10 │   50  │ 0 │ ──┼──→│ 5  │   50  │ 0 │ ──┐   │ 8  │   50  │ 0 │
-│ 11 │   51  │ 0 │ ──┼──→│ 6  │   51  │ 0 │ ──┼──→│ 9  │   51  │ 0 │
-└────┴───────┴───┘   │   └────┴───────┴───┘   │   └────┴───────┴───┘
-                     └───────────────────────┘
-                     
-Marcos 50-51: código de libc (compartido, R/O)
-Marcos 100,200,300: código privado de cada proceso
-```
-Cada proceso tiene su propia tabla de páginas. Las páginas que contienen código privado del proceso apuntan a marcos únicos. Pero las páginas que contienen código de `libc` (marcadas como solo lectura) apuntan a los mismos marcos compartidos. Los marcos 50-51, por ejemplo, contienen código de `libc` y son compartidos por todos los procesos.
-
-El ahorro de memoria es considerable. Sin compartición, tres procesos cada uno usando 2 MiB de `libc` consumirían 6 MiB de RAM. Con compartición, los tres procesos comparten una sola copia de 2 MiB, ahorrando 4 MiB (66%). En un servidor con 100 procesos, el ahorro puede alcanzar varios cientos de megabytes.
-
-### TLB Reach
-
-Un último concepto relacionado con el rendimiento de la memoria virtual es el *TLB reach*.
-
-\begin{highlight}
-El TLB reach es la cantidad de memoria que puede ser mapeada por todas las entradas del TLB. Se calcula como: TLB Reach = (número de entradas TLB) × (tamaño de página).
-\end{highlight}
-
-Un TLB con 64 entradas y páginas de 4 KiB tiene un reach de 256 KiB. Esto significa que si el working set del proceso es menor a 256 KiB, todas las traducciones estarán en el TLB con un hit rate cercano al 100%.
-
-El problema surge cuando el working set excede el TLB reach. Un proceso con working set de 1 MiB pero TLB reach de solo 256 KiB experimentará muchos TLB misses, degradando el rendimiento. La solución es usar páginas más grandes. Con páginas de 2 MiB (llamadas *huge pages*), el mismo TLB de 64 entradas tiene un reach de 128 MiB, suficiente para que el working set completo quepa en el TLB.
-
-\begin{infobox}
-\textbf{Uso en sistemas reales:}
-
-Las bases de datos modernas usan huge pages de 2 MiB o 1 GiB para reducir la presión sobre el TLB. Las máquinas virtuales usan páginas grandes para las Extended Page Tables (EPT), reduciendo el overhead de virtualización anidada. La computación de alto rendimiento (HPC) frecuentemente usa páginas de 1 GiB para grandes datasets científicos.
-\end{infobox}
-
-## Algoritmos de Reemplazo de Páginas
-
-Cuando ocurre un page fault y no hay marcos libres en RAM, el sistema operativo enfrenta una decisión crítica: debe seleccionar una página "víctima" para reemplazar. Esta decisión puede tener un impacto dramático en el rendimiento del sistema. Los algoritmos de reemplazo son las políticas que guían esta decisión.
-
-### Objetivo del Algoritmo de Reemplazo
-
-El propósito fundamental de cualquier algoritmo de reemplazo es minimizar la tasa de page faults. Cuantos menos page faults ocurran, menos veces tendremos que acceder al disco, y mejor será el rendimiento del sistema.
-
-\begin{highlight}
-Un algoritmo de reemplazo es una política que selecciona cuál página residente en RAM será reemplazada cuando se necesita cargar una nueva página y no hay marcos libres. El objetivo es minimizar la tasa de page faults.
-\end{highlight}
-
-La métrica clave para evaluar estos algoritmos es la *page fault rate*, que se calcula como el número de page faults dividido por el número total de referencias a memoria.
-
-```
-Page Fault Rate = (Número de page faults) / (Número total de referencias)
-
-Ejemplo:
-Secuencia de 20 referencias, 5 page faults
-PF Rate = 5/20 = 0.25 = 25%
-```
-
-La métrica clave para evaluar estos algoritmos es la *page fault rate*, que se calcula como el número de page faults dividido por el número total de referencias a memoria. Por ejemplo, si en una secuencia de 20 referencias ocurren 5 page faults, la tasa es 5/20 = 0.25 o 25%. Cuanto menor sea este número, mejor está funcionando el algoritmo.
-
-### FIFO (First-In-First-Out)
-
-El algoritmo más simple es FIFO: reemplazar la página que lleva más tiempo en memoria. La intuición es que las páginas "viejas" probablemente ya no se necesitan.
-
-La implementación usa una cola circular donde la página más antigua está al frente. Cuando se necesita una víctima, simplemente se toma la página del frente de la cola. Cuando se carga una nueva página, se agrega al final de la cola.
-
-```
-Estructura:
-┌─────┬─────┬─────┬─────┐
-│ Pág │ Pág │ Pág │ Pág │
-│  5  │   2  │  9  │  1  │
-└─────┴─────┴─────┴─────┘
-  ↑                   ↑
-Oldest              Newest
-(víctima)
-```
-
-Las ventajas de FIFO son claras: es muy simple de implementar, encontrar la víctima tiene complejidad O(1), y el overhead es mínimo. Sin embargo, tiene desventajas significativas. No considera la frecuencia de uso de las páginas, por lo que puede reemplazar páginas que se usan constantemente. Peor aún, sufre de la *anomalía de Belady*, un fenómeno contraintuitivo donde agregar más marcos puede aumentar los page faults en lugar de reducirlos.
-
-\begin{warning}
-\textbf{Desventajas de FIFO:}
-
-FIFO no considera cuán frecuentemente se usa una página. Puede reemplazar páginas críticas que se acceden constantemente, simplemente porque fueron cargadas hace tiempo. Además, sufre de la anomalía de Belady: en ciertos patrones de acceso, ¡agregar más marcos aumenta los page faults en lugar de reducirlos!
-\end{warning}
-
-### Óptimo (OPT o MIN)
-
-\begin{highlight}
-El algoritmo óptimo fue propuesto por Belady como una referencia teórica. La idea es reemplazar la página cuya próxima referencia está más lejana en el futuro, o que nunca será referenciada nuevamente.
-\end{highlight}
-
-Este algoritmo tiene una propiedad importante: garantiza la menor cantidad posible de page faults para cualquier secuencia de referencias dada. Es, por definición, el mejor algoritmo posible.
-
-Pero hay un problema fundamental: este algoritmo requiere conocer el futuro, es decir, necesita saber de antemano toda la secuencia de referencias que el programa hará. Esto es imposible en sistemas reales. Entonces, ¿para qué sirve? El algoritmo óptimo se usa como referencia para comparar otros algoritmos. Nos permite responder: "¿cuán cerca está mi algoritmo práctico del mejor algoritmo posible?"
-
-\begin{infobox}
-\textbf{¿Por qué estudiamos el algoritmo óptimo si es imposible implementarlo?}
-
-Aunque no podemos usarlo en la práctica, el algoritmo óptimo es invaluable como punto de referencia. Nos da una cota inferior: sabemos que ningún algoritmo puede tener menos page faults que el óptimo para una secuencia dada. Esto nos permite evaluar cuán buenos son los algoritmos prácticos, midiendo qué tan cerca están del óptimo.
-\end{infobox}
-
-### LRU (Least Recently Used)
-
-LRU es una aproximación práctica al algoritmo óptimo. La idea se basa en la localidad temporal: si el óptimo mira hacia el futuro, LRU mira hacia el pasado. Reemplaza la página cuyo último acceso fue el más lejano en el tiempo.
-
-\begin{highlight}
-LRU (Least Recently Used) selecciona como víctima la página cuyo último acceso fue el más lejano en el pasado. Se basa en la observación de que páginas recientemente usadas probablemente se usarán pronto (localidad temporal).
-\end{highlight}
-
-En una implementación ideal, cada marco tendría un timestamp que se actualiza en cada acceso. Para encontrar la víctima, buscamos el marco con el timestamp más antiguo. Por ejemplo, si tenemos páginas con timestamps t=100, t=250, t=180, y t=300, la víctima sería la página con t=100.
-
-LRU tiene ventajas significativas. Su rendimiento es bueno en la práctica, explota efectivamente la localidad temporal, y en muchos casos está muy cerca del algoritmo óptimo. Sin embargo, la implementación exacta es costosa. Necesitamos actualizar un timestamp en cada acceso a memoria, no solo en page faults. Buscar el mínimo tiene complejidad O(n) donde n es el número de marcos. Peor aún, cada acceso a memoria generaría una escritura adicional para actualizar el timestamp, duplicando efectivamente el tráfico de memoria.
-
-\begin{warning}
-\textbf{Problema de implementar LRU exacto:}
-
-Cada acceso a memoria requiere tres operaciones: traducir la dirección (MMU), actualizar el timestamp (¡escritura adicional!), y acceder al dato real. Esto significa que cada lectura genera también una escritura para el timestamp. El resultado es que duplicamos el tráfico de memoria, lo cual es inaceptable. Por eso se usan aproximaciones de LRU como Clock y Clock-M.
-\end{warning}
-
-### Clock (Second Chance)
-
-Clock es una aproximación eficiente de LRU que usa un solo bit de referencia en lugar de timestamps. Los marcos se organizan conceptualmente en un anillo circular con un puntero (la "manecilla del reloj") que se mueve alrededor del anillo.
-
-```
-        ┌──────┐
-    ┌───│ P=5  │───┐
-    │   │ U=1  │   │
-┌───┴──┐└──────┘┌──┴───┐
-│ P=1  │        │ P=2  │
-│ U=0  │  ↑     │ U=1  │
-└───┬──┘ puntero└──┬───┘
-    │   (clock)    │
-    │   ┌──────┐   │
-    └───│ P=9  │───┘
-        │ U=0  │
-        └──────┘
-```
-
-El algoritmo funciona de la siguiente manera. Cuando se busca una víctima, examinamos la página actual (donde apunta el puntero). Si su bit U (uso/referencia) está en 1, le damos una "segunda oportunidad": ponemos U=0, avanzamos el puntero, y continuamos. Si U está en 0, esta página es la víctima: la reemplazamos y avanzamos el puntero.
-
-El bit U es manejado por el hardware y el software cooperativamente. El hardware lo pone en 1 automáticamente cada vez que se accede a la página (ya sea lectura o escritura). El algoritmo Clock lo pone en 0 cuando da la segunda oportunidad.
-
-La intuición es simple pero efectiva. Una página con U=1 está diciendo "he sido usada recientemente, dame otra oportunidad". Una página con U=0 está diciendo "no he sido usada desde la última inspección". Esto aproxima LRU: las páginas no usadas recientemente tienen más probabilidad de tener U=0 y ser eliminadas primero.
-
-\begin{example}
-\textbf{Funcionamiento de Clock:}
-
-Supongamos que necesitamos una víctima y el puntero está en una página con U=1. Le damos segunda oportunidad (U=0), avanzamos el puntero a la siguiente página. Si esta también tiene U=1, repetimos el proceso. Eventualmente encontraremos una página con U=0, que será nuestra víctima. En el peor caso, damos la vuelta completa al anillo, reseteando todos los bits U a 0, y la segunda vuelta garantiza encontrar una víctima.
-\end{example}
-
-### Clock-M (Clock Mejorado / Enhanced Second Chance)
-
-Clock-M es una versión mejorada del algoritmo Clock que considera tanto el bit U (Referenced) como el bit M (Modified/Dirty). Esta consideración adicional puede reducir significativamente el overhead de I/O.
-
-\begin{highlight}
-Clock-M (Clock Mejorado) es una extensión del algoritmo Clock que usa los bits U y M para clasificar páginas en 4 categorías de prioridad para reemplazo. Prefiere reemplazar páginas no modificadas para evitar escrituras a disco.
-\end{highlight}
-
-Las páginas se clasifican en cuatro clases según sus bits:
-
-- **Clase 0 (U=0, M=0):** No usada recientemente y no modificada. Esta es la mejor víctima posible.
-- **Clase 1 (U=0, M=1):** No usada recientemente pero modificada. Segunda mejor opción.
-- **Clase 2 (U=1, M=0):** Usada recientemente pero no modificada. Tercera opción.
-- **Clase 3 (U=1, M=1):** Usada recientemente y modificada. La peor víctima.
-
-La razón para esta clasificación está en el costo de reemplazo. Reemplazar una página dirty (M=1) requiere escribirla a disco antes de descartarla, lo que toma aproximadamente 10 ms en un disco duro tradicional. Luego debemos leer la nueva página, otros 10 ms, para un total de 20 ms. Por otro lado, reemplazar una página clean (M=0) no requiere escritura: simplemente la descartamos y leemos la nueva página (10 ms). Es 50% más rápido.
-
-El algoritmo Clock-M puede hacer hasta cuatro vueltas alrededor del anillo:
-
-**Vuelta 1:** Buscar clase 0 (U=0, M=0) sin modificar ningún bit. Si existe una página no usada y no modificada, la encontraremos rápidamente.
-
-**Vuelta 2:** Buscar clase 1 (U=0, M=1) sin modificar bits. Si no había clase 0, buscamos páginas no usadas pero dirty.
-
-**Vuelta 3:** Buscar clase 0 nuevamente, pero ahora SÍ modificando U. En cada página con U=1, la ponemos en U=0 (segunda oportunidad). Si encontramos U=0, M=0, la tomamos.
-
-**Vuelta 4:** Buscar clase 1 modificando U. En este punto, todas las páginas que tenían U=1 ahora tienen U=0. Tomamos la primera página con M=1 que encontremos.
-
-\begin{theory}
-\textbf{Lógica de las cuatro vueltas de Clock-M:}
-
-Las vueltas 1 y 2 intentan encontrar una víctima sin dar segundas oportunidades. Si existe una página de clase 0 o 1, la encontraremos rápidamente sin resetear bits U. Esto es eficiente para el caso común.
-
-Las vueltas 3 y 4 dan segundas oportunidades. Si todas las páginas tenían U=1, ahora las reseteamos a U=0. Esto garantiza que eventualmente encontraremos una víctima, pero también da a las páginas recientemente usadas otra oportunidad antes de ser reemplazadas.
-\end{theory}
-
-### Ejercicio Comparativo de Algoritmos
-
-Para comprender realmente las diferencias entre algoritmos, analicemos una secuencia de referencias con tres algoritmos diferentes. Usaremos 3 marcos disponibles y la siguiente secuencia:
-
-`7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1`
-
-#### Algoritmo FIFO
-
-Con FIFO, simplemente reemplazamos la página más antigua en cada page fault:
-
-```
-Referencia │ 7 │ 0 │ 1 │ 2 │ 0 │ 3 │ 0 │ 4 │ 2 │ 3 │ 0 │ 3 │ 2 │ 1 │ 2 │ 0 │ 1 │ 7 │ 0 │ 1 │
-───────────┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-Marco 0    │ 7 │ 7 │ 7 │ 2 │ 2 │ 2 │ 2 │ 4 │ 4 │ 4 │ 0 │ 0 │ 0 │ 1 │ 1 │ 1 │ 1 │ 7 │ 7 │ 7 │
-Marco 1    │   │ 0 │ 0 │ 0 │ 0 │ 3 │ 3 │ 3 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 0 │ 0 │ 0 │ 0 │ 0 │
-Marco 2    │   │   │ 1 │ 1 │ 1 │ 1 │ 1 │ 1 │ 1 │ 3 │ 3 │ 3 │ 3 │ 3 │ 3 │ 3 │ 1 │ 1 │ 1 │ 1 │
-───────────┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-PF         │ F │ F │ F │ F │   │ F │   │ F │ F │ F │ F │   │   │ F │   │ F │ F │ F │   │   │
-───────────┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
-Total Page Faults: 15
-```
-
-FIFO genera 15 page faults en esta secuencia. Podemos ver que a veces reemplaza páginas que se usarán pronto, como cuando reemplaza la página 0 justo antes de que se necesite nuevamente.
-
-#### Algoritmo Óptimo (OPT)
-
-El algoritmo óptimo, conociendo todo el futuro, toma decisiones perfectas:
-
-```
-Referencia │ 7 │ 0 │ 1 │ 2 │ 0 │ 3 │ 0 │ 4 │ 2 │ 3 │ 0 │ 3 │ 2 │ 1 │ 2 │ 0 │ 1 │ 7 │ 0 │ 1 │
-───────────┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-Marco 0    │ 7 │ 7 │ 7 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 7 │ 7 │ 7 │
-Marco 1    │   │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │
-Marco 2    │   │   │ 1 │ 1 │ 1 │ 3 │ 3 │ 4 │ 4 │ 3 │ 3 │ 3 │ 3 │ 1 │ 1 │ 1 │ 1 │ 1 │ 1 │ 1 │
-───────────┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-PF         │ F │ F │ F │ F │   │ F │   │ F │   │ F │   │   │   │ F │   │   │   │ F │   │   │
-───────────┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
-Total Page Faults: 9
-```
-
-OPT logra solo 9 page faults. Las decisiones clave incluyen: en la referencia 6 (página 3), reemplaza la página 7 porque su próxima referencia está muy lejos (posición 18). En la referencia 8 (página 4), reemplaza la página 1 cuya próxima referencia está en la posición 14. En la referencia 10 (página 3), reemplaza la página 4 que nunca se vuelve a usar.
-
-#### Algoritmo Clock-M
-
-Ahora veamos Clock-M con el detalle completo de los bits U y M. Para este ejemplo, asumiremos que algunas referencias son lecturas (R) y otras escrituras (W):
-
-`7R, 0R, 1W, 2R, 0R, 3W, 0W, 4R, 2W, 3R, 0R, 3R, 2R, 1R, 2W, 0R, 1R, 7W, 0R, 1R`
-
-Las páginas cargadas desde disco inician con U=0, M=0. Al acceder una página, se pone U=1. Al escribir una página, se pone M=1 (además de U=1).
-
-Analicemos algunos momentos clave del algoritmo:
-
-```
-Ref 1: Acceso 7 (lectura)
-- Page fault, cargar en marco 0
-- Marcos: [7(0,0)] [ ] [ ]
-- Puntero: marco 1
-PF: 1
-
-Ref 4: Acceso 2 (lectura)
-- Page fault, necesita reemplazar
-- Puntero en marco 0: [7(0,0)] ← U=0,M=0 (clase 0)
-  → Víctima encontrada en vuelta 1
-  → Reemplazar 7 por 2
-- Marcos: [2(0,0)] [0(0,0)] [1(0,1)]
-PF: 4
-
-Ref 6: Acceso 3 (escritura)
-- Page fault, necesita reemplazar
-- Estado actual: [2(0,0)] [0(1,0)] [1(0,1)]
-- Puntero en marco 1:
-  
-  Vuelta 1: Buscar (U=0,M=0)
-  - Marco 1: [0(1,0)] → U=1, siguiente
-  - Marco 2: [1(0,1)] → M=1, siguiente
-  - Marco 0: [2(0,0)] → U=0,M=0 - ¡Víctima!
-  
-- Reemplazar página 2 por página 3
-- Marcos: [3(0,1)] [0(1,0)] [1(0,1)]
-PF: 5
-
-Ref 8: Acceso 4 (lectura)
-- Page fault, necesita reemplazar
-- Estado actual: [3(0,1)] [0(1,1)] [1(0,1)]
-- Todas las páginas tienen M=1 o U=1
-  
-  Vuelta 1: No encuentra clase 0
-  Vuelta 2: Buscar (U=0,M=1)
-  - Marco 2: [1(0,1)] → U=0,M=1 - ¡Víctima!
-  
-- Debe escribir página 1 a disco (dirty)
-- Reemplazar página 1 por página 4
-- Marcos: [3(0,1)] [0(1,1)] [4(0,0)]
-PF: 6
-```
-
-El algoritmo continúa de esta manera, clasificando páginas en las cuatro clases y prefiriendo víctimas clean sobre dirty cuando es posible. Al final de la secuencia, Clock-M logra 10 page faults.
-
-\begin{example}
-\textbf{Observaciones del ejercicio comparativo:}
-
-Clock-M realizó dos vueltas completas en las referencias 6 y 8, demostrando el mecanismo de búsqueda en múltiples vueltas. En la referencia 8, no encontró páginas de clase 0 en la vuelta 1, así que buscó clase 1 en la vuelta 2. Las escrituras incrementan M, haciendo a las páginas menos deseables como víctimas, lo cual es correcto porque reemplazarlas requiere I/O adicional. El algoritmo evitó escribir páginas dirty cuando pudo encontrar víctimas clean.
-\end{example}
-
-### Comparación Final
-
-Resumiendo los resultados de todos los algoritmos en esta secuencia:
-
-| Algoritmo    | Page Faults | Complejidad | Hardware Requerido |
-|--------------|-------------|-------------|--------------------|
-| FIFO         | 15          | O(1)        | Ninguno            |
-| Óptimo (OPT) | 9           | O(n)        | Conocer futuro     |
-| LRU          | 12          | O(n)        | Timestamp          |
-| Clock        | 11          | O(n)        | Bit U              |
-| Clock-M      | 10          | O(n)        | Bits U y M         |
-
-Las conclusiones son claras. El algoritmo óptimo es inalcanzable en la práctica pero nos da una cota inferior: sabemos que ningún algoritmo real puede hacer mejor que 9 page faults en esta secuencia. Clock-M se acerca bastante al óptimo (10 vs 9), logrando solo un page fault más. FIFO es el peor, con 15 page faults (67% más que el óptimo). El bit M realmente ayuda: Clock-M es mejor que Clock simple gracias a evitar escrituras a disco cuando es posible.
-
-## Thrashing
-
-### ¿Qué es Thrashing?
-
-Thrashing es uno de los problemas más severos que puede enfrentar un sistema de memoria virtual. Es un estado donde el sistema dedica más tiempo a manejar page faults (cargando y descargando páginas) que a ejecutar instrucciones útiles.
-
-\begin{highlight}
-Thrashing es un estado del sistema donde se dedica más tiempo a manejar page faults (cargar/descargar páginas) que a ejecutar instrucciones útiles. Ocurre cuando la suma de los working sets de todos los procesos excede la memoria física disponible.
+La paginación es el fundamento de prácticamente todos los sistemas operativos modernos. Aunque tiene costos, los beneficios en términos de flexibilidad y protección son indispensables.
 \end{highlight}
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-08/03.png}
-
-<!-- \vspace{0.3em}
-{\small\itshape\color{gray!65}
--- Thrashing caption --
-} -->
+\includegraphics[width=0.5\linewidth,keepaspectratio]{src/images/capitulo-07/03.png}
 \end{center}
 
-Los síntomas son inconfundibles y dramáticos. La utilización de CPU cae a niveles muy bajos (menos del 20%), mientras el disco trabaja constantemente al 100% de su capacidad. Los procesos avanzan extremadamente lento, y el sistema se vuelve prácticamente inutilizable para los usuarios.
+### Formato de Dirección Lógica
 
-Veamos un ejemplo numérico concreto. Consideremos un sistema con 1 GiB de RAM y 10 procesos ejecutando simultáneamente. Cada proceso necesita un working set de 150 MiB para funcionar eficientemente. El total necesario sería 10 × 150 MiB = 1500 MiB, pero solo tenemos 1000 MiB disponibles. Hay un déficit de 500 MiB.
+Una dirección lógica en paginación se divide en dos campos: número de página y offset dentro de la página. Si el tamaño de página es $2^d bytes$ y el espacio lógico es $2^m bytes$, entonces una dirección lógica tiene $m bits$ divididos en: $p = m - d bits$ para número de página, y $d bits$ para offset dentro de la página.
 
-¿Qué sucede en esta situación? Solo aproximadamente 6 procesos caben cómodamente en memoria (6 × 150 = 900 MiB). Los otros 4 procesos generan page faults constantemente. Cuando cargamos páginas del proceso A, debemos quitar páginas del proceso B. Entonces el proceso B genera page faults, quitando páginas del proceso C. El proceso C genera page faults, quitando páginas del proceso A. El resultado es un ciclo vicioso sin fin.
+Veamos un ejemplo concreto. Con un espacio de 64 KiB con páginas de 4 KiB, tenemos espacio lógico de $2^{16} bytes$ (64 KiB) requiriendo 16 bits de dirección.
+- Espacio lógico: $2^{16}$ bytes (64 KiB) -> 16 bits de dirección
+- Tamaño de página: $2^{12}$ bytes (4 KiB) -> 12 bits de offset
+- Bits para número de página: 16 - 12 = 4 bits
+- Número de páginas: $2^4$ = 16 páginas  
 
-La diferencia en rendimiento es catastrófica. En condiciones normales sin thrashing, la CPU opera al 80% de utilización, el disco al 20%, y el tiempo promedio por instrucción es de unos 10 nanosegundos. Con thrashing, la CPU cae al 5% de utilización, el disco sube al 95%, y el tiempo promedio por instrucción aumenta a aproximadamente 10 milisegundos. Esto representa una degradación de un millón de veces en el rendimiento.
+El formato de dirección de 16 bits se divide en 4 bits para el número de página (permitiendo páginas 0-15) y 12 bits para el offset (permitiendo offset 0-4095).
 
-\begin{warning}
-\textbf{El impacto del thrashing:}
+\begin{center}
+\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/capitulo-07/05.png}
 
-Durante thrashing, el sistema puede ser aproximadamente un millón de veces más lento que en condiciones normales. La CPU está mayormente idle esperando que el disco complete las operaciones de paginación. Para el usuario, el sistema parece "congelado", con el disco sonando constantemente pero las aplicaciones sin responder.
-\end{warning}
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Representación de dirección lógic de 16 bits, utilizando 4 bits (orden superior) para número de página (0-15) y los restantes 12 bits para el desplazamiento (0-4095).
+}
+\end{center}
 
-### ¿Por Qué Ocurre?
+\begin{excerpt}
+\emph{Formato de Dirección Lógica:}
+Si el tamaño de página es $2^d$ bytes y el espacio lógico es $2^m$ bytes, entonces una dirección lógica tiene m bits divididos en: p = m - d bits para número de página, d bits para offset dentro de la página.
+\end{excerpt}
 
-La causa fundamental del thrashing es la sobrecarga de multiprogramación: intentar ejecutar demasiados procesos simultáneamente sin suficiente memoria física.
+### Traducción de Direcciones
 
-Existe una relación entre el grado de multiprogramación y el throughput del sistema que puede graficarse como una curva. Con pocos procesos (0-6), la CPU está subutilizada porque no hay suficiente trabajo. En el punto óptimo (alrededor de 6-8 procesos), alcanzamos el máximo throughput. Pero con demasiados procesos (más de 10), el sistema cae en thrashing y el throughput colapsa.
+El proceso de traducción usa la tabla de páginas del proceso. El algoritmo es directo: extraés el número de página p de los bits más significativos, extraés el offset d de los bits menos significativos, buscás en la tabla de páginas $marco = tabla\_paginas[p]$, y calculás la dirección física como $DF = marco * tamaño\_pagina + d$.  
 
-El ciclo del thrashing es pernicioso y se auto-refuerza. Comienza cuando el sistema tiene poca carga y la CPU está idle. El sistema operativo, viendo CPU ociosa, decide agregar más procesos para aumentar la utilización. La memoria se llena y los procesos comienzan a generar page faults. Los procesos se bloquean esperando I/O de disco. El sistema operativo, viendo procesos bloqueados, interpreta que hay poca carga y agrega aún más procesos. Más procesos significan más page faults y menos memoria por proceso. El resultado final es thrashing: el disco saturado y la CPU idle.
+Veamos un ejemplo numérico completo. Con tamaño de página de 1 KiB ($1024 bytes = 2^{10}$), espacio lógico de 8 KiB ($8192 bytes = 2^{13}$), tenemos 13 bits de dirección total, 3 bits de página (8 páginas), y 10 bits de offset (1024 posiciones).  
+```
+Configuración:
+- Tamaño de página: 1 KiB (1024 bytes = 2^10)
+- Espacio lógico: 8 KiB (8192 bytes = 2^13)
+- Bits de dirección: 13 bits
+- Bits de página: 13 - 10 = 3 bits (8 páginas)
+- Bits de offset: 10 bits (1024 posiciones)
+```
 
-\begin{warning}
-\textbf{La paradoja del thrashing:}
+Supongamos una tabla donde la página 0 mapea al marco 5, la página 1 al marco 2, la página 2 al marco 7, y la página 3 al marco 0.
 
-La baja utilización de CPU lleva al SO a agregar más procesos. Esto empeora el thrashing, reduciendo aún más la CPU. El SO responde agregando todavía más procesos. Este ciclo de retroalimentación positiva puede llevar al colapso completo del sistema si no hay mecanismos de prevención.
-\end{warning}
+| Página | Marco |
+|-----------|-----|
+| 0 | 5 |
+| 1 | 2 |
+| 2 | 7 |
+| 3 | 0 |
 
-### Detección de Thrashing
-
-Para prevenir o recuperarse del thrashing, primero debemos detectarlo. Existen varias métricas que podemos monitorear.
-
-La primera es la *page fault rate*. Si la tasa de page faults por segundo excede un umbral (por ejemplo, 10 page faults por segundo por proceso), es una señal clara de thrashing.
-
-La segunda es la relación entre actividad de disco y CPU. Si (Disk I/O %) / (CPU %) es mayor que 5, el thrashing es probable. En condiciones normales, con 20% de disco y 80% de CPU, el ratio es 0.25. Durante thrashing, con 95% de disco y 5% de CPU, el ratio es 19, indicando claramente el problema.
-
-La tercera métrica es el tiempo promedio de servicio de page faults. Si el tiempo promedio para resolver un page fault excede 50 milisegundos, es señal de que el disco no da abasto con la carga de trabajo.
-
-### Prevención y Recuperación
-
-Existen varias estrategias para prevenir el thrashing antes de que ocurra.
-
-El *Working Set Model* es un enfoque donde estimamos el working set de cada proceso. Solo ejecutamos un proceso si la suma de todos los working sets es menor o igual a la RAM disponible. Si no hay suficiente memoria, suspendemos procesos hasta que haya recursos suficientes.
-
-El enfoque de *Page Fault Frequency (PFF)* monitorea cada proceso individualmente. Si la tasa de page faults de un proceso excede un umbral alto, le damos más marcos. Si está por debajo de un umbral bajo, le quitamos marcos (que pueden ir a otros procesos). Si no hay marcos disponibles para un proceso que los necesita, lo suspendemos.
-
-Una tercera estrategia es simplemente limitar el grado de multiprogramación. Establecemos un máximo de procesos activos basado en la memoria disponible. Por ejemplo, con 8 GiB de RAM, podríamos limitar a 20 procesos máximo, basándonos en estimaciones del working set promedio.
-
-Cuando ya estamos en thrashing, necesitamos estrategias de recuperación. La más efectiva es suspender procesos: swapear un proceso completo a disco, liberando toda su memoria, reduciendo así el grado de multiprogramación. También podemos priorizar procesos críticos, garantizando su working set a expensas de procesos de baja prioridad que pueden suspenderse. La solución obvia, aunque no siempre viable, es aumentar la memoria RAM física del sistema o reducir el memory footprint de los procesos.
-
-### Preguntas Típicas de Examen
-
-Para consolidar la comprensión del thrashing, analicemos algunas preguntas típicas que aparecen en exámenes.
-
-**Pregunta 1:** *Si un sistema está en thrashing, ¿mejora el rendimiento agregando más procesos?*
-
-La respuesta es un rotundo no. Agregar más procesos empeora el thrashing, no lo mejora. La razón es que habrá menos memoria disponible por proceso, lo que genera más page faults, más I/O de disco, y peor rendimiento general. La solución correcta es reducir la cantidad de procesos, no agregarlos.
-
-**Pregunta 2:** *¿Agregar más RAM siempre soluciona el thrashing?*
-
-La respuesta depende del contexto. Si el thrashing es causado por una genuina falta de RAM física, entonces agregar RAM ayudará. Si el problema es que los procesos tienen working sets extremadamente grandes, agregar RAM ayudará parcialmente pero puede no ser suficiente. Si el thrashing es causado por un algoritmo de reemplazo inadecuado, más RAM no resolverá el problema subyacente. Y si el sistema operativo continúa agregando procesos sin límite, más RAM solo postergará el thrashing pero no lo evitará, porque el problema es de diseño del sistema.
-
-**Pregunta 3:** *Un sistema tiene 20% de utilización de CPU y 90% de utilización de disco. ¿Está en thrashing? ¿Qué hacer?*
-
-Este es un caso claro de thrashing. El ratio Disk/CPU es 90/20 = 4.5, que es muy alto (lo normal sería menos de 1). Las acciones inmediatas incluyen identificar los procesos con alta tasa de page faults, suspender procesos menos críticos, verificar que los working sets no excedan la RAM disponible, y definitivamente no agregar más procesos al sistema.
-
-**Pregunta 4:** *¿Puede ocurrir thrashing con mucha RAM libre?*
-
-Sorprendentemente, la respuesta es sí, aunque en casos raros. Esto puede ocurrir si el algoritmo de reemplazo es muy malo. Por ejemplo, FIFO podría reemplazar constantemente páginas que están siendo usadas, si todas las páginas del working set son "viejas" según el criterio de FIFO. El resultado serían page faults continuos a pesar de tener RAM libre. Sin embargo, este escenario es muy poco común; el thrashing típico es causado por falta genuina de memoria física.
+Para traducir la dirección lógica 1300, primero la convertimos a binario: 1300₁₀ = 10100010100₂. Separamos en página (001 = 1) y offset (0100010100 = 276). 
 
 \begin{infobox}
-\textbf{Prevención vs. Recuperación:}
-
-Es mucho mejor prevenir el thrashing que intentar recuperarse de él. Los mecanismos de prevención como Working Set y PFF pueden detectar las condiciones que llevarían al thrashing antes de que ocurra, suspendiendo procesos proactivamente. Una vez que el sistema está en thrashing profundo, la recuperación es más difícil y puede requerir intervención manual del administrador del sistema.
+Nota que hay que completar con la cantidad de bits la dirección logica (completar con 0 a la izquierda), de otro modo nos quedaría número de páginas 101 (5).
 \end{infobox}
 
-## Código en C: Simulador de Clock-M
+\begin{center}
+\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/capitulo-07/06.png}
+\end{center}
 
-Este simulador implementa el algoritmo Clock-M (Clock Mejorado) y permite visualizar el proceso de reemplazo paso a paso.
+Consultar tabla: $tabla[1] = marco 2$  
+
+Finalmente calculamos la dirección física:
+$$
+DF = 2 * 1024 + 276 = 2048 + 276 = 2324
+$$
+
+\begin{example}
+El proceso de traducción es completamente transparente para el proceso. El programa genera la dirección lógica 1300, pero el hardware accede a la dirección física 2324. El proceso nunca sabe dónde está realmente en memoria.
+\end{example}
+
+### Tabla de Páginas
+
+La tabla de páginas es una estructura de datos mantenida por el SO que mapea números de página lógica a números de marco físico. Cada proceso tiene su propia tabla de páginas independiente.  
+Cada entrada de la tabla (PTE - Page Table Entry) contiene más que solo el número de marco. Incluye el marco (número de marco físico donde está la página), el bit P o V (Presencia/Validate, indica si la página está en memoria o en disco), el bit U o R (Uso/Referenced, para algoritmos de reemplazo), el bit M o W (Modificada/Write/Dirty, indica si la página fue modificada), el bit X (Execute, permiso de ejecución), y otros campos para protección, compartición, etc.
+
+\begin{center}
+\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/capitulo-07/07.png}
+\end{center}
+
+Un aspecto crucial es la ubicación: la tabla de páginas está en memoria RAM, no en registros del CPU (son demasiadas entradas). El SO mantiene un registro especial llamado PTBR (Page Table Base Register) que apunta al inicio de la tabla. En cada context switch, el SO actualiza el PTBR con la tabla del nuevo proceso.
+\begin{warning}
+Esto introduce un problema de rendimiento: cada acceso a memoria requiere 2 accesos reales. Primero hay que leer la entrada de tabla de páginas (en RAM), luego leer el dato solicitado (en RAM). Esto duplica el tiempo de acceso a memoria. La solución es el TLB, una caché de traducciones.
+\end{warning}
+
+\begin{center}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/14.png}
+\end{center}
+
+### Fragmentación Interna en Paginación
+
+Aunque la paginación elimina fragmentación externa, tiene fragmentación interna en la última página de cada proceso. Si un proceso necesita 13.5 KiB con páginas de 4 KiB, se le asignan 4 páginas (16 KiB), desperdiciando 2.5 KiB (15.6\% de fragmentación interna).  
+
+```
+Proceso necesita: 13.5 KiB
+Tamaño de página: 4 KiB
+Páginas asignadas: 4 páginas (16 KiB)
+Fragmentación interna: 16 - 13.5 = 2.5 KiB (15.6%)
+```
+
+La fragmentación promedio es de 0.5 páginas por proceso. Si la página es de 4 KiB, el desperdicio promedio es 2 KiB por proceso. Con 100 procesos, se desperdician 200 KiB. Existe un trade-off: páginas más pequeñas reducen fragmentación interna pero aumentan el overhead de las tablas.
+
+## Segmentación
+
+La paginación resuelve problemas técnicos brillantemente, pero no refleja la estructura lógica del programa. La segmentación aborda este aspecto desde una perspectiva completamente diferente.
+
+### Concepto y Motivación
+
+Desde la perspectiva del programador, un programa NO es un arreglo lineal de bytes, sino una colección de unidades lógicas: segmento de código (instrucciones), segmento de datos globales, segmento de heap (memoria dinámica), segmento de stack (variables locales), y segmentos de librerías compartidas.  
+
+La segmentación divide el espacio de direcciones en segmentos de tamaño variable, donde cada segmento representa una unidad lógica del programa. La diferencia clave con paginación es fundamental: la paginación divide por tamaño fijo usando un criterio técnico (hardware), mientras que la segmentación divide por tamaño variable usando un criterio lógico (programador). La paginación es invisible al programador, la segmentación es visible. La paginación genera fragmentación interna, la segmentación genera fragmentación externa. La protección en paginación es por página, en segmentación es por segmento (más natural). La compartición en paginación es complicada, en segmentación es natural.  
+
+Un proceso puede tener un segmento 0 de código (2000 bytes) con base en 1000 y límite 2000, un segmento 1 de datos (500 bytes) con base en 5000 y límite 500, y un segmento 2 de stack (1000 bytes) con base en 8000 y límite 1000. Cada segmento puede estar en cualquier parte de la memoria física.
+
+*Diferencia clave con paginación:*
+
+| Aspecto | Paginación | Segmentación |
+|---------|-----------|--------------|
+| División | Tamaño fijo (4 KiB) | Tamaño variable |
+| Criterio | Técnico (hardware) | Lógico (programador) |
+| Visible al programador | No | Sí |
+| Fragmentación | Interna | Externa |
+| Protección | Por página | Por segmento (más natural) |
+| Compartición | Complicada | Natural |
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/20.png}
+\end{center}
+
+### Formato de Dirección Lógica en Segmentación
+
+Una dirección lógica es un par (s, d) donde s es el número de segmento y d es el desplazamiento dentro del segmento. La traducción sigue estos pasos: extraés s y d de la dirección lógica, consultás la tabla de segmentos $entrada = tabla\_ segmentos[s]$, verificás si $d >= entrada.limite$ -> `Segmentation Fault`, y calculás $DF = entrada.base + d$.  
+
+Con una tabla donde el segmento 0 tiene base 1000 y límite 2000, el segmento 1 tiene base 5000 y límite 500, y el segmento 2 tiene base 8000 y límite 1000, la dirección (1, 250) se traduce así: $s=1, d=250, base=5000, límite=500$. Como $250 < 500$ es válido, calculamos $DF = 5000 + 250 = 5250$.
+Si intentamos traducir (1, 600), como 600 no es menor que 500, el hardware genera un `TRAP`(Segmentation Fault).
+
+
+| Segmento | Base | Límite |
+|-----------|-----|---------|
+| 0 | 1000 | 2000 |
+| 1 | 5000 | 500 |
+| 2 | 8000 | 1000 |
+
+```
+Traducir: (1, 250)
+1. s=1, d=250
+2. Base=5000, Límite=500
+3. ¿250 < 500? Sí -> válido
+4. DF = 5000 + 250 = 5250
+
+Traducir: (1, 600)
+1. s=1, d=600
+2. Base=5000, Límite=500
+3. ¿600 < 500? No -> TRAP (Segmentation Fault)
+```
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/21.png}
+\end{center}
+
+### Ventajas de Segmentación
+
+La segmentación refleja la estructura lógica del programa naturalmente, ofrece protección natural (cada segmento tiene sus propios permisos), facilita la compartición (código compartido = mismo segmento), permite crecimiento dinámico de segmentos (heap, stack), y facilita modularidad y librerías compartidas.
+\begin{example}
+La compartición de código es elegante en segmentación. Si los procesos A y B ejecutan el mismo programa, ambos pueden apuntar al mismo segmento 0 de código (read-only y compartido), mientras mantienen sus propios segmentos 1 de datos privados. Esto es conceptualmente simple y eficiente.
+\end{example}
+Las desventajas son que vuelve a aparecer la fragmentación externa (como en particiones dinámicas), la complejidad de asignación requiere algoritmos First/Best/Worst Fit, eventualmente requiere compactación, y la tabla de segmentos es más compleja que la tabla de páginas.
+
+### Segmentación con Paginación
+
+Los sistemas modernos combinan ambas técnicas para obtener ventajas de cada una. En la segmentación paginada, cada segmento se divide en páginas. El espacio lógico está segmentado (perspectiva lógica), pero cada segmento se implementa con paginación (evitando fragmentación externa).  
+
+El proceso de traducción ocurre en dos niveles. Una dirección lógica es (s, p, d) donde s es el número de segmento, p es el número de página dentro del segmento, y d es el offset dentro de la página. Primero consultás la tabla de segmentos para obtener la tabla de páginas del segmento, luego consultás la tabla de páginas del segmento para obtener el marco, y finalmente calculás la dirección física como marco * tamaño_página + d.  
+```
+Dirección lógica: (s, p, d)
+- s = número de segmento
+- p = número de página dentro del segmento
+- d = offset dentro de la página
+
+1. Consultar tabla de segmentos -> obtener tabla de páginas del segmento
+2. Consultar tabla de páginas del segmento -> obtener marco
+3. Calcular dirección física: marco * tamaño_página + d
+```
+
+Intel x86 (arquitectura IA-32) implementa este esquema. Una dirección tiene un selector de segmento de 16 bits que incluye un índice en la GDT (Global Descriptor Table) y un offset. El descriptor de segmento en GDT/LDT proporciona la base del segmento. Esto se combina con el offset que contiene el número de página y el offset dentro de la página. La tabla de páginas del segmento mapea a marcos físicos.  
+
+Las ventajas del esquema híbrido son claras: combina la protección y compartición natural de segmentación con la ausencia de fragmentación externa de paginación. Los segmentos pueden crecer dinámicamente agregando páginas, y el uso de memoria es mejor que segmentación pura.
+
+## Técnicas Avanzadas
+
+### Buddy System
+
+El Buddy System es un algoritmo de asignación que busca balancear la velocidad de asignación con la fragmentación. Su elegancia está en su simplicidad.  
+
+El sistema funciona así: la memoria total es una potencia de 2 (por ejemplo, 256 KiB). Cuando se solicita memoria, se busca el bloque más pequeño (potencia de 2) que lo contenga. Si no existe ese tamaño, se divide un bloque mayor recursivamente (splitting). Al liberar, se intenta fusionar con el buddy si también está libre (coalescing).  
+
+La regla del buddy es matemática, dos bloques de tamanio $2^k$ en direcciones addr1 y addr2 son buddies si:
+$$
+addr1 XOR addr2 == 2^k
+$$
+
+Veamos la operación completa.  
+
+Estado inicial: 256 KiB libre
+\begin{center}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/22.png}
+\end{center}
+```
+Solicitud: 40 KiB
+-> Necesita bloque de 64 KiB (2^6)
+-> Dividir 256 -> 128 + 128
+-> Dividir 128 -> 64 + 64
+-> Asignar primer 64 KiB
+```
+
+\begin{center}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/23.png}
+\end{center}
+
+```
+Solicitud: 35 KiB
+-> Necesita bloque de 64 KiB
+-> Ya hay uno libre, asignar
+```
+
+\begin{center}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/26.png}
+\end{center}
+
+```
+Liberar primer bloque (64 KiB):
+-> Su buddy (segundo 64 KiB) está ocupado
+-> No se puede fusionar
+```
+
+\begin{center}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/24.png}
+\end{center}
+```
+Liberar segundo bloque (64 KiB):
+-> Su buddy (primer 64 KiB) está libre
+-> Fusionar en 128 KiB
+-> El nuevo 128 tiene buddy libre (otro 128)
+-> Fusionar en 256 KiB
+```
+\begin{center}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/25.png}
+\end{center}
+
+Las ventajas son asignación y liberación rápidas en O(log n), coalescing automático sin escanear toda la memoria, reduce fragmentación externa comparado con particiones dinámicas, e implementación simple con listas por tamaño. Las desventajas son la fragmentación interna (siempre se asigna potencia de 2), por ejemplo un proceso de 65 KiB recibe 128 KiB desperdiciando 63 KiB, y no es tan eficiente como paginación pura.
+\begin{infobox}
+Linux usa una variante del Buddy System para asignar páginas físicas en el kernel, con bloques de hasta orden 11 (es decir, $2^{11} paginas$). Es un buen balance entre eficiencia y complejidad.
+\end{infobox}
+
+### Paginación Multinivel
+
+Cuando el espacio de direcciones es muy grande, la tabla de páginas se vuelve enorme. Este es un problema serio en sistemas modernos.  
+
+En un sistema de 32 bits con páginas de 4 KiB, hay $2^{32} = 4 GiB$ de direcciones posibles, lo que significa $2^{32} / 2^{12} = 2^{20}$ 1 millón de páginas posibles. Si cada entrada ocupa 4 bytes, el tamaño de la tabla es 4 MiB por proceso. Con 100 procesos, necesitaríamos 400 MiB solo en tablas de páginas, lo cual es inaceptable.  
+
+La solución es paginar la tabla de páginas misma, creando una jerarquía de múltiples niveles.
+
+\begin{center}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/15.png}
+\end{center}
+
+#### Paginación de Dos Niveles
+
+En paginación de dos niveles, la tabla de páginas se divide en páginas. Se mantiene un directorio de páginas que apunta a las tablas de páginas de segundo nivel.  
+
+El formato de dirección lógica se divide en tres partes: directorio (p1), página (p2), y offset (d). La traducción ocurre así: usás p1 para indexar el directorio de páginas y obtener la tabla de nivel 2, usás p2 para indexar la tabla de nivel 2 y obtener el marco, y usás d como offset dentro del marco.
+La ventaja es enorme: si un proceso no usa ciertas regiones de memoria, las tablas de nivel 2 correspondientes NO se crean, ahorrando memoria significativamente.
+
+\begin{center}
+\includegraphics[width=0.85\linewidth,keepaspectratio]{src/images/capitulo-07/16.png}
+\end{center}
+
+En un sistema de 32 bits con páginas de 4 KiB, podés usar 10 bits para directorio (1024 entradas), 10 bits para página (1024 entradas por tabla nivel 2), y 12 bits para offset (4096 bytes). Si un proceso usa solo 4 MiB, requiere 1 entrada en directorio y 1 tabla de nivel 2 (1024 entradas), totalizando $(1024 + 1024) * 4 bytes = 8 KiB$, versus 4 MiB en tabla plana.
+
+
+#### Paginación de Tres Niveles
+
+Para espacios de direcciones de 64 bits, se requieren más niveles. La dirección se divide en p1, p2, p3, y offset.  
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/17.png}
+\end{center}
+
+Por ejemplo, x86-64 con páginas de 4 KiB usa direcciones de 48 bits (no se usan los 64 completos), divididas en 9 bits para cada uno de cuatro niveles (PML4, PDPT, PD, PT), más 12 bits de offset. Esto crea cuatro niveles de traducción: Page Map Level 4 (PML4), Page Directory Pointer Table (PDPT), Page Directory (PD), y Page Table (PT).
+
+\begin{warning}
+El costo de traducción es significativo: con 3 niveles se necesitan 4 accesos a memoria (3 niveles más el dato). Sin TLB esto sería devastador para el rendimiento. Un hit rate del TLB del 99\% es esencial para mantener el sistema usable.
+\end{warning}
+
+### Tabla de Páginas Invertida
+
+Un enfoque radicalmente diferente: en lugar de una tabla por proceso, una tabla global única para todo el sistema. La tabla de páginas invertida tiene una entrada por cada marco físico (no por página lógica). Cada entrada indica qué proceso y qué página está en ese marco.  
+
+La estructura tiene una entrada por marco físico, conteniendo el PID del proceso dueño, el número de página lógica, y flags de protección y estado. La traducción requiere extraer página p y offset d de la dirección lógica, buscar en la tabla invertida la entrada donde `(PID == actual) AND (Página == p)`, usar el índice de esa entrada como el marco, y calcular `DF = marco * tamaño_página + d`.
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/18.png}
+\end{center}
+El problema crítico es que la búsqueda es O(n) donde n es la cantidad de marcos. Cada acceso a memoria requiere escanear toda la tabla, lo cual es INACEPTABLE sin optimización. La solución es usar una tabla hash para acelerar la búsqueda:  
+```
+Hash(PID, página) -> índice en tabla hash -> cadena de colisiones -> entrada
+```
+Las ventajas son que el tamaño de tabla es proporcional a memoria física (no a lógica). Un sistema con 4 GiB de RAM y páginas de 4 KiB tiene 1M marcos, entonces 1M entradas, versus potencialmente millones por proceso. Es un ahorro masivo en sistemas con muchos procesos. Las desventajas son que la búsqueda es más lenta incluso con hash, la compartición de páginas es complicada, y no es totalmente compatible con memoria virtual tradicional.  
+
+Este esquema se usó en PowerPC, IA-64 (Itanium), y algunas versiones de AIX.
+
+## Compactación y Defragmentación
+
+La compactación es el proceso de mover procesos en memoria para consolidar los espacios libres. Es una solución directa a la fragmentación externa, pero con costos significativos.  
+
+El proceso reorganiza la memoria moviendo procesos activos para eliminar fragmentación externa, creando un único bloque contiguo de memoria libre. Antes de compactación, la memoria puede estar fragmentada con procesos y huecos libres intercalados. Después de compactación, todos los procesos están juntos y hay un único bloque libre grande al final.  
+
+El algoritmo implica identificar todos los bloques libres, mover procesos hacia direcciones bajas, actualizar tablas de asignación, y actualizar todas las referencias (registros, punteros, tablas de páginas).
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/19.png}
+\end{center}
+
+Los costos son considerables: copiar todos los procesos en memoria es muy lento, hay que detener la ejecución durante la compactación, actualizar estructuras del SO, y en un sistema con 1 GiB ocupado, esto puede tomar varios segundos.
+\begin{warning}
+La compactación solo es factible si se usa binding en tiempo de ejecución. Con binding en compilación o carga, es imposible mover procesos. Con registros base/límite o paginación, solo hay que actualizar los registros y la MMU hace transparente el movimiento para el proceso.
+\end{warning}
+
+Las estrategias varían: compactación completa mueve todos los procesos al inicio dejando todo el espacio libre al final, compactación parcial solo elimina huecos más pequeños que cierto umbral, y compactación selectiva solo mueve procesos que no están ejecutando activamente.  
+En paginación, no se necesita compactación tradicional, pero ocasionalmente se hace "defragmentación" moviendo páginas para mejorar localidad, aunque esto es raro en la práctica.
+
+## Protección y Compartición
+
+### Mecanismos de Protección
+
+Los sistemas de gestión de memoria incluyen mecanismos de protección para evitar que un proceso acceda memoria de otro, evitar que un proceso acceda memoria del SO, y controlar operaciones permitidas (lectura, escritura, ejecución).  
+Los bits de protección en la tabla de páginas incluyen `R` (Read, página legible), `W` (Write, página escribible), y `X` (Execute, página ejecutable). Las combinaciones típicas son `R--` para solo lectura (constantes, código compartido), `RW-` para lectura/escritura (datos, heap, stack), `R-X` para solo lectura y ejecución (código), y `RWX` que es peligroso porque permite ataques de data execution.
+
+```
+R (Read):    Página legible
+W (Write):   Página escribible
+X (Execute): Página ejecutable
+
+Combinaciones típicas:
+R--: Solo lectura (constantes, código compartido)
+RW-: Lectura/escritura (datos, heap, stack)
+R-X: Solo lectura y ejecución (código)
+RWX: Peligroso (permite data execution attacks)
+```
+
+*Verificación por hardware:* Cuando el CPU intenta acceder a una página, la MMU verifica automáticamente: ¿la página es válida (bit V=1)? Si no, genera Page Fault. ¿El acceso es de lectura y bit R=1? Si no, genera Protection Fault. ¿El acceso es de escritura y bit W=1? Si no, genera Protection Fault. ¿El acceso es de ejecución y bit X=1? Si no, genera Protection Fault. Si todo está bien, permite el acceso.
+
+```
+1. ¿La página es válida (bit V=1)?
+   NO -> Page Fault (TRAP al SO)
+   
+2. ¿El acceso es de lectura y bit R=1?
+   NO -> Protection Fault (TRAP al SO)
+   
+3. ¿El acceso es de escritura y bit W=1?
+   NO -> Protection Fault (TRAP al SO)
+   
+4. ¿El acceso es de ejecución y bit X=1?
+   NO -> Protection Fault (TRAP al SO)
+   
+5. Todo OK -> Permitir acceso
+```
+
+\begin{highlight}
+El bit NX (No-eXecute) es fundamental para seguridad moderna. Previene ataques de buffer overflow porque el stack y heap NO deben ser ejecutables. Si un atacante inyecta código en el stack, el CPU rechaza ejecutarlo automáticamente. Este mecanismo es una defensa crítica en sistemas actuales.
+\end{highlight}
+
+### Compartición de Memoria
+
+Los sistemas modernos permiten que múltiples procesos compartan páginas de memoria para código compartido (múltiples procesos ejecutando el mismo programa), librerías compartidas (libc.so, libpthread.so, etc.), y comunicación entre procesos mediante segmentos de memoria compartida.  
+En código compartido, dos procesos ejecutando el mismo programa pueden apuntar al mismo marco físico para su segmento de código (con permisos read-only), mientras mantienen datos y stack privados en marcos separados. Si 100 procesos ejecutan bash (1 MiB de código), sin compartición se necesitarían 100 MiB de código en RAM. Con compartición, se necesita 1 MiB de código más 100 MiB de datos privados, ahorrando 99 MiB.
+
+\begin{center}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-07/27.png}  
+\end{center}
+
+Los requisitos para compartir código son que el código debe ser reentrante (no se modifica a sí mismo), las páginas compartidas deben tener permisos R-X (no escribibles), y cada proceso tiene sus propios datos y stack privados.
+
+## Código en C
+
+### Conceptos Básicos de Memoria y Punteros (Bonus)
+
+Los punteros son la herramienta fundamental para trabajar con memoria en C.
+
+```c
+#include <stdio.h>
+
+int main() {
+    int x = 42;          // Variable en stack
+    int *ptr = &x;       // ptr apunta a x
+    
+    printf("Valor de x: %d\n", x);           // 42
+    printf("Dirección de x: %p\n", &x);      // Dirección lógica
+    printf("Valor de ptr: %p\n", ptr);       // Igual que &x
+    printf("Valor apuntado: %d\n", *ptr);    // 42
+    
+    *ptr = 100;          // Modificar x a través del puntero
+    printf("Nuevo valor de x: %d\n", x);     // 100
+    
+    return 0;
+}
+```
+
+*Salida típica:*
+```
+Valor de x: 42
+Dirección de x: 0x7ffd8c5e3a9c
+Valor de ptr: 0x7ffd8c5e3a9c
+Valor apuntado: 42
+Nuevo valor de x: 100
+```
+
+La dirección mostrada es una dirección LÓGICA. La MMU la traduce a una dirección física que el programa nunca ve. El programa opera completamente en su espacio virtual.
+
+### Aritmética de Punteros
+
+```c
+#include <stdio.h>
+
+int main() {
+    int arr[] = {10, 20, 30, 40, 50};
+    int *ptr = arr;  // ptr apunta al primer elemento
+    
+    printf("ptr apunta a: %p, valor: %d\n", ptr, *ptr);
+    // ptr = dirección base, *ptr = 10
+    
+    ptr++;  // Avanza sizeof(int) bytes
+    printf("Después de ptr++: %p, valor: %d\n", ptr, *ptr);
+    // ptr = base + 4, *ptr = 20
+    
+    ptr += 2;  // Avanza 2 * sizeof(int) bytes
+    printf("Después de ptr+=2: %p, valor: %d\n", ptr, *ptr);
+    // ptr = base + 12, *ptr = 40
+    
+    // Acceso con índice (equivalente a aritmética)
+    int *base = arr;
+    printf("base[3] = %d\n", base[3]);  // 40
+    printf("*(base + 3) = %d\n", *(base + 3));  // 40 (equivalente)
+    
+    return 0;
+}
+```
+
+Un punto crítico es que `ptr++` avanza `sizeof(tipo)` bytes, no 1 byte. `int*` avanza 4 bytes, `char*` avanza 1 byte, `double*` avanza 8 bytes. El compilador maneja esto automáticamente.
+
+###  Asignación Dinámica con malloc
 
 ```c
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <string.h>
 
-// Configuración del sistema
-#define NUM_FRAMES 4        // Número de marcos en RAM
-#define MAX_REFS 50         // Máximo de referencias a simular
-
-// Estructura de un marco
-typedef struct {
-    int page;               // Número de página (-1 si vacío)
-    bool referenced;        // Bit U (referenced)
-    bool modified;          // Bit M (modified)
-} Frame;
-
-// Estado del sistema
-typedef struct {
-    Frame frames[NUM_FRAMES];
-    int clock_hand;         // Puntero del reloj
-    int page_faults;        // Contador de page faults
-} SystemState;
-
-// Tipo de acceso
-typedef enum {
-    ACCESS_READ,
-    ACCESS_WRITE
-} AccessType;
-
-// Inicializar sistema
-void init_system(SystemState *sys) {
-    for (int i = 0; i < NUM_FRAMES; i++) {
-        sys->frames[i].page = -1;        // Marco vacío
-        sys->frames[i].referenced = false;
-        sys->frames[i].modified = false;
-    }
-    sys->clock_hand = 0;
-    sys->page_faults = 0;
-}
-
-// Imprimir estado de marcos
-void print_frames(SystemState *sys) {
-    printf("Marcos: ");
-    for (int i = 0; i < NUM_FRAMES; i++) {
-        if (sys->frames[i].page == -1) {
-            printf("[  -  ] ");
-        } else {
-            printf("[%d(%d,%d)] ", 
-                   sys->frames[i].page,
-                   sys->frames[i].referenced ? 1 : 0,
-                   sys->frames[i].modified ? 1 : 0);
-        }
-    }
-    printf(" Clock→%d\n", sys->clock_hand);
-}
-
-// Buscar página en marcos
-int find_page(SystemState *sys, int page) {
-    for (int i = 0; i < NUM_FRAMES; i++) {
-        if (sys->frames[i].page == page) {
-            return i;  // Encontrada
-        }
-    }
-    return -1;  // No encontrada
-}
-
-// Buscar marco vacío
-int find_empty_frame(SystemState *sys) {
-    for (int i = 0; i < NUM_FRAMES; i++) {
-        if (sys->frames[i].page == -1) {
-            return i;
-        }
-    }
-    return -1;  // No hay marcos vacíos
-}
-
-// Algoritmo Clock-M: buscar víctima
-// Retorna índice del marco a reemplazar
-int clock_m_find_victim(SystemState *sys) {
-    printf("  Buscando víctima con Clock-M...\n");
-    
-    int start = sys->clock_hand;
-    int victim = -1;
-    
-    // Vuelta 1: Buscar clase 0 (U=0, M=0) sin modificar bits
-    printf("  Vuelta 1: Buscando (U=0, M=0)\n");
-    for (int i = 0; i < NUM_FRAMES; i++) {
-        int idx = (start + i) % NUM_FRAMES;
-        Frame *f = &sys->frames[idx];
-        
-        printf("    Marco %d: pág %d (U=%d, M=%d) → ",
-               idx, f->page, f->referenced, f->modified);
-        
-        if (!f->referenced && !f->modified) {
-            printf("Clase 0 - Víctima encontrada!\n");
-            victim = idx;
-            sys->clock_hand = (idx + 1) % NUM_FRAMES;
-            return victim;
-        }
-        printf("Siguiente\n");
-    }
-    
-    // Vuelta 2: Buscar clase 1 (U=0, M=1) sin modificar bits
-    printf("  Vuelta 2: Buscando (U=0, M=1)\n");
-    for (int i = 0; i < NUM_FRAMES; i++) {
-        int idx = (start + i) % NUM_FRAMES;
-        Frame *f = &sys->frames[idx];
-        
-        printf("    Marco %d: pág %d (U=%d, M=%d) → ",
-               idx, f->page, f->referenced, f->modified);
-        
-        if (!f->referenced && f->modified) {
-            printf("Clase 1 - Víctima encontrada!\n");
-            victim = idx;
-            sys->clock_hand = (idx + 1) % NUM_FRAMES;
-            return victim;
-        }
-        printf("Siguiente\n");
-    }
-    
-    // Vuelta 3: Buscar clase 0 (U=0, M=0) reseteando U
-    printf("  Vuelta 3: Buscando (U=0, M=0) y reseteando U\n");
-    for (int i = 0; i < NUM_FRAMES; i++) {
-        int idx = (start + i) % NUM_FRAMES;
-        Frame *f = &sys->frames[idx];
-        
-        printf("    Marco %d: pág %d (U=%d, M=%d) → ",
-               idx, f->page, f->referenced, f->modified);
-        
-        if (f->referenced) {
-            printf("Resetear U=0, ");
-            f->referenced = false;
-        }
-        
-        if (!f->referenced && !f->modified) {
-            printf("Clase 0 - Víctima encontrada!\n");
-            victim = idx;
-            sys->clock_hand = (idx + 1) % NUM_FRAMES;
-            return victim;
-        }
-        printf("Siguiente\n");
-    }
-    
-    // Vuelta 4: Buscar clase 1 (U=0, M=1) con U ya reseteado
-    printf("  Vuelta 4: Buscando (U=0, M=1)\n");
-    for (int i = 0; i < NUM_FRAMES; i++) {
-        int idx = (start + i) % NUM_FRAMES;
-        Frame *f = &sys->frames[idx];
-        
-        printf("    Marco %d: pág %d (U=%d, M=%d) → ",
-               idx, f->page, f->referenced, f->modified);
-        
-        if (!f->referenced && f->modified) {
-            printf("Clase 1 - Víctima encontrada!\n");
-            victim = idx;
-            sys->clock_hand = (idx + 1) % NUM_FRAMES;
-            return victim;
-        }
-        printf("Siguiente\n");
-    }
-    
-    // No debería llegar aquí (al menos una página debe ser víctima)
-    // En caso extremo, tomar la primera
-    printf("  [ERROR] No se encontró víctima, tomando marco 0\n");
-    return 0;
-}
-
-// Acceder a una página
-void access_page(SystemState *sys, int page, AccessType type) {
-    char *access_str = (type == ACCESS_READ) ? "LECTURA" : "ESCRITURA";
-    
-    printf("\n─────────────────────────────────────────\n");
-    printf("Acceso %d: Página %d (%s)\n", 
-           sys->page_faults + 1, page, access_str);
-    
-    // Buscar página en marcos
-    int frame_idx = find_page(sys, page);
-    
-    if (frame_idx != -1) {
-        // HIT: página ya está en RAM
-        printf("  - HIT: Página %d en marco %d\n", page, frame_idx);
-        sys->frames[frame_idx].referenced = true;
-        if (type == ACCESS_WRITE) {
-            sys->frames[frame_idx].modified = true;
-        }
-    } else {
-        // MISS: page fault
-        printf("PAGE FAULT: Página %d no está en RAM\n", page);
-        sys->page_faults++;
-        
-        // Buscar marco vacío
-        frame_idx = find_empty_frame(sys);
-        
-        if (frame_idx != -1) {
-            // Hay marco vacío, cargar directamente
-            printf("  Marco %d está vacío, cargar página %d\n", 
-                   frame_idx, page);
-        } else {
-            // No hay marcos vacíos, ejecutar algoritmo de reemplazo
-            printf("  No hay marcos vacíos, ejecutar Clock-M\n");
-            frame_idx = clock_m_find_victim(sys);
-            
-            Frame *victim = &sys->frames[frame_idx];
-            printf("  Reemplazar página %d (en marco %d)\n", 
-                   victim->page, frame_idx);
-            
-            // Si la víctima está modificada, hay que escribirla a disco
-            if (victim->modified) {
-                printf("  [I/O] Escribir página %d a disco (dirty)\n", 
-                       victim->page);
-            }
-        }
-        
-        // Cargar nueva página
-        printf("  [I/O] Leer página %d desde disco\n", page);
-        sys->frames[frame_idx].page = page;
-        sys->frames[frame_idx].referenced = false;  // Recién cargada
-        sys->frames[frame_idx].modified = (type == ACCESS_WRITE);
-    }
-    
-    print_frames(sys);
-}
-
-// Función principal
 int main() {
-    SystemState sys;
-    init_system(&sys);
+    // Asignar memoria para 5 enteros
+    int *arr = (int *)malloc(5 * sizeof(int));
     
-    printf("═══════════════════════════════════════════\n");
-    printf("  SIMULADOR DE CLOCK-M (Clock Mejorado)\n");
-    printf("═══════════════════════════════════════════\n");
-    printf("Configuración: %d marcos en RAM\n", NUM_FRAMES);
-    printf("Formato: [pág(U,M)] donde U=Referenced, M=Modified\n\n");
-    
-    // Secuencia de referencias (página, tipo de acceso)
-    // R = READ, W = WRITE
-    typedef struct {
-        int page;
-        AccessType type;
-    } Reference;
-    
-    Reference refs[] = {
-        {7, ACCESS_READ},   // 1
-        {0, ACCESS_READ},   // 2
-        {1, ACCESS_WRITE},  // 3
-        {2, ACCESS_READ},   // 4
-        {0, ACCESS_READ},   // 5
-        {3, ACCESS_WRITE},  // 6
-        {0, ACCESS_WRITE},  // 7
-        {4, ACCESS_READ},   // 8
-        {2, ACCESS_WRITE},  // 9
-        {3, ACCESS_READ},   // 10
-        {0, ACCESS_READ},   // 11
-        {3, ACCESS_READ},   // 12
-        {2, ACCESS_READ},   // 13
-        {1, ACCESS_READ},   // 14
-        {2, ACCESS_WRITE},  // 15
-    };
-    
-    int num_refs = sizeof(refs) / sizeof(refs[0]);
-    
-    // Ejecutar simulación
-    for (int i = 0; i < num_refs; i++) {
-        access_page(&sys, refs[i].page, refs[i].type);
+    if (arr == NULL) {
+        fprintf(stderr, "Error: malloc falló\n");
+        return 1;
     }
     
-    // Resumen final
-    printf("\n═══════════════════════════════════════════\n");
-    printf("  RESUMEN FINAL\n");
-    printf("═══════════════════════════════════════════\n");
-    printf("Total de referencias: %d\n", num_refs);
-    printf("Total de page faults: %d\n", sys.page_faults);
-    printf("Hit rate: %.2f%%\n", 
-           ((num_refs - sys.page_faults) * 100.0) / num_refs);
-    printf("Page fault rate: %.2f%%\n", 
-           (sys.page_faults * 100.0) / num_refs);
+    // Inicializar el arreglo
+    for (int i = 0; i < 5; i++) {
+        arr[i] = i * 10;
+    }
     
-    printf("\nEstado final de marcos:\n");
-    print_frames(&sys);
+    // Imprimir valores
+    printf("Valores: ");
+    for (int i = 0; i < 5; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+    
+    // Redimensionar con realloc
+    arr = (int *)realloc(arr, 10 * sizeof(int));
+    
+    if (arr == NULL) {
+        fprintf(stderr, "Error: realloc falló\n");
+        return 1;
+    }
+    
+    // Inicializar nuevos elementos
+    for (int i = 5; i < 10; i++) {
+        arr[i] = i * 10;
+    }
+    
+    // Liberar memoria
+    free(arr);
+    arr = NULL;  // Buena práctica: evitar dangling pointer
     
     return 0;
 }
 ```
 
-Para compilar y ejecutar el simulador:
+Los errores comunes incluyen no verificar si malloc devuelve NULL, olvidar liberar memoria (memory leak), usar memoria después de free (use-after-free), doble free (undefined behavior), y buffer overflow (escribir fuera del bloque asignado).
 
+### Mapeo de Memoria con mmap
+
+`mmap()` es una syscall que mapea archivos o memoria directamente al espacio de direcciones del proceso.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <string.h>
+
+int main() {
+    // Crear memoria anónima compartida
+    size_t size = 4096;  // 1 página
+    
+    void *addr = mmap(
+        NULL,                   // Dirección (NULL = el SO elige)
+        size,                   // Tamaño
+        PROT_READ | PROT_WRITE, // Protección
+        MAP_ANONYMOUS | MAP_PRIVATE, // Flags
+        -1,                     // File descriptor (no hay archivo)
+        0                       // Offset
+    );
+    
+    if (addr == MAP_FAILED) {
+        perror("mmap");
+        return 1;
+    }
+    
+    printf("Memoria mapeada en: %p\n", addr);
+    
+    // Usar la memoria como un array
+    int *data = (int *)addr;
+    for (int i = 0; i < 10; i++) {
+        data[i] = i * i;
+    }
+    
+    // Verificar
+    printf("Valores: ");
+    for (int i = 0; i < 10; i++) {
+        printf("%d ", data[i]);
+    }
+    printf("\n");
+    
+    // Liberar memoria
+    if (munmap(addr, size) == -1) {
+        perror("munmap");
+        return 1;
+    }
+    
+    return 0;
+}
+```
+
+Las *ventajas de mmap* son control fino de protecciones de memoria, mapeo de archivos eficiente (I/O mapeado a memoria), memoria compartida entre procesos (MAP_SHARED), y asignación de grandes bloques sin fragmentar heap.
+
+### Ejemplo Integrador: Simulación de Tabla de Páginas
+
+Este ejemplo muestra cómo simular una tabla de páginas simple en C.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+#define PAGE_SIZE 1024      // 1 KiB por página
+#define PAGE_BITS 10        // log2(1024) = 10 bits
+#define NUM_PAGES 16        // 16 páginas lógicas
+#define NUM_FRAMES 32       // 32 marcos físicos
+
+// Entrada de tabla de páginas
+typedef struct {
+    uint32_t frame;         // Número de marco físico
+    bool valid;             // ¿Página en memoria?
+    bool read;              // Permiso de lectura
+    bool write;             // Permiso de escritura
+    bool execute;           // Permiso de ejecución
+} PageTableEntry;
+
+// Tabla de páginas
+typedef struct {
+    PageTableEntry entries[NUM_PAGES];
+    uint32_t pid;           // ID del proceso
+} PageTable;
+
+// Memoria física simulada
+uint8_t physical_memory[NUM_FRAMES * PAGE_SIZE];
+
+// Crear tabla de páginas vacía
+PageTable* create_page_table(uint32_t pid) {
+    PageTable *pt = (PageTable *)malloc(sizeof(PageTable));
+    pt->pid = pid;
+    
+    // Inicializar todas las entradas como inválidas
+    for (int i = 0; i < NUM_PAGES; i++) {
+        pt->entries[i].valid = false;
+        pt->entries[i].read = false;
+        pt->entries[i].write = false;
+        pt->entries[i].execute = false;
+        pt->entries[i].frame = 0;
+    }
+    
+    return pt;
+}
+
+// Mapear una página a un marco
+void map_page(PageTable *pt, uint32_t page, uint32_t frame,
+              bool r, bool w, bool x) {
+    if (page >= NUM_PAGES || frame >= NUM_FRAMES) {
+        fprintf(stderr, "Error: página o marco fuera de rango\n");
+        return;
+    }
+    
+    pt->entries[page].frame = frame;
+    pt->entries[page].valid = true;
+    pt->entries[page].read = r;
+    pt->entries[page].write = w;
+    pt->entries[page].execute = x;
+    
+    printf("Mapeada página %u -> marco %u (R:%d W:%d X:%d)\n",
+           page, frame, r, w, x);
+}
+
+// Traducir dirección lógica a física
+int translate_address(PageTable *pt, uint32_t logical_addr,
+                      uint32_t *physical_addr, bool is_write) {
+    // Extraer número de página y offset
+    uint32_t page = logical_addr >> PAGE_BITS;
+    uint32_t offset = logical_addr & ((1 << PAGE_BITS) - 1);
+    
+    printf("Dirección lógica: 0x%X\n", logical_addr);
+    printf("  -> Página: %u, Offset: %u\n", page, offset);
+    
+    // Verificar que la página existe
+    if (page >= NUM_PAGES) {
+        fprintf(stderr, "ERROR: Página %u fuera de rango\n", page);
+        return -1;
+    }
+    
+    // Verificar que la página es válida
+    if (!pt->entries[page].valid) {
+        fprintf(stderr, "ERROR: Page Fault - página %u no válida\n", page);
+        return -2;
+    }
+    
+    // Verificar permisos
+    if (is_write && !pt->entries[page].write) {
+        fprintf(stderr, "ERROR: Protection Fault - página %u no escribible\n",
+                page);
+        return -3;
+    }
+    
+    if (!is_write && !pt->entries[page].read) {
+        fprintf(stderr, "ERROR: Protection Fault - página %u no legible\n",
+                page);
+        return -4;
+    }
+    
+    // Calcular dirección física
+    uint32_t frame = pt->entries[page].frame;
+    *physical_addr = (frame << PAGE_BITS) | offset;
+    
+    printf("  -> Marco: %u\n", frame);
+    printf("  -> Dirección física: 0x%X\n", *physical_addr);
+    
+    return 0;  // Éxito
+}
+
+// Función principal de demostración
+int main() {
+    printf("=== Simulador de Tabla de Páginas ===\n");
+    printf("Tamaño de página: %d bytes\n", PAGE_SIZE);
+    printf("Número de páginas: %d\n", NUM_PAGES);
+    printf("Número de marcos: %d\n\n", NUM_FRAMES);
+    
+    // Crear tabla de páginas para proceso 42
+    PageTable *pt = create_page_table(42);
+    
+    // Mapear algunas páginas
+    printf("--- Configurando mapeos ---\n");
+    map_page(pt, 0, 5, true, false, true);   // Código: R-X
+    map_page(pt, 1, 8, true, true, false);   // Datos: RW-
+    map_page(pt, 2, 3, true, true, false);   // Stack: RW-
+    map_page(pt, 5, 12, true, false, false); // Constantes: R--
+    printf("\n");
+    
+    // Probar traducciones
+    printf("--- Probando traducciones ---\n");
+    uint32_t phys_addr;
+    int result;
+    
+    // Traducción exitosa (lectura en página 0)
+    result = translate_address(pt, 0x0100, &phys_addr, false);
+    if (result == 0) {
+        printf("  ✓ Traducción exitosa\n");
+    }
+    printf("\n");
+    
+    // Traducción exitosa (escritura en página 1)
+    result = translate_address(pt, 0x0500, &phys_addr, true);
+    if (result == 0) {
+        printf("  ✓ Traducción exitosa\n");
+    }
+    printf("\n");
+    
+    // Page Fault (página 3 no mapeada)
+    printf("Intentando acceder página no mapeada:\n");
+    result = translate_address(pt, 0x0C00, &phys_addr, false);
+    printf("\n");
+    
+    // Protection Fault (intento de escritura en código)
+    printf("Intentando escribir en página de código:\n");
+    result = translate_address(pt, 0x0100, &phys_addr, true);
+    printf("\n");
+    
+    // Calcular fragmentación interna
+    printf("--- Análisis de fragmentación ---\n");
+    uint32_t logical_size = 3500;  // Proceso necesita 3.5 KiB
+    uint32_t pages_needed = (logical_size + PAGE_SIZE - 1) / PAGE_SIZE;
+    uint32_t allocated = pages_needed * PAGE_SIZE;
+    uint32_t internal_frag = allocated - logical_size;
+    
+    printf("Tamaño lógico del proceso: %u bytes\n", logical_size);
+    printf("Páginas necesarias: %u\n", pages_needed);
+    printf("Memoria asignada: %u bytes\n", allocated);
+    printf("Fragmentación interna: %u bytes (%.1f%%)\n",
+           internal_frag, (internal_frag * 100.0) / allocated);
+    
+    // Liberar memoria
+    free(pt);
+    
+    return 0;
+}
+```
+
+*Compilación y ejecución:*
 ```bash
-gcc -o clock_m_sim clock_m_sim.c -Wall -std=c99
-./clock_m_sim
+gcc -o page_table_sim page_table_sim.c -Wall
+./page_table_sim
 ```
 
-El simulador define estructuras para representar marcos de memoria, cada uno con un número de página, un bit referenced (U), y un bit modified (M). El estado del sistema incluye el array de marcos, el puntero del reloj (clock hand), y un contador de page faults.
+*Salida esperada:*
+```
+=== Simulador de Tabla de Páginas ===
+Tamaño de página: 1024 bytes
+Número de páginas: 16
+Número de marcos: 32
 
-Las funciones clave implementan la lógica del algoritmo. `find_page()` busca si una página está en RAM. `find_empty_frame()` busca marcos vacíos. La función más importante es `clock_m_find_victim()`, que implementa las cuatro vueltas del algoritmo Clock-M con salida detallada para propósitos educativos.
+--- Configurando mapeos ---
+Mapeada página 0 -> marco 5 (R:1 W:0 X:1)
+Mapeada página 1 -> marco 8 (R:1 W:1 X:0)
+Mapeada página 2 -> marco 3 (R:1 W:1 X:0)
+Mapeada página 5 -> marco 12 (R:1 W:0 X:0)
 
-La vuelta 1 busca páginas de clase 0 (U=0, M=0) sin modificar bits. Si encuentra una, la selecciona inmediatamente como víctima. La vuelta 2 busca páginas de clase 1 (U=0, M=1), también sin modificar bits. La vuelta 3 busca nuevamente clase 0, pero ahora resetea los bits U de las páginas con U=1, dándoles una segunda oportunidad. La vuelta 4 busca clase 1 con los bits U ya reseteados por la vuelta 3, garantizando que eventualmente encontrará una víctima.
+--- Probando traducciones ---
+Dirección lógica: 0x100
+  -> Página: 0, Offset: 256
+  -> Marco: 5
+  -> Dirección física: 0x1500
+   Traducción exitosa
 
-La función `access_page()` maneja tanto hits como page faults. En un hit, simplemente actualiza los bits referenced y modified según el tipo de acceso. En un page fault, primero busca un marco vacío; si no hay, llama al algoritmo de reemplazo. Si la víctima está modificada, simula escribirla a disco antes de reemplazarla.
+Dirección lógica: 0x500
+  -> Página: 1, Offset: 256
+  -> Marco: 8
+  -> Dirección física: 0x2100
+   Traducción exitosa
 
-**Salida esperada del simulador (fragmento):**
+Intentando acceder página no mapeada:
+Dirección lógica: 0xC00
+  -> Página: 3, Offset: 0
+ERROR: Page Fault - página 3 no válida
+
+Intentando escribir en página de código:
+Dirección lógica: 0x100
+  -> Página: 0, Offset: 256
+ERROR: Protection Fault - página 0 no escribible
+
+--- Análisis de fragmentación ---
+Tamaño lógico del proceso: 3500 bytes
+Páginas necesarias: 4
+Memoria asignada: 4096 bytes
+Fragmentación interna: 596 bytes (14.6%)
+```
+
+Este ejemplo demuestra la estructura de tabla de páginas, la traducción de direcciones (extracción de página y offset), verificación de permisos (R/W/X), manejo de Page Fault y Protection Fault, y cálculo de fragmentación interna.
+
+## Casos de Estudio
+
+### Ejercicio Simple: Traducción de Dirección Lógica
+
+Un sistema usa paginación simple con las siguientes características:
+- Tamaño de memoria lógica: 32 KiB
+- Tamaño de página: 2 KiB
+
+Tabla de páginas del proceso:
+```
+Página 0 -> Marco 3
+Página 1 -> Marco 7
+Página 2 -> Marco 1
+Página 3 -> Marco 4
+```
+
+*Preguntas:*
+1. ¿Cuántos bits se usan para el número de página?
+2. ¿Cuántos bits se usan para el offset?
+3. Traducir la dirección lógica 5000 a dirección física
+
+*Solución:*
+
+Calculamos la cantidad de bits
 
 ```
-═══════════════════════════════════════════
-  SIMULADOR DE CLOCK-M (Clock Mejorado)
-═══════════════════════════════════════════
-Configuración: 4 marcos en RAM
-Formato: [pág(U,M)] donde U=Referenced, M=Modified
+Memoria lógica: 32 KiB = 32 * 1024 = 32768 bytes = 2^15 bytes
+-> Se necesitan 15 bits para direccionar toda la memoria lógica
 
-─────────────────────────────────────────
-Acceso 1: Página 7 (LECTURA)
-  PAGE FAULT: Página 7 no está en RAM
-  Marco 0 está vacío, cargar página 7
-  [I/O] Leer página 7 desde disco
-Marcos: [7(0,0)] [  -  ] [  -  ] [  -  ]  Clock→1
+Tamaño de página: 2 KiB = 2 * 1024 = 2048 bytes = 2^11 bytes
+-> Se necesitan 11 bits para el offset
 
-─────────────────────────────────────────
-Acceso 8: Página 4 (LECTURA)
-  PAGE FAULT: Página 4 no está en RAM
-  No hay marcos vacíos, ejecutar Clock-M
-  Buscando víctima con Clock-M...
-  Vuelta 1: Buscando (U=0, M=0)
-    Marco 0: pág 7 (U=0, M=0) → Clase 0 - Víctima encontrada!
-  Reemplazar página 7 (en marco 0)
-  [I/O] Leer página 4 desde disco
-Marcos: [4(0,0)] [0(1,1)] [1(0,1)] [3(0,1)]  Clock→1
+Bits para página = Bits totales - Bits de offset
+                 = 15 - 11 = 4 bits
 
-═══════════════════════════════════════════
-  RESUMEN FINAL
-═══════════════════════════════════════════
-Total de referencias: 15
-Total de page faults: 9
-Hit rate: 40.00%
-Page fault rate: 60.00%
+Número de páginas = 2^4 = 16 páginas (0-15)
 ```
 
-El simulador es una herramienta educativa valiosa. Permite ver exactamente cómo el algoritmo toma decisiones, cómo maneja los bits U y M, cuándo da segundas oportunidades, y por qué ciertas páginas son seleccionadas como víctimas. Modificar la secuencia de referencias en el código permite experimentar con diferentes patrones de acceso y observar cómo responde el algoritmo.
+El formato de dirección de 15 bits se divide en 4 bits para página (permitiendo páginas 0-15) y 11 bits para offset (permitiendo offset 0-2047).
+
+Para la traducción de 5000:
+
+```
+Paso 1: Convertir 5000 a binario
+5000₁₀ = 1001110001000₂ (necesitamos 15 bits)
+5000₁₀ = 001001110001000₂ (padding con ceros)
+
+Paso 2: Separar página y offset
+
+   0010  01110001000
+   (p=2)   (d=904)
+
+Verificación:
+- Página: 0010₂ = 2₁₀
+- Offset: 01110001000₂ = 904₁₀
+- Total: 2 * 2048 + 904 = 4096 + 904 = 5000
+
+Paso 3: Consultar tabla de páginas
+tabla[2] = marco 1
+
+Paso 4: Calcular dirección física
+DF = marco * tamaño_página + offset
+DF = 1 * 2048 + 904
+DF = 2048 + 904
+DF = 2952 bytes
+```
+
+\begin{example}
+La verificación adicional muestra que el marco 1 ocupa direcciones físicas [2048, 4095], y la dirección calculada 2952 está efectivamente en ese rango. Esta verificación es importante para confirmar que la traducción es correcta.
+\end{example}
+
+```
+Marco 1 ocupa direcciones físicas: [2048, 4095]
+Dirección calculada: 2952
+¿2048 ≤ 2952 ≤ 4095? SÍ
+
+En binario:
+DF = 2952₁₀ = 101110001000₂
+```
+
+*Respuestas finales:*
+1. Bits para página: 4 bits
+2. Bits para offset: 11 bits
+3. Dirección física: 2952 bytes
+
+### Ejercicio Complejo: Deducción y Traducción
+
+Se sabe que la dirección lógica 12345 se traduce a la dirección física 28729, y que la página donde está 12345 se mapea al marco 7.  
+1. ¿Cuál es el tamaño de página del sistema?
+2. ¿Cuántos bits se usan para el número de página si el espacio lógico es de 64 KiB?
+3. ¿A qué dirección física se traduce la dirección lógica 15000 sabiendo que su página se mapea al marco 5?
+
+*Solución:*
+
+Parte 1: Deducir tamaño de página
+
+Sabemos que:
+- Dirección lógica (DL) = 12345
+- Dirección física (DF) = 28729
+- Marco = 7
+
+La fórmula de traducción es:
+```
+DF = marco * tamaño_página + offset
+```
+
+donde `offset` es el mismo en DL y DF (los bits menos significativos).
+
+Si dividimos DL por el tamaño de página:
+```
+DL = número_página * tamaño_página + offset
+```
+
+Probemos con diferentes tamaños de página (potencias de 2):
+
+```
+Hipótesis 1: tamaño_página = 1024 bytes (2^10)
+DL = 12345 = 12 * 1024 + 57
+    página = 12, offset = 57
+DF debería ser = 7 * 1024 + 57 = 7168 + 57 = 7225
+Pero DF real = 28729 X
+
+Hipótesis 2: tamaño_página = 2048 bytes (2^11)
+DL = 12345 = 6 * 2048 + 57
+    página = 6, offset = 57
+DF debería ser = 7 * 2048 + 57 = 14336 + 57 = 14393
+Pero DF real = 28729 X
+
+Hipótesis 3: tamaño_página = 4096 bytes (2^12)
+DL = 12345 = 3 * 4096 + 57
+    página = 3, offset = 57
+DF debería ser = 7 * 4096 + 57 = 28672 + 57 = 28729 ok!
+
+¡Coincide!
+```
+
+*Verificación:*
+```
+Tamaño de página = 4096 bytes = 4 KiB = 2^12 bytes
+
+DL = 12345
+  = 12345 ÷ 4096 = 3 con resto 57
+  = página 3, offset 57
+
+DF = 7 * 4096 + 57 = 28672 + 57 = 28729
+```
+
+*Parte 2: Bits para número de página*
+
+```
+Espacio lógico: 64 KiB = 65536 bytes = 2^16 bytes
+-> Se necesitan 16 bits de dirección total
+
+Tamaño de página: 4096 bytes = 2^12 bytes
+-> Se necesitan 12 bits para offset
+
+Bits para página = 16 - 12 = 4 bits
+Número de páginas = 2^4 = 16 páginas (0-15)
+```
+
+*Parte 3: Traducir dirección lógica 15000*
+
+```
+Paso 1: Extraer página y offset
+15000 ÷ 4096 = 3 con resto 2616
+-> página = 3, offset = 2616
+
+Verificación: 3 * 4096 + 2616 = 12288 + 2616 = 14904
+Hay un error, recalculemos:
+
+15000 ÷ 4096 = 3.66...
+3 * 4096 = 12288
+15000 - 12288 = 2712 (este es el offset correcto)
+
+-> página = 3, offset = 2712
+
+Paso 2: Consultar tabla de páginas
+Se nos dice que esta página se mapea al marco 5
+
+Paso 3: Calcular dirección física
+DF = marco * tamaño_página + offset
+DF = 5 * 4096 + 2712
+DF = 20480 + 2712
+DF = 23192 bytes
+```
+
+*Verificación en binario:*
+
+```
+DL = 15000₁₀ = 11101010011000₂ (necesitamos 16 bits)
+DL = 0011101010011000₂
+
+Página: 0011₂ = 3₁₀ ✓
+Offset: 101010011000₂ = 2712₁₀ ✓
+
+DF = 23192₁₀ = 101101010011000₂
+```
+
+*Respuestas finales:*
+1. Tamaño de página: 4096 bytes (4 KiB)
+2. Bits para número de página: 4 bits (permite 16 páginas)
+3. Dirección física de 15000: 23192 bytes
+
+## Síntesis
+
+### Puntos Clave del Capítulo
+
+La evolución de las técnicas de gestión de memoria muestra una progresión clara. Las particiones fijas eran simples pero con fragmentación interna severa. Las particiones dinámicas eliminaron la fragmentación interna pero crearon fragmentación externa. La paginación eliminó la fragmentación externa pero agregó overhead de traducción. La segmentación ofreció mejor modelo lógico pero volvió a introducir fragmentación externa. Finalmente, los sistemas híbridos de paginación más segmentación combinan ventajas de ambos enfoques.  
+
+| Técnica | Fragm. Interna | Fragm. Externa | Overhead | Complejidad |
+|---------|----------------|----------------|----------|-------------|
+| Particiones Fijas | Alta | No | Mínimo | Baja |
+| Particiones Dinámicas | No | Alta | Medio | Media |
+| Paginación Simple | Baja | No | Medio | Media |
+| Segmentación | No | Alta | Medio | Alta |
+| Seg. + Paginación | Baja | No | Alto | Alta |
+| Buddy System | Media | Media | Medio | Media |  
+
+\begin{highlight}
+Para dominar este capítulo, debés entender la diferencia entre dirección lógica, relativa y física, por qué el binding en tiempo de ejecución es esencial para sistemas modernos, cómo calcular bits de página y offset dado el tamaño de página, el proceso completo de traducción (página → tabla → marco → dirección física), cuándo ocurre fragmentación interna versus externa, las ventajas y desventajas de cada técnica, y el rol fundamental de MMU, TLB y registros base/límite.
+\end{highlight}
+
+Los algoritmos de asignación tienen características distintivas.  
+```
+First Fit:  Rápido, genera pequeños bloques al inicio
+Best Fit:   Minimiza desperdicio, genera bloques muy pequeños
+Worst Fit:  Deja bloques grandes utilizables (mejor en simulaciones)
+Next Fit:   Distribuye asignaciones uniformemente
+```
+
+### Conexiones con Otros Temas
+Este capítulo se conecta profundamente con otros aspectos del sistema operativo. En relación con procesos, el PCB contiene el puntero a la tabla de páginas del proceso, en cada context switch se actualiza el PTBR con la tabla del nuevo proceso, y la memoria de un proceso incluye código, datos, heap y stack.  
+La conexión con *planificación* es directa: un proceso puede bloquearse por Page Fault esperando carga desde disco, el scheduler debe considerar procesos bloqueados por I/O de paginación, y los algoritmos NUMA-aware consideran la localidad de memoria.  
+Este capítulo prepara el terreno para *memoria virtual*. Todo lo visto aquí es base para memoria virtual, que combina paginación con disco como extensión de RAM. El bit V (válido) indica si la página está en RAM o en disco, y el Page Fault es manejado por el SO para traer páginas desde disco.  
+
+También se relaciona con el *sistema de archivos*. La función mmap() permite mapear archivos a memoria, el I/O mapeado a memoria usa las mismas técnicas de traducción, y la caché de bloques del filesystem usa páginas de memoria.  
+
+### Errores Comunes en Parciales
+Los errores frecuentes incluyen confundir bits de página con número de páginas (son conceptos diferentes), olvidar que el offset se mantiene igual en la traducción, sumar mal la fórmula (DF = marco * tamaño + offset, no página), no verificar que la dirección calculada sea válida, confundir fragmentación interna con externa, decir que la paginación tiene fragmentación externa (no la tiene), y no considerar que la tabla de páginas está en RAM, no en el CPU.
+\begin{warning}
+Un checklist para ejercicios de traducción debe incluir: identificar el tamaño de página (dato o deducir), calcular bits de offset (log₂ del tamaño de página), calcular bits de página (bits totales menos bits de offset), extraer página de dirección lógica, extraer offset, buscar marco en tabla de páginas, calcular DF $marco * tamanio\_pagina + offset$, y verificar que DF esté en rango válido.
+\end{warning}
+
+### Preguntas de Reflexión
+Algunas preguntas para profundizar tu comprensión: ¿Por qué los sistemas modernos NO usan particiones dinámicas a pesar de no tener fragmentación interna? Si la paginación elimina fragmentación externa, ¿por qué no se usan siempre páginas de 256 bytes para minimizar fragmentación interna? ¿Cómo afecta el tamaño de página al rendimiento del TLB? ¿Por qué la tabla de páginas invertida no se popularizó a pesar de ahorrar memoria? En un sistema con 100 procesos, ¿cuál es más eficiente: 100 tablas de páginas o una tabla invertida con hash?  
+
+### Ejercicios Propuestos
+Ejercicio 1: Un sistema tiene páginas de 8 KiB y espacio lógico de 256 KiB. Si la dirección lógica 50000 se traduce a la dirección física 90000, ¿en qué marco está mapeada la página correspondiente?  
+
+Ejercicio 2: Calculá la fragmentación interna promedio en un sistema con páginas de 4 KiB si los procesos tienen tamaños aleatorios uniformemente distribuidos entre 1 KiB y 100 KiB.  
+
+Ejercicio 3: Compará el overhead de memoria para tablas de páginas en paginación simple de 1 nivel, paginación de 2 niveles, y tabla invertida. Asumí espacio lógico de 4 GiB, páginas de 4 KiB, y entrada de tabla de 4 bytes.  
+
+Ejercicio 4: Diseñá la estructura de una tabla de páginas que soporte protección R/W/X, páginas compartidas entre procesos, copy-on-write, y páginas en disco (memoria virtual).  
+
+### Material para Profundizar
+Las lecturas recomendadas incluyen Silberschatz (Capítulo 8: "Memory Management"), Stallings (Capítulo 7: "Memory Management"), y Tanenbaum (Capítulo 3: "Memory Management").
+Entre los papers clásicos están Denning, P. J. (1970) sobre "Virtual Memory" en ACM Computing Surveys, y Corbató, F. J. et al. (1962) sobre "An Experimental Time-Sharing System", el primer sistema con memoria virtual.
 
 \begin{infobox}
-\textbf{Conceptos demostrados en el código:}
-
-El simulador ilustra varios conceptos clave: la estructura de marcos con bits U y M, el funcionamiento del puntero circular (clock hand), la lógica completa de las cuatro vueltas del algoritmo Clock-M, la detección y manejo de páginas dirty que requieren escritura a disco, la diferencia entre hits y page faults en términos de rendimiento, y el cálculo de métricas de rendimiento como hit rate y page fault rate.
+Para experimentar con estos conceptos, podés usar herramientas como pmap para ver el mapeo de memoria de un proceso, valgrind para detectar errores de memoria, \texttt{/proc/[pid]/maps} para ver regiones de memoria de un proceso, y gdb con comandos info proc mappings. La documentación del kernel de Linux en Documentation/vm/ es invaluable para entender implementaciones reales.
 \end{infobox}
 
-## Conclusiones del Capítulo
+---
 
-La memoria virtual es uno de los logros más significativos en la historia de los sistemas operativos. Permite ejecutar procesos más grandes que la memoria física disponible, simplifica enormemente la programación al darle a cada proceso la ilusión de un espacio de direcciones enorme y privado, y permite una multiprogramación eficiente al compartir la memoria física entre múltiples procesos.
-
-El éxito de la memoria virtual depende críticamente del principio de localidad. Sin localidad temporal y espacial, cada proceso necesitaría todas sus páginas en RAM todo el tiempo, haciendo la memoria virtual impráctica. Gracias a la localidad, los procesos típicamente solo necesitan una pequeña fracción de su espacio de direcciones en cualquier momento dado, el working set, que puede caber en la memoria física disponible.
-
-Los algoritmos de reemplazo de páginas son fundamentales para el rendimiento del sistema. FIFO es simple pero puede tener rendimiento pobre. El algoritmo óptimo es inalcanzable pero provee una cota inferior útil. LRU es efectivo pero costoso de implementar exactamente. Clock y Clock-M son aproximaciones prácticas de LRU que ofrecen buen rendimiento con overhead razonable, siendo Clock-M particularmente efectivo al considerar tanto el uso reciente como si las páginas están modificadas.
-
-El thrashing representa el límite de lo que la memoria virtual puede lograr. Ocurre cuando intentamos ejecutar demasiados procesos simultáneamente, excediendo la capacidad de la memoria física. La prevención del thrashing requiere controlar el grado de multiprogramación, estimar working sets, y estar dispuesto a suspender procesos cuando la memoria es insuficiente.
-
-Los sistemas operativos modernos combinan todas estas técnicas: demand paging para cargar páginas solo cuando se necesitan, algoritmos sofisticados de reemplazo como Clock-M, monitoreo continuo para detectar condiciones de thrashing, y mecanismos de prevención basados en working sets o page fault frequency. El resultado es un sistema que puede ejecutar eficientemente muchos procesos grandes en hardware con memoria física limitada, todo de manera transparente para las aplicaciones.
-
-La memoria virtual es un ejemplo perfecto de cómo la abstracción en sistemas operativos puede simplificar la programación mientras mejora la utilización de recursos. Los programadores escriben código como si tuvieran acceso ilimitado a memoria contigua, mientras el sistema operativo y el hardware colaboran detrás de escena para hacer realidad esta ilusión, manejando la complejidad de la paginación, el reemplazo, y la gestión de memoria física de manera completamente transparente.
+*Este capítulo ha cubierto los fundamentos de la gestión de memoria real. El próximo paso es entender cómo estos mecanismos se extienden para soportar memoria virtual, permitiendo ejecutar programas más grandes que la RAM física disponible.*

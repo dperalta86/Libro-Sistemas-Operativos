@@ -93,23 +93,27 @@ Para gestionar eficientemente todos estos procesos, el sistema operativo mantien
 
 La **tabla de procesos** actúa como punto de entrada hacia todas las demás tablas. Contiene un PCB (Process Control Block) por cada proceso en el sistema, y cada PCB mantiene referencias cruzadas hacia las entradas correspondientes en las tablas de memoria, I/O y archivos. Esta estructura centralizada permite al sistema operativo localizar rápidamente toda la información relacionada con cualquier proceso.  
 \begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-processTable.png}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/images/tables/cap02-processTable.png}
 \end{center}
 
 La **tabla de memoria** rastrea cómo se asigna la memoria del sistema. Registra qué bloques de memoria están asignados a cada proceso, qué memoria está libre y disponible, los atributos de protección de cada región (lectura, escritura, ejecución), y toda la información necesaria para memoria virtual, como tablas de páginas y segmentos.  
 
 \begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-memoryTable.png}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/images/tables/cap02-memoryTable.png}
+\end{center}
+
+\begin{center}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/images/tables/cap02-memoryTable01.png}
 \end{center}
 
 La **tabla de I/O** gestiona los dispositivos del sistema. Mantiene el estado actual de cada dispositivo (libre, ocupado, error), las colas de operaciones pendientes por dispositivo, los buffers asociados a cada operación en curso, y referencias a los controladores de dispositivos activos. Esta tabla es crucial para la multiprogramación: cuando un proceso se bloquea esperando I/O, el sistema necesita saber exactamente qué está esperando.
 \begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-ioTable.png}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/images/tables/cap02-ioTable.png}
 \end{center}
 
 La **tabla de archivos** coordina el acceso al sistema de archivos. Registra todos los archivos abiertos en el sistema, la ubicación de cada archivo en el almacenamiento, el estado de acceso actual (lectura, escritura, compartido), y los locks y permisos por archivo. Un mismo archivo puede estar abierto por múltiples procesos, y esta tabla asegura que las operaciones concurrentes se manejen correctamente.
 \begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap02-fileTable.png}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/images/tables/cap02-fileTable.png}
 \end{center}
 
 

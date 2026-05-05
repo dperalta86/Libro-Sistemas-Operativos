@@ -1,1664 +1,2083 @@
-# I/O - Gestión de Dispositivos
+# Sistema de Archivos (File System)
 
 ## Objetivos de Aprendizaje
 
 Al finalizar este capítulo, el estudiante será capaz de:
 
-- Comprender la complejidad del subsistema de I/O y sus desafíos
-- Identificar los diferentes tipos de dispositivos y sus características
-- Comparar las técnicas de I/O: programado (polling), por interrupciones y DMA
-- Analizar la estructura física de los discos magnéticos
-- Calcular tiempos de acceso a disco (seek, latencia rotacional, transferencia)
-- Aplicar y comparar algoritmos de scheduling de disco (FCFS, SSTF, SCAN, C-SCAN, LOOK, C-LOOK, FSCAN, N-STEP-SCAN)
-- Comprender los niveles básicos de RAID (0, 1, 5) y calcular capacidades
-- Explicar el rol de buffering y caching en el subsistema de I/O
-- Resolver ejercicios tipo parcial sobre scheduling de disco y tiempos de acceso
+- Comprender la necesidad y función de los sistemas de archivos en un sistema operativo
+- Distinguir entre las abstracciones de archivo y directorio desde la perspectiva del usuario
+- Identificar las operaciones básicas sobre archivos y directorios
+- Comprender las estructuras administrativas del SO para gestión de archivos (tablas, locks)
+- Analizar el modelo de permisos y protección de Unix
+- Diferenciar bloques lógicos de sectores físicos en el nivel de hardware
+- Identificar y comparar los métodos de asignación de espacio en disco
+- Analizar la estructura y funcionamiento del sistema de archivos FAT (12/16/32)
+- Comprender en profundidad la estructura de EXT2/UFS, especialmente el concepto de inodo
+- Calcular accesos a disco en operaciones de lectura y escritura considerando bloques de datos y punteros
+- Diferenciar entre hard links y soft links
+- Resolver ejercicios tipo parcial sobre estructuras de file systems
 
-## Introducción: ¿Por qué es complejo el I/O?
 
-En los capítulos anteriores estudiamos la gestión de procesos, memoria y file systems. Todos estos componentes dependen críticamente del subsistema de entrada/salida para funcionar: los procesos necesitan leer datos del disco, la memoria virtual requiere swap a disco, y los file systems almacenan archivos en dispositivos físicos. Ahora llegamos a uno de los componentes más fascinantes y complejos del sistema operativo.  
-El subsistema de I/O enfrenta un desafío único: debe coordinar la comunicación entre la CPU (que opera a gigahertz) y dispositivos que van desde teclados lentos hasta SSDs ultrarrápidos. Esta brecha de velocidad puede ser de seis órdenes de magnitud. Imaginate tratar de coordinar una conversación donde una persona habla a velocidad normal y la otra tarda un año en responder cada palabra.
+## File System: Definición y Objetivos
 
-### Desafíos del I/O
+### ¿Por qué necesitamos File Systems?
 
-\begin{warning}
-\textbf{Complejidad del I/O:}
-El subsistema de I/O debe manejar una enorme variedad de dispositivos: discos, teclados, impresoras, tarjetas de red, GPUs, sensores. Cada uno tiene interfaces y protocolos diferentes, con rangos de velocidad extremadamente amplios (desde 10 bytes/seg de un teclado hasta 7 GB/seg de un SSD NVMe). Además, necesita sincronización precisa entre CPU y dispositivos lentos, confiabilidad crítica (la pérdida de datos en disco es catastrófica), y compatibilidad con múltiples dispositivos y versiones de drivers.
-\end{warning}
-Para ilustrar esta diversidad, considerá la siguiente tabla de dispositivos típicos:
-```
-Dispositivo         Velocidad típica      Características
----------------------------------------------------------
-Teclado             10-100 bytes/seg      Interactivo, impredecible
-Mouse               100 bytes/seg         Interactivo, streams
-Disco HDD           100-200 MiB/seg        Bloques, latencia alta
-SSD SATA            500-600 MiB/seg        Bloques, latencia media
-SSD NVMe            3-7 GiB/seg            Bloques, latencia baja
-Tarjeta de red      100 Mbps - 100 Gbps   Paquetes, tiempo real
-GPU                 100+ GiB/seg           Paralelo masivo
-```
-La diferencia entre un teclado y un SSD NVMe es la misma que existe entre caminar (5 km/h) y viajar a 30.000 km/h. El sistema operativo debe hacer que todos estos dispositivos funcionen juntos de manera coordinada.
+Imaginemos por un momento que no existieran los sistemas de archivos. Cada vez que queremos guardar información en el disco duro, tendríamos que recordar exactamente en qué sectores físicos guardamos cada dato. Si queremos acceder a un documento de texto, necesitaríamos saber que está almacenado en los sectores 1024 al 1536 del cilindro 45, cabeza 2. Para recuperar una foto, deberíamos recordar que ocupa los sectores 8192 al 12288 del cilindro 103.  
 
-### Objetivos del Subsistema de I/O
-
-\begin{infobox}
-\emph{Subsistema de I/O:}
-Conjunto de componentes del sistema operativo responsables de gestionar la comunicación entre el CPU/memoria y los dispositivos periféricos, proporcionando abstracción, eficiencia y confiabilidad.
-\end{infobox}
-El subsistema de I/O persigue cinco objetivos principales. Primero, la abstracción o independencia de dispositivo: ocultar las diferencias entre dispositivos mediante interfaces uniformes, para que tu programa pueda usar `read()` tanto con un archivo en disco como con datos de red. Segundo, la eficiencia: maximizar el throughput y minimizar la latencia, aprovechando al máximo las capacidades del hardware. Tercero, la compartición: permitir que múltiples procesos accedan concurrentemente a dispositivos compartibles de manera segura y coordinada.  
-El cuarto objetivo es la protección: prevenir que procesos no autorizados accedan directamente a dispositivos críticos (imaginate si cualquier programa pudiera leer o escribir arbitrariamente en tu disco). Finalmente, el manejo de errores: detectar y recuperarse de fallos de hardware, que son inevitables en dispositivos mecánicos y electrónicos.
-
-## Hardware de I/O
-Antes de entender cómo el sistema operativo gestiona el I/O, necesitamos comprender el hardware subyacente. Los dispositivos no son todos iguales, y sus diferencias fundamentales determinan cómo el SO debe interactuar con ellos.
-
-### Tipos de Dispositivos
-
-Los dispositivos de I/O se clasifican según varias dimensiones, siendo las más importantes la unidad de transferencia y el modo de acceso.
-
-#### Por Unidad de Transferencia
-
-Los dispositivos de bloque transfieren datos en bloques de tamaño fijo, típicamente entre 512 bytes y 4 KiB. Estos dispositivos soportan acceso aleatorio mediante seek: podés saltar a cualquier bloque sin tener que leer todos los anteriores. Cada bloque tiene una dirección única, lo que permite el direccionamiento directo. Los ejemplos clásicos son discos duros (HDD), SSDs, CD-ROMs y cintas magnéticas. Estos dispositivos son los que típicamente asociamos con "almacenamiento persistente".  
-
-En contraste, los **dispositivos de carácter** transfieren datos como un flujo continuo de bytes individuales. Generalmente no soportan seek, solo acceso secuencial: los datos llegan en orden y deben procesarse en ese orden. Pensá en ellos como un río de información que fluye constantemente. 
-
-Ejemplos incluyen teclados, mice, puertos serie e impresoras. Cuando presionás una tecla, ese carácter llega inmediatamente y no tiene sentido "buscar" la tecla anterior.  
-
-Existe una categoría especial: los dispositivos de red. Estos no son estrictamente de bloque ni de carácter, sino que transfieren paquetes de tamaño variable. Cada paquete es una unidad independiente con headers, datos y checksums. Las tarjetas Ethernet, WiFi y módems caen en esta categoría.
-
-#### Por Modo de Acceso
-
-Los **dispositivos compartibles (sharables)** pueden ser usados por múltiples procesos concurrentemente, aunque requieren sincronización cuidadosa para evitar condiciones de carrera. Los discos son el ejemplo paradigmático: cientos de procesos pueden leer y escribir simultáneamente, y el sistema operativo coordina estos accesos mediante locks y colas. Las tarjetas de red también son compartibles, multiplexando paquetes de diferentes conexiones.  
-
-Los dispositivos dedicados solo permiten un proceso a la vez. Las impresoras (sin spooling) son el ejemplo clásico: si un proceso está imprimiendo, los demás deben esperar. Las cintas magnéticas también requieren acceso exclusivo, ya que son inherentemente secuenciales.
-
-### Controladores de Dispositivo
-
-\begin{infobox}
-\emph{Controlador de Dispositivo (Device Controller):}
-Componente de hardware que actúa como interfaz entre el bus del sistema y el dispositivo físico. Contiene registros y lógica para controlar el dispositivo.
-\end{infobox}
-Un concepto crucial que a menudo se malentiende: el sistema operativo no interactúa directamente con el dispositivo físico, sino con su controlador. El controlador es un chip especializado que habla dos idiomas: por un lado, entiende el protocolo del bus del sistema (PCIe, SATA, USB), y por otro, sabe cómo manejar las peculiaridades electrónicas del dispositivo específico.  
-La arquitectura típica se ve así:
-
-```
-CPU/Memoria <---> Bus del Sistema <---> Controlador <---> Dispositivo
-                                        (Controller)       (Device)
-```
-
-El controlador contiene varios componentes esenciales. Los registros de control son donde la CPU escribe comandos: "leer sector 1234", "mover cabeza al cilindro 500", etc. Los registros de estado permiten que la CPU consulte el estado actual: ¿está ocupado el dispositivo? ¿hubo algún error? ¿completó la operación? Los registros de datos funcionan como buffers temporales para la transferencia de datos entre el dispositivo y la memoria. Finalmente, la lógica interna ejecuta las operaciones específicas del dispositivo, traduciendo comandos de alto nivel en secuencias de señales eléctricas.  
-Un ejemplo concreto de controlador de disco podría tener:
-```
-Registro de Control:  [READ|WRITE|SEEK] comando
-Registro de Estado:   [BUSY|READY|ERROR] flags
-Registro de Datos:    Buffer de sector (512 bytes)
-Registro de Dirección: LBA (Logical Block Address)
-```
-
-\begin{highlight}
-El driver del sistema operativo habla con el controlador mediante lectura y escritura de sus registros, no con el dispositivo directamente. Esta abstracción permite que el mismo driver funcione con diferentes dispositivos que usan el mismo tipo de controlador.
-\end{highlight}
-
-### Interfaces de I/O
-
-Existen dos formas principales de que la CPU acceda a los registros del controlador. En **Memory-Mapped I/O**, los registros del controlador se mapean a direcciones específicas del espacio de memoria física.  
-La CPU usa instrucciones normales de memoria (LOAD/STORE) para interactuar con ellos. Por ejemplo, escribir a la dirección `0xF0000000` podría estar escribiendo al registro de control del controlador de disco. Esta técnica no requiere instrucciones especiales y es la dominante en sistemas modernos por su simplicidad.  
-
-En **Port-Mapped I/O** (o I/O Aislado), existe un espacio de direcciones separado específico para I/O. La CPU usa instrucciones especiales como `IN` y `OUT` (en arquitectura x86) para acceder a estos puertos. Esta arquitectura era común en sistemas antiguos pero ha caído en desuso.  
-
-La mayoría de los sistemas modernos usan exclusivamente Memory-Mapped I/O porque permite usar toda la potencia del caché de CPU y las optimizaciones del pipeline para accesos a dispositivos.
-
-## Técnicas de I/O
-
-Ahora que entendemos el hardware, podemos explorar cómo el sistema operativo gestiona las operaciones de I/O. Existen tres técnicas principales, cada una con trade-offs significativos en eficiencia, complejidad y uso de CPU. La evolución histórica de estas técnicas refleja la búsqueda constante por minimizar el desperdicio de ciclos de CPU.  
-
-### Técnica 1: I/O Programado (Polling)
-La técnica más simple es el I/O programado o polling. La idea es directa: la CPU ejecuta un bucle que constantemente verifica el estado del dispositivo hasta que esté listo. Es como preguntarle repetidamente a alguien "¿ya terminaste? ¿ya terminaste? ¿ya terminaste?" hasta que responda que sí.
-
-```c
-// Pseudocódigo de I/O programado
-void write_data(char *data, int size) {
-    for (int i = 0; i < size; i++) {
-        // Busy-wait: esperar hasta que dispositivo esté listo
-        while (status_register & BUSY) {
-            // Hacer nada, solo esperar (polling)
-        }
-        
-        // Escribir el byte
-        data_register = data[i];
-        
-        // Enviar comando de escritura
-        control_register = WRITE_COMMAND;
-    }
-}
-```
-
-El flujo es simple: la CPU escribe un comando en el registro de control, luego entra en un bucle verificando constantemente el registro de estado. Cuando el dispositivo finalmente está listo, la CPU lee o escribe los datos. Este ciclo se repite hasta completar la transferencia completa.
-\begin{example}
-La ventaja del polling es su simplicidad extrema: no requiere hardware especial para interrupciones, es fácil de depurar, y tiene latencia muy baja para dispositivos que responden inmediatamente. En sistemas embebidos simples donde la CPU no tiene nada más que hacer, puede ser la solución correcta.
-\end{example}
-\begin{warning}
-Sin embargo, el polling tiene un problema fundamental: la CPU está completamente ocupada durante todo el I/O. Es un desperdicio catastrófico de ciclos de CPU. Mientras esperás que el disco complete una operación de 10 ms, la CPU podría haber ejecutado millones de instrucciones útiles. Además, no puede hacer multitasking: está atrapada en ese bucle de polling.
-\end{warning}
-El polling solo tiene sentido en escenarios muy específicos: cuando el dispositivo responde en menos de 100 ciclos de CPU, o en sistemas embebidos sin sistema operativo donde la CPU está dedicada a una sola tarea. En sistemas de propósito general modernos, el polling es prácticamente inexistente.
-
-### Técnica 2: I/O por Interrupciones
-
-La segunda técnica resuelve el problema del busy-waiting: en lugar de que la CPU pregunte constantemente, el dispositivo le avisa cuando termina mediante una interrupción. Es como darle a alguien tu número de teléfono en vez de llamarlo cada 5 segundos.
-
-```c
-// Pseudocódigo de I/O por interrupciones
-
-// Función principal
-void write_data_interrupt(char *data, int size) {
-    buffer = data;
-    count = size;
-    index = 0;
-    
-    // Iniciar primera escritura
-    data_register = buffer[index++];
-    control_register = WRITE_COMMAND;
-    
-    // CPU retorna y puede hacer otras cosas
-    // El resto lo maneja el interrupt handler
-}
-
-// Interrupt Service Routine (ISR)
-void disk_interrupt_handler() {
-    if (index < count) {
-        // Escribir siguiente byte
-        data_register = buffer[index++];
-        control_register = WRITE_COMMAND;
-    } else {
-        // Operación completada
-        signal_completion();
-    }
-}
-```
-El flujo cambia fundamentalmente. La CPU inicia la operación escribiendo al controlador, pero inmediatamente retorna y puede ejecutar otros procesos. Cuando el dispositivo completa la operación, genera una interrupción de hardware. Esta interrupción fuerza a la CPU a suspender el proceso actual, ejecutar el *Interrupt Service Routine* (ISR) que maneja el evento, y luego retornar al proceso que fue interrumpido.
-
+Este escenario es completamente impracticable. Los usuarios no pueden recordar direcciones físicas de miles de archivos, ni existe forma de dar nombres significativos a los datos. Sería imposible organizar la información de manera jerárquica, y el riesgo de sobrescribir datos accidentalmente sería altísimo. Sin un mecanismo de control, no existiría forma de implementar permisos o restricciones de acceso. Además, la pérdida de datos ante la corrupción de una pequeña región del disco sería total y catastrófica.
 \begin{theory}
-Las interrupciones son el mecanismo fundamental que permite multitasking efectivo en presencia de I/O. Sin ellas, la CPU estaría constantemente atrapada esperando dispositivos lentos, desperdiciando su capacidad de procesamiento.
+\emph{Sistema de Archivos (File System):}
+Componente del sistema operativo que proporciona mecanismos para el almacenamiento, organización, manipulación, recuperación y administración de información en dispositivos de almacenamiento secundario.
 \end{theory}
 
-Las ventajas son claras: la CPU queda libre para ejecutar otros procesos durante el I/O, la utilización de CPU es mucho mejor que con polling, y permite multitasking real. Un sistema puede tener docenas de operaciones de I/O en progreso simultáneamente, con la CPU alternando entre procesos productivos.
+### Objetivos del File System
 
-Sin embargo, las interrupciones introducen su propio overhead. Cada interrupción requiere un *context switch*: guardar el estado del proceso actual, cambiar al kernel, ejecutar el ISR, y restaurar el proceso. Este overhead es típicamente de cientos a miles de ciclos. Si las interrupciones llegan muy frecuentemente (por ejemplo, en dispositivos de red de alta velocidad recibiendo miles de paquetes por segundo), puede ocurrir una *interrupt storm* donde la CPU pasa más tiempo manejando interrupciones que ejecutando código útil.
+El sistema de archivos surge como una capa de abstracción entre el hardware de almacenamiento y el usuario o las aplicaciones. Esta capa de abstracción transforma el disco —que en realidad es solo un conjunto lineal de sectores físicos— en una estructura lógica organizada que podemos entender y manipular de forma intuitiva.  
 
-Además, aunque mejor que polling, la CPU sigue involucrada en cada transferencia de datos. Para transferencias grandes (como leer un archivo de varios megabytes), esto significa miles de interrupciones, cada una con su overhead asociado.
+El primer objetivo fundamental es el *naming*: permitir dar nombres significativos a conjuntos de datos. En lugar de recordar "sectores 1024-1536", podemos simplemente referirnos a "informe_final.pdf". Este concepto aparentemente simple revoluciona la forma en que interactuamos con el almacenamiento.  
 
-Las interrupciones son ideales para dispositivos de velocidad media, eventos esporádicos (como teclas presionadas), y transferencias pequeñas. Son el estándar para teclados, mice, y para señalizar la completación de operaciones de disco.
+La *organización* es otro pilar esencial. Los archivos se estructuran en jerarquías mediante directorios y subdirectorios, lo que nos permite agrupar información relacionada de manera lógica. Esta organización jerárquica refleja naturalmente cómo pensamos sobre nuestros datos.  
 
-### Técnica 3: DMA (Direct Memory Access)
+La *protección* garantiza que podamos controlar quién puede acceder a qué información. Mediante sistemas de permisos, establecemos barreras de seguridad que protegen datos sensibles y previenen modificaciones no autorizadas.  
 
-La tercera técnica lleva la eficiencia al siguiente nivel. Con DMA, un controlador especializado maneja la transferencia completa de datos entre el dispositivo y la memoria, sin que la CPU toque ningún byte individual.
+La *persistencia* asegura que los datos sobrevivan al apagado del sistema. A diferencia de la memoria RAM, el almacenamiento secundario mantiene la información incluso sin energía eléctrica. El file system gestiona esta persistencia de manera transparente.  
 
-\begin{infobox}
-\emph{DMA (Direct Memory Access):}
-Técnica que permite al controlador de dispositivo transferir datos directamente entre el dispositivo y la memoria RAM sin intervención de la CPU.
-\end{infobox}
+La eficiencia optimiza tanto el uso del espacio disponible como la velocidad de acceso. El sistema debe minimizar el desperdicio de espacio y maximizar la velocidad con la que podemos leer y escribir información.  
 
-La arquitectura con DMA introduce un nuevo componente:
-```
-CPU <---> Bus <---> Memoria RAM
-            ^
-            |
-            v
-      DMA Controller <---> Device Controller <---> Dispositivo
-```
+Finalmente, la confiabilidad garantiza la *integridad de los datos ante fallas*. Mecanismos como journaling y verificaciones de consistencia protegen contra corrupción y pérdidas de información.
+\begin{center}
+agregar diagrama...
+%%\includegraphics[width=0.7\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-jerarquiaAlmacenamiento.png}
+\end{center}
+## Archivos: Abstracción de Usuario
 
-El flujo de operación es elegante. Primero, la CPU configura el DMA controller: le indica la dirección de memoria origen o destino, la cantidad de bytes a transferir, la dirección del dispositivo, y la dirección de control (read/write). Luego, el DMA controller ejecuta la transferencia completa de manera autónoma: "roba" ciclos del bus según necesita (cycle stealing), transfiere datos directamente entre dispositivo y RAM byte por byte o palabra por palabra, e incrementa punteros automáticamente. Finalmente, cuando completa la transferencia completa, el DMA genera una única interrupción para notificar a la CPU.
-Ejemplo de código:
+### Concepto de Archivo
+
+En bases de datos y sistemas de información, existe una jerarquía conceptual bien definida. En el nivel más bajo encontramos el **campo**: una unidad mínima de información con significado propio, como "nombre", "edad" o "dirección". Un conjunto de campos relacionados que describen una entidad forma un **registro**. Por ejemplo, un registro de estudiante contiene campos como nombre, legajo, carrera y email. Finalmente, un **archivo** es una colección de registros del mismo tipo —el archivo "estudiantes.dat" contiene todos los registros de estudiantes de la institución.  
+
+\begin{theory}
+\emph{Archivo (desde la perspectiva del SO):}
+Secuencia nombrada de bytes almacenada en dispositivo de almacenamiento secundario. El sistema operativo NO interpreta el contenido del archivo; esa es responsabilidad de las aplicaciones.
+\end{theory}
+
+Esta definición es crucial: para el sistema operativo, un archivo es simplemente una secuencia de bytes sin estructura interna. No existe diferencia entre un documento de texto, una imagen o un ejecutable a nivel del SO. La interpretación y estructura del contenido es responsabilidad exclusiva de las aplicaciones que usan esos archivos.
+
+### Atributos de un Archivo
+
+Cada archivo posee **metadatos** que el sistema operativo almacena y gestiona. Estos metadatos son información sobre el archivo, no el contenido del archivo en sí. El *nombre* es el identificador legible por humanos que usamos para referirnos al archivo. El *tipo* indica si es un archivo regular, un directorio, un enlace simbólico o un dispositivo. La *ubicación* contiene punteros a los bloques de datos físicos en el disco donde realmente se almacena el contenido.  
+El *tamaño* registra la cantidad de bytes que ocupa el archivo. Los *permisos* especifican quién puede leer, escribir o ejecutar el archivo, divididos entre propietario, grupo y otros usuarios. Los *timestamps* mantienen tres marcas temporales: la creación (ctime), la última modificación del contenido (mtime) y el último acceso de lectura (atime).
+El *propietario* se identifica mediante el UID (User ID) del usuario dueño del archivo, mientras que el *grupo* se identifica con el GID (Group ID) asociado. Finalmente, *el contador de enlaces* registra cuántos hard links apuntan al mismo archivo físico —concepto que exploraremos en detalle más adelante.
+
+### File Control Block (FCB)
+
+\begin{theory}
+\emph{File Control Block (FCB):}
+Estructura de datos que almacena todos los metadatos de un archivo. En sistemas Unix se denomina \textbf{inodo (inode)}. En FAT, la entrada de directorio cumple esta función.
+\end{theory}
+El FCB es fundamental porque separa la *identidad del archivo* —sus metadatos— de su *contenido* —los datos en bloques físicos. Esta separación permite que un archivo pueda tener múltiples nombres (hard links) pero mantener un solo FCB. Cuando creamos un segundo nombre para un archivo existente, no duplicamos sus datos ni sus metadatos completos; simplemente creamos otra entrada de directorio que apunta al mismo FCB.
+
+### Operaciones sobre Archivos
+
+El sistema operativo provee system calls para manipular archivos. Estas operaciones constituyen la interfaz entre las aplicaciones y el file system.
+
+#### Operaciones Básicas
+
+La operación `create(nombre)` crea un archivo nuevo. Internamente, asigna un FCB o inodo, crea una entrada en el directorio padre y inicializa los metadatos con valores por defecto: permisos según el umask, timestamps con la hora actual y tamaño igual a cero.  
+
+Para trabajar con un archivo, primero debemos abrirlo mediante `open(nombre, modo)`. Esta operación busca el archivo en el directorio, verifica que tenemos los permisos necesarios para el modo de acceso solicitado (solo lectura, solo escritura o lectura-escritura), carga el FCB en memoria y retorna un file descriptor —un número entero que usaremos en operaciones posteriores.  
+
+La lectura se realiza con `read(fd, buffer, cantidad)`. El sistema usa el file descriptor para ubicar el archivo abierto, copia los datos desde los bloques del disco al buffer en memoria que le indicamos, y actualiza internamente el puntero de lectura/escritura para que la próxima operación continúe desde donde terminó esta.  
+
+De manera simétrica, `write(fd, buffer, cantidad)` escribe bytes al archivo. Si es necesario, el sistema asigna bloques nuevos para almacenar la información. Los datos se copian desde el buffer en memoria a los bloques en disco, y se actualizan el tamaño del archivo y sus timestamps.  
+
+La operación `seek(fd, offset, whence)` permite mover el puntero de lectura/escritura sin leer ni escribir datos. Podemos posicionarnos desde el inicio del archivo (SEEK_SET), desde la posición actual (SEEK_CUR) o desde el final (SEEK_END). Esta capacidad es esencial para el acceso aleatorio a archivos.  
+
+Cuando terminamos de trabajar con un archivo, `close(fd)` libera las estructuras en memoria asociadas, escribe a disco cualquier buffer pendiente (flush) y actualiza los metadatos finales. Es importante cerrar archivos para evitar pérdida de datos y agotamiento de file descriptors.  
+
+Finalmente, `delete(nombre)` elimina un archivo. Más precisamente, decrementa el contador de enlaces. Solo cuando este contador llega a cero —cuando no quedan nombres apuntando al archivo— se liberan los bloques de datos y el FCB, y se elimina la entrada del directorio.
+
+#### Operaciones Adicionales
+Existen operaciones complementarias que permiten manipular archivos sin modificar su contenido.
+
+`rename(viejo, nuevo)`: Cambia el nombre del archivo
+`truncate(nombre, tamaño)`: Reduce el tamaño del archivo
+`stat(nombre)`: Obtiene metadatos sin abrir el archivo
+`chmod(nombre, permisos)`: Cambia permisos
+`chown(nombre, uid, gid)`: Cambia propietario
+
+### Métodos de Acceso
+
+\begin{theory}
+\emph{Método de Acceso:}
+Forma en que los procesos leen y escriben datos en un archivo. Define el orden y la forma de acceso a la información.
+\end{theory}
+El método de acceso determina cómo una aplicación interactúa con el contenido del archivo. La elección del método correcto puede impactar dramáticamente el rendimiento.
+
+#### Acceso Secuencial
+
+En el acceso secuencial, los bytes se leen o escriben uno después del otro, desde el inicio hasta el final del archivo. Este patrón es simple de implementar y óptimo cuando necesitamos procesar archivos completos. El sistema operativo puede anticiparse a nuestras necesidades mediante prefetching, cargando bloques adicionales en caché antes de que los solicitemos explícitamente.
 
 ```c
-// Pseudocódigo de lectura con DMA
-void read_disk_dma(char *buffer, int sector, int count) {
-    // Configurar DMA
-    dma_source_address = DISK_DATA_REGISTER;
-    dma_dest_address = buffer;
-    dma_byte_count = count * SECTOR_SIZE;
-    dma_mode = DEVICE_TO_MEMORY;
-    
-    // Configurar controlador de disco
-    disk_sector = sector;
-    disk_command = READ;
-    
-    // Iniciar DMA (retorna inmediatamente)
-    dma_control = START;
-    
-    // CPU está libre, hacer otras cosas
-    // Cuando termine, llegará una interrupción
+// Lectura secuencial
+int fd = open("datos.txt", O_RDONLY);
+char buffer[1024];
+while (read(fd, buffer, 1024) > 0) {
+    // Procesar buffer
 }
-
-// ISR cuando DMA completa
-void dma_complete_interrupt() {
-    // Transferencia completa
-    // buffer ahora contiene los datos del disco
-    wake_up_process_waiting_for_io();
-}
-```
-Un concepto importante es el *cycle stealing*. El DMA controller necesita acceso al bus para transferir datos, pero la CPU también necesita el bus para ejecutar instrucciones. La solución es que el DMA "roba" temporalmente el control del bus cuando lo necesita. Si la CPU puede ejecutar desde caché (sin acceder a RAM), ni siquiera nota el robo. Si necesita el bus simultáneamente, debe esperar unos pocos ciclos.
-
-\begin{infobox}
-\emph{Cycle Stealing:}
-Técnica donde el DMA controller temporalmente "roba" el control del bus de sistema para realizar transferencias, mientras la CPU ejecuta desde cache o espera brevemente.
-\end{infobox}
-
-Un timeline típico del bus durante DMA se ve así:
-
-```
-Timeline del bus durante DMA:
-CPU  CPU  DMA  CPU  CPU  DMA  CPU  DMA  DMA  CPU
-|    |    |    |    |    |    |    |    |    |
-└────┴────┴────┴────┴────┴────┴────┴────┴────┴──> tiempo
-
-CPU ejecuta cuando puede acceder al bus
-DMA "roba" ciclos periódicamente para transferir datos
-```
-\begin{highlight}
-Las ventajas de DMA son dramáticas: la CPU queda completamente libre durante la transferencia, el throughput es muy alto (limitado solo por la velocidad del dispositivo y el bus), solo hay una interrupción por operación completa (no una por byte), y es esencial para dispositivos de alta velocidad como SSDs modernos que transfieren gigabytes por segundo.
-\end{highlight}
-
-Las desventajas son menores en comparación: requiere hardware especializado (que ya viene incluido en todas las computadoras modernas), la configuración es más compleja que con interrupciones simples, el cycle stealing puede ralentizar ligeramente a la CPU (típicamente 1-5%), y para transferencias muy pequeñas (unos pocos bytes) el overhead de configuración puede ser mayor que simplemente copiar los datos con la CPU.
-
-En sistemas modernos, virtualmente todos los dispositivos de bloque (discos, SSDs, tarjetas de red, GPUs) usan DMA. Es la técnica dominante para cualquier transferencia mayor a 1 KiB.
-
-### Comparación de Técnicas
-
-Resumamos las tres técnicas en una tabla comparativa:
-
-| Aspecto | Polling | Interrupciones | DMA |
-|---------|---------|----------------|-----|
-| **CPU durante I/O** | 100% ocupada | Interrumpida por evento | Libre |
-| **Interrupciones** | Ninguna | Una por transferencia | Una por bloque |
-| **Overhead** | Bajo (simple) | Medio (context switch) | Alto (setup), bajo (ejecución) |
-| **Throughput** | Bajo | Medio | Alto |
-| **Uso de CPU** | Muy alto | Medio | Muy bajo |
-| **Mejor para** | Dispositivos rápidos | Eventos y chars | Transferencias grandes |
-| **Escalabilidad** | Muy mala | Media | Excelente |
-
-\begin{excerpt}
-Regla práctica para elegir técnica de I/O:
-
-Usá polling si el dispositivo responde en menos de 100 ciclos de CPU (rarísimo en la práctica).
-
-Usá interrupciones para eventos esporádicos y transferencias pequeñas (menos de 1 KiB).
-
-Usá DMA para transferencias mayores a 1 KiB o dispositivos rápidos. Es obligatorio para discos y redes modernas.
-\end{excerpt}
-
-## Discos Magnéticos: Estructura y Rendimiento
-
-Aunque los SSDs han ganado popularidad, los discos duros (HDD) siguen siendo ampliamente usados para almacenamiento masivo debido a su bajo costo por gigabyte. Más importante aún, comprender su estructura física es esencial para entender el rendimiento del I/O y por qué los algoritmos de scheduling de disco son necesarios.
-
-### Geometría del Disco
-
-Un disco duro es una maravilla de ingeniería mecánica de precisión. Imaginalo como un tocadiscos moderno pero con múltiples discos girando a miles de revoluciones por minuto.
-
-
-```
-Vista superior del disco:
-        
-         Brazo del actuador
-              |
-              v
-        +----------+
-        |   Head   |  (Cabeza de lectura/escritura)
-        +----------+
-             ||
-      ===================
-     |  Plato (Platter) |
-     |                   |
-     |    +---------+    |
-     |    |  Pistas |    |  (Tracks: círculos concéntricos)
-     |    +---------+    |
-     |                   |
-      ===================
-             ||
-           Motor
-```
-
-\begin{infobox}
-\emph{Componentes del disco:}
-\textbf{Plato (Platter):} Disco circular recubierto de material magnético. Un disco tiene múltiples platos apilados verticalmente.\\
-\textbf{Pista (Track):} Círculo concéntrico en la superficie del plato donde se almacenan datos magnéticamente.\\
-\textbf{Sector:} Subdivisión de una pista, unidad mínima de transferencia (típicamente 512 bytes o 4 KiB).\\
-\textbf{Cilindro (Cylinder):} Conjunto de pistas en la misma posición radial en todos los platos.\\
-\textbf{Cabeza (Head):} Dispositivo que lee/escribe datos magnéticamente flotando a nanómetros de la superficie. Hay una cabeza por superficie de plato.
-\end{infobox}
-
-La vista lateral de un disco con múltiples platos revela su estructura tridimensional:
-
-```
-Cabezas (Heads)
-    |                    |
-    v                    v
-  ========================================  Plato 0, superficie 0
-    Pistas alineadas = 1 Cilindro
-  ========================================  Plato 0, superficie 1
-    
-  ========================================  Plato 1, superficie 0
-  
-  ========================================  Plato 1, superficie 1
-    |                    |
-    +----- Brazo --------+
-         (se mueve todo junto)
-```
-
-Un detalle crucial: todas las cabezas están montadas en el mismo brazo actuador y se mueven juntas. No pueden moverse independientemente. Esto significa que cuando el brazo se mueve a un cilindro específico, todas las cabezas quedan posicionadas sobre la misma posición radial en sus respectivos platos.
-
-Históricamente, los sectores se direccionaban usando CHS (*Cylinder-Head-Sector*): especificabas exactamente en qué cilindro, qué cabeza, y qué sector querías acceder. Los sistemas modernos usan LBA (*Logical Block Addressing*): cada sector tiene un número secuencial único, y el controlador del disco se encarga de traducirlo a la geometría física. Esto simplifica enormemente la vida del sistema operativo.
-
-Un ejemplo concreto ayuda a visualizar las capacidades. Considerá un disco con 1000 cilindros, 4 cabezas (2 platos con dos superficies cada uno), 100 sectores por pista, y 512 bytes por sector:
-
-```
-Ejemplo de disco:
-- 1000 cilindros
-- 4 cabezas (2 platos, 2 superficies c/u)
-- 100 sectores por pista
-- 512 bytes por sector
-
-Capacidad total = 1000 × 4 × 100 × 512 = 204.800.000 bytes ≈ 195 MiB
-```
-Este sería un disco muy antiguo, por supuesto. Los discos modernos tienen cientos de miles de cilindros y capacidades de terabytes.
-
-### Tiempos de Acceso a Disco
-
-El tiempo total para leer o escribir datos de un disco mecánico se descompone en tres componentes fundamentales. Esta descomposición es crítica para entender el rendimiento de I/O.  
-
-Tiempo de acceso total:
-$$
-T_{total} = T_{seek} + T_{rotacional} + T_{transferencia}
-$$
-
-#### Tiempo de Seek (Búsqueda)
-
-El seek time es el tiempo que tarda el brazo actuador en mover las cabezas desde su posición actual hasta el cilindro destino. Es una operación mecánica: el brazo debe acelerar, recorrer la distancia, y decelerar precisamente en el cilindro correcto.  
-
-```
-T_seek depende de la distancia en cilindros
-
-Valores típicos para HDD:
-- Track-to-track (1 cilindro): 0.2 - 0.5 ms
-- Seek promedio: 8 - 12 ms
-- Full stroke (máximo): 15 - 20 ms
-```
-
-Los modelos físicos del seek time son interesantes. Un modelo simple lineal sería $T_{seek} = a + b \times distancia$, pero la realidad es más compleja debido a la aceleración. Un modelo más realista usa $T_{seek} = a + b \times \sqrt{distancia}$, reflejando que el brazo pasa la mayor parte del tiempo acelerando y frenando.
-
-Para cálculos en este libro, utilizaremos el seek promedio simplificado de aproximadamente 9 ms en discos de 7200 RPM, a menos que el problema especifique otra cosa.
-
-#### Latencia Rotacional
-
-Una vez que las cabezas están posicionadas en el cilindro correcto, debemos esperar a que el sector deseado rote bajo la cabeza. Los platos giran a velocidad constante, medida en RPM (revoluciones por minuto).
-El tiempo para una revolución completa es simplemente:
-$$
-T_{rotacional_promedio}​=T_{revolucion} / 2
-$$
-
-**Valores típicos:**
-
-| RPM | Revolución completa | Latencia promedio |
-|-----|---------------------|-------------------|
-| 5400 | 11.1 ms | 5.55 ms |
-| 7200 | 8.33 ms | 4.17 ms |
-| 10000 | 6.0 ms | 3.0 ms |
-| 15000 | 4.0 ms | 2.0 ms |
-
-\begin{warning}
-La latencia rotacional es una limitación física fundamental del disco. No puede mejorarse con algoritmos inteligentes de scheduling. Es simplemente una consecuencia de la velocidad de rotación del motor. La única forma de reducirla es comprar un disco más rápido (o usar un SSD, que no tiene partes móviles y por tanto no tiene latencia rotacional).
-\end{warning}
-
-#### Tiempo de Transferencia
-
-Una vez que el sector está bajo la cabeza, los datos deben transferirse entre el disco y el controlador. Este tiempo depende de la tasa de transferencia del disco y la cantidad de datos:
-
-$$
-T_{transferencia} = (bytes a transferir) / (tasa de transferencia)
-$$
-
-Tasa de transferencia típica:
-```
-- HDD interno SATA: 100 - 200 MiB/s
-- HDD externo USB 3.0: 80 - 120 MiB/s
-- SSD SATA: 500 - 600 MiB/s
-- SSD NVMe: 3000 - 7000 MiB/s
-```
-
-*Ejemplo de cálculo:*
-
-Transferir 4 KiB (un bloque) en HDD a 150 MiB/s:
-```
-T_transferencia = 4096 bytes / (150 × 10^6 bytes/seg)
-                = 0.0000273 seg
-                = 0.027 ms
-```
-
-\begin{theory}
-Una observación crítica: para discos duros, el tiempo de transferencia es completamente despreciable comparado con seek y rotación. Transferir 4 KiB toma 0.027 ms, mientras que seek + rotación combinados toman ~13 ms. El tiempo de transferencia es menos del 0.2% del total.
-Esta es la razón fundamental por la que la localidad espacial es tan importante para el rendimiento de discos: el costo está en llegar al dato, no en transferirlo una vez que lo encontraste.
-\end{theory}
-
-### Ejercicio: Cálculo de Tiempo de Acceso
-
-**Enunciado:**
-
-Se tiene un disco duro con las siguientes características:
-- Velocidad de rotación: 7200 RPM
-- Seek time promedio: 9 ms
-- Tasa de transferencia: 150 MiB/s
-- Tamaño de sector: 4 KiB
-
-Calcular el tiempo total para leer:
-
-a) Un sector aleatorio del disco
-
-b) 10 sectores consecutivos en la misma pista
-
-c) 10 sectores dispersos aleatoriamente en el disco
-
-
-**Solución:**
-
-Primero, calculemos los componentes base que usaremos repetidamente:
-
-```
-Latencia rotacional promedio:
-T_rot = (60 / 7200) / 2 = 0.00833 / 2 = 0.00417 seg = 4.17 ms
-
-Tiempo de transferencia por sector:
-T_trans_sector = 4096 bytes / (150 × 10^6 bytes/seg) = 0.000027 seg ≈ 0.027 ms
-```
-
-*a) Un sector aleatorio:*
-
-```
-T_total = T_seek + T_rot + T_trans
-        = 9 ms + 4.17 ms + 0.027 ms
-        = 13.197 ms ≈ 13.2 ms
-```
-
-*b) 10 sectores consecutivos en la misma pista:*
-
-Aquí está la parte interesante. Los sectores están contiguos en la misma pista, así que después del primer seek y la espera rotacional inicial, los siguientes 9 sectores pasan bajo la cabeza inmediatamente. Solo pagamos el costo de transferencia para cada uno:
-```
-T_total = T_seek + T_rot + (10 × T_trans_sector)
-        = 9 ms + 4.17 ms + (10 × 0.027 ms)
-        = 9 ms + 4.17 ms + 0.27 ms
-        = 13.44 ms
-```
-
-\begin{excerpt}
-Observación sorprendente: leer 10 sectores consecutivos toma apenas 0.24 ms más que leer 1 sector (13.44 ms vs 13.2 ms). ¿Por qué? Porque el seek y la rotación dominan completamente. Una vez que llegaste al lugar correcto, leer más datos es casi gratis.\\
-Esta es la razón por la que los sistemas operativos modernos implementan prefetching: cuando pedís leer un bloque, el SO aprovecha y lee los bloques siguientes también, porque el costo marginal es despreciable.
-\end{excerpt}
-
-*c) 10 sectores dispersos aleatoriamente:*
-
-Cada sector requiere su propio seek completo, rotación completa, y transferencia:
-```
-T_total = 10 × (T_seek + T_rot + T_trans_sector)
-        = 10 × 13.2 ms
-        = 132 ms
-```
-
-**Resumen comparativo:**
-
-| Operación | Tiempo total |
-|-----------|--------------|
-| 1 sector aleatorio | 13.2 ms |
-| 10 sectores consecutivos | 13.44 ms (1.02× más lento) |
-| 10 sectores dispersos | 132 ms (10× más lento) |
-
-\begin{warning}
-Conclusión crítica para el diseño de sistemas:
-La localidad espacial es fundamental para el rendimiento de discos magnéticos. Leer bloques consecutivos es órdenes de magnitud más rápido que accesos aleatorios dispersos. Los algoritmos de scheduling de disco existen precisamente para maximizar esta localidad.
-\end{warning}
-
-## Scheduling de I/O: Algoritmos de Disco
-
-Los sistemas operativos mantienen una cola de solicitudes de I/O pendientes. En un sistema activo, pueden llegar docenas o cientos de solicitudes por segundo. El orden en que se atienden estas solicitudes tiene un impacto dramático en el rendimiento total del sistema.
-\begin{infobox}
-\emph{Disk Scheduling:}
-Algoritmos que determinan el orden en que se atienden las solicitudes de I/O a disco, con el objetivo de minimizar el seek time total y maximizar el throughput.
-\end{infobox}
-Consideremos un escenario típico que usaremos para todos nuestros ejemplos:
-
-```
-Cola de solicitudes pendientes: [98, 183, 37, 122, 14, 124, 65, 67]
-Posición actual de la cabeza: cilindro 53
-Rango del disco: 0 - 199 cilindros
-```
-
-Nuestro objetivo es simple pero crucial: minimizar el movimiento total del brazo, que es la suma de todas las distancias recorridas en cilindros. ¿Por qué? Porque el seek time es el componente dominante del tiempo de acceso, como vimos en la sección anterior.
-
-### Algoritmo 1: FCFS (First-Come, First-Served)
-
-El algoritmo más simple: atender las solicitudes en el orden exacto de llegada, como una cola FIFO en el supermercado.
-
-**Secuencia:**
-```
-Orden: 53 → 98 → 183 → 37 → 122 → 14 → 124 → 65 → 67
-
-Movimiento total:
-|98-53| + |183-98| + |37-183| + |122-37| + |14-122| + |124-14| + |65-124| + |67-65|
-= 45 + 85 + 146 + 85 + 108 + 110 + 59 + 2
-= 640 cilindros
-```
-
-Observá cómo el brazo salta de un lado al otro del disco constantemente: 53→98 (derecha), 98→183 (más derecha), 183→37 (salto enorme a la izquierda), 37→122 (derecha otra vez). Es un movimiento caótico e ineficiente.  
-La ventaja de FCFS es su simplicidad: implementación trivial con una cola FIFO, es perfectamente justo (todas las solicitudes se atienden en orden), y no hay riesgo de starvation (inanición, donde una solicitud espera indefinidamente).  
-Sin embargo, las desventajas son severas: no optimiza el movimiento del brazo en absoluto, el movimiento total es muy alto con ese zigzag constante, y el rendimiento es pobre comparado con algoritmos más inteligentes. FCFS casi nunca se usa en sistemas reales.
-
-### Algoritmo 2: SSTF (Shortest Seek Time First)
-
-Un enfoque greedy: siempre atender la solicitud más cercana a la posición actual. Es el equivalente a optimizar localmente en cada decisión.
-
-**Secuencia:**
-```
-Inicio en 53:
-  Más cercano: 65 (distancia 12)
-Desde 65:
-  Más cercano: 67 (distancia 2)
-Desde 67:
-  Más cercano: 37 (distancia 30)
-Desde 37:
-  Más cercano: 14 (distancia 23)
-Desde 14:
-  Más cercano: 98 (distancia 84)
-Desde 98:
-  Más cercano: 122 (distancia 24)
-Desde 122:
-  Más cercano: 124 (distancia 2)
-Desde 124:
-  Más cercano: 183 (distancia 59)
-
-Orden: 53 → 65 → 67 → 37 → 14 → 98 → 122 → 124 → 183
-
-Movimiento total:
-12 + 2 + 30 + 23 + 84 + 24 + 2 + 59 = 236 cilindros
-```
-
-SSTF reduce el movimiento de 640 a 236 cilindros (63% de reducción). El throughput mejora significativamente, y la implementación sigue siendo relativamente simple: solo necesitás una lista ordenada o un heap.
-\begin{warning}
-Sin embargo, SSTF tiene un problema serio: puede causar starvation. Imaginá que constantemente llegan solicitudes en el centro del disco (cilindro 100). Una solicitud en el cilindro 5 podría esperar indefinidamente, porque siempre habrá solicitudes más cercanas a la posición actual.
-Este no es un problema teórico. En sistemas con mucha carga de I/O, las solicitudes en los extremos del disco pueden experimentar latencias muy altas o incluso nunca ser atendidas.
-\end{warning}
-SSTF es común en sistemas con baja o media carga de I/O, donde la probabilidad de starvation es baja y se prioriza el throughput.
-
-### Algoritmo 3: SCAN (Elevator Algorithm)
-
-SCAN resuelve el problema de starvation de SSTF usando una estrategia inspirada en ascensores: el brazo se mueve en una dirección hasta el final del disco, atendiendo todas las solicitudes en el camino, luego invierte la dirección y hace lo mismo.
-
-**Secuencia (asumiendo dirección inicial hacia arriba):**
-```
-Inicio en 53, dirección UP:
-  Atender: 65, 67, 98, 122, 124, 183
-  Llegar al final (199)
-  Cambiar dirección a DOWN:
-  Atender: 37, 14
-
-Orden: 53 → 65 → 67 → 98 → 122 → 124 → 183 → 199 → 37 → 14
-
-Movimiento total:
-|65-53| + |67-65| + |98-67| + |122-98| + |124-122| + |183-124| + |199-183| + |37-199| + |14-37|
-= 12 + 2 + 31 + 24 + 2 + 59 + 16 + 162 + 23
-= 331 cilindros
-```
-
-El nombre "Elevator Algorithm" es perfecto: pensá en cómo funciona un ascensor moderno. No va inmediatamente al piso que pediste; primero completa todos los pedidos en su dirección actual, luego da la vuelta.
-\begin{highlight}
-Las ventajas de SCAN son importantes: no hay starvation porque eventualmente el brazo pasa por todos los cilindros, el movimiento es más predecible que SSTF, y el throughput sigue siendo bueno. Es un buen balance entre eficiencia y fairness.
-\end{highlight}
-La desventaja es que hay movimiento innecesario hasta el extremo del disco. En nuestro ejemplo, no había ninguna solicitud entre 183 y 199, pero el brazo se movió hasta allí de todos modos. Además, las solicitudes que acaban de llegar en la dirección opuesta deben esperar todo un barrido completo del disco.  
-SCAN era usado en ascensores reales y en algunos sistemas operativos antiguos. Las variantes modernas (LOOK y C-LOOK) mejoran sobre esta idea básica.
-
-### Algoritmo 4: C-SCAN (Circular SCAN)
-
-C-SCAN mejora la fairness de SCAN tratando al disco como una estructura circular: al llegar al final, el brazo salta inmediatamente al inicio sin atender solicitudes en el camino de vuelta, luego continúa en la dirección original.
-
-**Secuencia:**
-```
-Inicio en 53, dirección UP:
-  Atender: 65, 67, 98, 122, 124, 183
-  Llegar al final (199)
-  Saltar al inicio (0) sin atender
-  Continuar UP:
-  Atender: 14, 37
-
-Orden: 53 → 65 → 67 → 98 → 122 → 124 → 183 → 199 → 0 → 14 → 37
-
-Movimiento total:
-|65-53| + |67-65| + |98-67| + |122-98| + |124-122| + |183-124| + |199-183| + |199-0| + |14-0| + |37-14|
-= 12 + 2 + 31 + 24 + 2 + 59 + 16 + 199 + 14 + 23
-= 382 cilindros
-```
-La idea clave es que C-SCAN trata a todos los cilindros más uniformemente. Las solicitudes en el extremo inferior no tienen que esperar todo el viaje de ida y vuelta; el brazo regresa rápidamente al inicio y las atiende. Esto proporciona una latencia más uniforme y predecible que SCAN.  
-
-El costo es que el movimiento total es mayor que SCAN (382 vs 331), porque ese salto de 199 a 0 cuenta como movimiento completo del disco. Sin embargo, en sistemas con alta carga de I/O distribuida uniformemente, esta desventaja se compensa con la mejor fairness.  
-C-SCAN es usado en sistemas donde se prioriza la consistencia de latencia sobre el throughput puro.
-
-### Algoritmo 5: LOOK
-
-LOOK es una optimización obvia de SCAN: ¿para qué ir hasta el extremo del disco si no hay solicitudes ahí? El brazo solo va hasta la última solicitud en esa dirección, luego invierte.
-
-**Secuencia:**
-```
-Inicio en 53, dirección UP:
-  Atender: 65, 67, 98, 122, 124, 183
-  (183 es la última solicitud UP, no ir hasta 199)
-  Cambiar dirección a DOWN:
-  Atender: 37, 14
-
-Orden: 53 → 65 → 67 → 98 → 122 → 124 → 183 → 37 → 14
-
-Movimiento total:
-12 + 2 + 31 + 24 + 2 + 59 + 146 + 23 = 299 cilindros
-```
-
-La mejora sobre SCAN es clara: 299 cilindros vs 331, una reducción del 10%. Eliminamos ese movimiento desperdiciado de 183 a 199. El brazo "mira" (look) hacia adelante, ve que no hay más solicitudes, y da la vuelta inteligentemente.  
-LOOK mantiene todas las ventajas de SCAN (sin starvation, predecible, buen throughput) y elimina su principal desventaja (movimiento innecesario). Es generalmente superior a SCAN en todos los aspectos y es una de las opciones más populares en sistemas operativos modernos.
-
-### Algoritmo 6: C-LOOK (Circular LOOK)
-
-C-LOOK combina las ideas de C-SCAN y LOOK: solo va hasta la última solicitud en la dirección actual, luego salta a la primera solicitud pendiente (no necesariamente al extremo del disco), y continúa en la dirección original.
-
-**Secuencia:**
-```
-Inicio en 53, dirección UP:
-  Atender: 65, 67, 98, 122, 124, 183
-  (183 es la última UP)
-  Saltar a la primera solicitud pendiente: 14
-  Continuar UP:
-  Atender: 14, 37
-
-Orden: 53 → 65 → 67 → 98 → 122 → 124 → 183 → 14 → 37
-
-Movimiento total:
-12 + 2 + 31 + 24 + 2 + 59 + 169 + 23 = 322 cilindros
-```
-
-C-LOOK ofrece un excelente balance. Combina la latencia uniforme de C-SCAN con la eliminación de movimiento innecesario de LOOK. Es más eficiente que C-SCAN (322 vs 382 cilindros) pero mantiene su fairness superior a SCAN/LOOK.  
-Este algoritmo es una variante muy popular en sistemas Linux modernos, a menudo implementado como parte del scheduler mq-deadline.
-
-### Algoritmo 7: FSCAN (Freeze SCAN)
-
-FSCAN introduce un concepto nuevo: divide la cola en dos sublistas y las procesa por separado. Esto previene que solicitudes nuevas "se cuelen" y retrasen solicitudes antiguas.
-
-**Funcionamiento:**
-```
-1. Al inicio: todas las solicitudes actuales van a Queue1
-2. Ejecutar SCAN sobre Queue1
-3. Nuevas solicitudes que llegan durante SCAN van a Queue2 (congeladas)
-4. Al terminar Queue1, intercambiar: Queue2 se vuelve Queue1
-5. Repetir
-```
-
-**Ejemplo:**
-```
-Queue1 inicial: [98, 183, 37, 122, 14, 124, 65, 67]
-Ejecutar SCAN sobre Queue1: 53 → 65 → 67 → 98 → ... → 183 → 37 → 14
-
-Durante este SCAN, llegan solicitudes [50, 175, 80]
-Estas van a Queue2 (esperan al siguiente ciclo)
-
-Al terminar Queue1:
-  Queue2 se vuelve Queue1: [50, 175, 80]
-  Ejecutar SCAN sobre estos
-```
-
-\begin{theory}
-La idea detrás de FSCAN es prevenir starvation de una manera diferente a SCAN. En SCAN puro, si constantemente llegan nuevas solicitudes, algunas solicitudes antiguas podrían ser "empujadas" continuamente. FSCAN garantiza que cada solicitud se procesa dentro de dos ciclos de SCAN como máximo: en el peor caso, llegás justo después de que tu Queue comenzó a procesarse, así que esperás ese ciclo completo más el siguiente.
-\end{theory}
-Las ventajas son claras: previene starvation de solicitudes lejanas, el tiempo de espera está acotado (máximo 2 ciclos), y ofrece mejor fairness que SCAN simple. Las desventajas son la mayor complejidad de implementación (dos colas a mantener) y potencialmente mayor latencia para solicitudes nuevas (deben esperar al siguiente ciclo incluso si están cerca de la posición actual).  
-FSCAN es usado en sistemas que requieren garantías de tiempo de respuesta, como sistemas de tiempo real.
-
-### Algoritmo 8: N-STEP-SCAN
-
-N-STEP-SCAN es similar a FSCAN pero más granular: la cola se divide en sublistas de máximo N solicitudes cada una.
-
-**Funcionamiento:**
-```
-1. Cola actual tiene solicitudes: [r1, r2, r3, ..., rK]
-2. Dividir en grupos de máximo N:
-   - Grupo1: [r1, ..., rN]
-   - Grupo2: [rN+1, ..., r2N]
-   - ...
-3. Ejecutar SCAN sobre Grupo1
-4. Nuevas solicitudes van a cola futura
-5. Al terminar Grupo1, procesar Grupo2
-6. Repetir
-```
-
-**Ejemplo con N=5:**
-```
-Cola: [98, 183, 37, 122, 14, 124, 65, 67, 50, 175]
-
-Grupo1: [98, 183, 37, 122, 14]  → Ejecutar SCAN
-Grupo2: [124, 65, 67, 50, 175]  → Espera
-
-Al terminar Grupo1, procesar Grupo2
-Nuevas solicitudes forman Grupo3
-```
-
-El parámetro N permite un trade-off configurable. Con N pequeño (por ejemplo, N=10), el sistema es más responsive: cada batch se procesa rápidamente, pero puede haber más movimiento del brazo porque los grupos son pequeños. Con N grande (por ejemplo, N=100), hay más oportunidad de optimizar el movimiento dentro de cada batch, mejorando throughput, pero las solicitudes pueden esperar más porque los batches son grandes.
-\begin{highlight}
-Las ventajas incluyen tiempo de espera predecible (máximo ceil(K/N) ciclos para K solicitudes), el parámetro N es configurable según las necesidades del sistema, y ofrece un balance ajustable entre responsiveness y throughput. Las desventajas son que requiere tuning del parámetro N para cada sistema específico, y la implementación es más compleja que algoritmos simples.
-\end{highlight}
-N-STEP-SCAN es usado en sistemas de tiempo real donde se necesita acotar las latencias máximas con precisión.
-
-### Comparación de Algoritmos
-
-| Algoritmo | Movimiento (ejemplo) | Starvation | Fairness | Complejidad |
-|-----------|---------------------|------------|----------|-------------|
-| FCFS | 640 | No | Perfecta | Muy baja |
-| SSTF | 236 | Sí (posible) | Mala | Baja |
-| SCAN | 331 | No | Media | Media |
-| C-SCAN | 382 | No | Buena | Media |
-| LOOK | 299 | No | Media | Media |
-| C-LOOK | 322 | No | Buena | Media |
-| FSCAN | ~300 | No | Buena | Alta |
-| N-STEP | ~300 | No | Muy buena | Alta |
-
-\begin{excerpt}
-Recomendaciones prácticas:\\
-SSTF: Sistemas con baja carga de I/O donde la prioridad es throughput puro y starvation es improbable.\\
-LOOK/C-LOOK: Default en muchos sistemas modernos. Ofrecen el mejor balance entre throughput, fairness y complejidad de implementación.\\
-FSCAN/N-STEP: Sistemas de tiempo real o con garantías estrictas de latencia máxima.\\
-FCFS: Prácticamente nunca en la práctica, excepto como componente interno de algoritmos más complejos.
-\end{excerpt}
-
-## Ejercicio Integrador: Scheduling de Disco
-
-**Enunciado:**
-
-Un disco tiene 200 cilindros (0-199). La cola de solicitudes contiene:
-```
-Solicitudes: [95, 180, 34, 119, 11, 123, 62, 64]
-Posición actual de la cabeza: 50
-Dirección inicial: hacia arriba (UP)
-```
-
-Calcular el **movimiento total del brazo** para cada algoritmo:
-
-a) FCFS
-b) SSTF
-c) SCAN
-d) C-SCAN
-e) LOOK
-f) C-LOOK
-
-Indicar también cuál algoritmo es más eficiente en este caso.
-
-**Solución:**
-
-a) FCFS:
-
-```
-Secuencia: 50 → 95 → 180 → 34 → 119 → 11 → 123 → 62 → 64
-
-Movimiento:
-|95-50| + |180-95| + |34-180| + |119-34| + |11-119| + |123-11| + |62-123| + |64-62|
-= 45 + 85 + 146 + 85 + 108 + 112 + 61 + 2
-= 644 cilindros
-```
-
-b) SSTF:
-
-```
-Desde 50, elegir más cercano:
-50 → 62 (12) → 64 (2) → 34 (30) → 11 (23) → 95 (84) → 119 (24) → 123 (4) → 180 (57)
-
-Movimiento total:
-12 + 2 + 30 + 23 + 84 + 24 + 4 + 57 = 236 cilindros
-```
-
-c) SCAN:
-
-```
-Desde 50, dirección UP, atender todas hasta el final, luego DOWN:
-50 → 62 → 64 → 95 → 119 → 123 → 180 → 199 (fin) → 34 → 11
-
-Movimiento:
-|62-50| + |64-62| + |95-64| + |119-95| + |123-119| + |180-123| + |199-180| + |34-199| + |11-34|
-= 12 + 2 + 31 + 24 + 4 + 57 + 19 + 165 + 23
-= 337 cilindros
-```
-
-d) C-SCAN:
-
-```
-Desde 50, UP hasta el final, saltar al inicio, continuar UP:
-50 → 62 → 64 → 95 → 119 → 123 → 180 → 199 → 0 (salto) → 11 → 34
-
-Movimiento:
-12 + 2 + 31 + 24 + 4 + 57 + 19 + 199 + 11 + 23 = 382 cilindros
-```
-
-e) LOOK:
-
-```
-Desde 50, UP hasta última solicitud (180), luego DOWN:
-50 → 62 → 64 → 95 → 119 → 123 → 180 → 34 → 11
-
-Movimiento:
-12 + 2 + 31 + 24 + 4 + 57 + 146 + 23 = 299 cilindros
-```
-
-f) C-LOOK:
-
-```
-Desde 50, UP hasta 180, saltar a primera solicitud pendiente (11), continuar UP:
-50 → 62 → 64 → 95 → 119 → 123 → 180 → 11 (salto) → 34
-
-Movimiento:
-12 + 2 + 31 + 24 + 4 + 57 + 169 + 23 = 322 cilindros
-```
-
-**Resumen:**
-
-| Algoritmo | Movimiento total | Observaciones |
-|-----------|------------------|---------------|
-| FCFS | 644 | Peor caso |
-| SSTF | 236 | Minimo movimiento |
-| SCAN | 337 | |
-| C-SCAN | 382 | |
-| LOOK | 299 | Buen balance |
-| C-LOOK | 322 | |
-
-\begin{highlight}
-Respuesta:\\
-El algoritmo más eficiente en términos de movimiento puro es SSTF con 236 cilindros. Sin embargo, debemos recordar que SSTF puede causar starvation en sistemas con alta carga.\\
-El mejor balance entre eficiencia y fairness lo ofrece LOOK con 299 cilindros: solo 27% más movimiento que SSTF, pero con garantía de no starvation y comportamiento más predecible.\\
-En un sistema real de producción, típicamente elegiríamos LOOK o C-LOOK sobre SSTF.
-\end{highlight}
-
-## RAID (Redundant Array of Independent Disks)
-
-RAID es una tecnología fascinante que surgió de una pregunta simple: ¿qué pasa si combinamos múltiples discos baratos para crear algo mejor que un disco caro? La respuesta resultó ser compleja y multifacética.
-\begin{infobox}
-\emph{RAID:}
-Tecnología que utiliza múltiples discos trabajando en conjunto para proporcionar mayor rendimiento (mediante paralelismo) y/o mayor confiabilidad (mediante redundancia).
-\end{infobox}
-La idea central es que múltiples discos operando en paralelo pueden superar las limitaciones de un disco individual. RAID puede mejorar el rendimiento (leyendo/escribiendo en paralelo), mejorar la confiabilidad (duplicando datos), o ambas cosas. Sin embargo, diferentes "niveles" de RAID hacen diferentes trade-offs.
-
-### RAID 0: Striping (sin redundancia)
-
-RAID 0 es el más simple: los datos se dividen en bloques que se distribuyen (stripe) uniformemente entre todos los discos. Es como repartir un mazo de cartas entre varios jugadores.
-```
-Archivo dividido en bloques: A1, A2, A3, A4, A5, A6
-
-Disco 0: [A1] [A3] [A5]
-Disco 1: [A2] [A4] [A6]
-
-Lectura/escritura en paralelo
-```
-
-Las ventajas de RAID 0 son impresionantes para ciertas aplicaciones:  
-
-- Rendimiento máximo: el throughput se multiplica por N discos (en el caso ideal)  
-- Capacidad total = suma de todos los discos (no se desperdicia nada)  
-- Implementación simple y eficiente
-- Latencia reducida para archivos grandes
-
-Para edición de video 4K o rendering 3D, donde necesitás throughput sostenido de varios GiB/s, RAID 0 es ideal.  
-\begin{warning}
-Sin embargo, RAID 0 tiene una desventaja catastrófica: cero redundancia. Si cualquier disco falla, perdés todos los datos del array completo. Peor aún, la probabilidad de fallo aumenta: si cada disco tiene 1% de probabilidad de fallar en un año, con 4 discos en RAID 0, la probabilidad de que al menos uno falle es aproximadamente 4%.
-RAID 0 hace que tu sistema sea menos confiable que un disco individual. El nombre "RAID" es casi irónico aquí, ya que no hay redundancia en absoluto.
-\end{warning}
-
-Cálculos para RAID 0
-```
-N discos de C capacidad cada uno:
-Capacidad útil = N × C
-Rendimiento lectura/escritura = N × velocidad_disco
-```
-
-Ejemplo práctico:  
-- 4 discos de 1 TiB cada uno
-- Capacidad útil: 4 TiB
-- Si 1 disco falla: pérdida total
-
-**Uso típico:** Aplicaciones que requieren máximo rendimiento y tienen backups robustos externos: edición de video profesional, rendering 3D, caches de alto rendimiento, ambientes de desarrollo donde los datos no son críticos.
-
-### RAID 1: Mirroring (espejo completo)
-
-RAID 1 toma el enfoque opuesto: cada dato se duplica completamente en dos (o más) discos. Es la técnica más antigua de redundancia: simplemente mantener dos copias idénticas.
-
-```
-Archivo: A1, A2, A3, A4
-
-Disco 0: [A1] [A2] [A3] [A4]
-Disco 1: [A1] [A2] [A3] [A4]  (copia exacta)
-```
-
-Cada escritura va a ambos discos síncronamente. Las lecturas pueden venir de cualquier disco, lo que permite balance de carga.  
-Las ventajas de RAID 1 son claras para datos críticos:
-
-- Confiabilidad alta: tolera la falla de N-1 discos (con 2 discos, tolerás 1 falla).  
-- Rendimiento de lectura mejorado: podés leer de cualquier disco, efectivamente duplicando el throughput de lectura.  
-- Recuperación trivial: el disco espejo es una copia exacta, simplemente copiás y listo.  
-- Sin cálculos complejos: no hay overhead de paridad o reconstrucción  
-Para bases de datos críticas o servidores de producción, RAID 1 ofrece la máxima tranquilidad.  
-Las desventajas son económicas: capacidad útil = 50% (la mitad se usa para el espejo), costo alto (necesitás el doble de discos para la misma capacidad útil), y la escritura no es más rápida (debe completarse en ambos discos, aunque en paralelo).
-
-Cálculos:
-```
-N discos de C capacidad cada uno (N par):
-Capacidad útil = (N / 2) × C = C (con 2 discos)
-Tolerancia a fallos = N/2 discos pueden fallar
-```
-
-Ejemplo:  
-- 2 discos de 1 TiB cada uno  
-- Capacidad útil: 1 TiB  
-- Si 1 disco falla: datos siguen accesibles  
-
-**Uso típico:** Datos críticos donde la pérdida sería catastrófica: bases de datos transaccionales, servidores de archivos corporativos, sistemas operativos de servidores de producción, cualquier escenario donde la confiabilidad es más importante que el costo.
-
-### RAID 5: Striping con Paridad Distribuida
-
-RAID 5 es el nivel más interesante conceptualmente: combina el rendimiento de RAID 0 con redundancia, pero de manera más eficiente que RAID 1. Los datos y la paridad se distribuyen entre todos los discos.
-
-```
-4 discos, bloques A1-A6:
-
-Disco 0: [A1] [A4] [Parity(A5,A6)]
-Disco 1: [A2] [Parity(A3,A4)] [A6]
-Disco 2: [A3] [A5] [Parity(A1,A2)]
-Disco 3: [Parity(A1,A2,A3)] [A6] [...]
-
-Paridad se calcula con XOR
-```
-La clave está en cómo se calcula la paridad usando la operación XOR (Exclusive OR).
-
-\begin{infobox}
-\emph{XOR (Exclusive OR):}
-Operación bit a bit donde el resultado es 1 si los bits son diferentes, 0 si son iguales.
-\end{infobox}
-
-```
-Ejemplo simple:
-Bloque A1 = 10110101
-Bloque A2 = 11001100
-Bloque A3 = 01010011
-
-Paridad = A1 XOR A2 XOR A3
-        = 10110101 XOR 11001100 XOR 01010011
-        = 00101110
-
-Si falla disco con A2, recuperar:
-A2 = A1 XOR A3 XOR Paridad
-   = 10110101 XOR 01010011 XOR 00101110
-   = 11001100 ✓ (recuperado)
-```
-
-Propiedad clave del XOR: `A XOR B XOR C XOR ... XOR Parity = 0`, por lo tanto cualquier elemento puede recuperarse.  
-
-Tabla de verdad XOR:
-```
-A | B | A XOR B
---|---|-------
-0 | 0 |   0
-0 | 1 |   1
-1 | 0 |   1
-1 | 1 |   0
-```
-
-**Ejemplo numérico completo:**
-
-Supongamos 3 discos de datos en RAID 5:
-```
-Disco 0: 11010110
-Disco 1: 10100101
-Disco 2: 01110011
-
-Calcular paridad:
-Paridad = D0 XOR D1 XOR D2
-        = 11010110 XOR 10100101 XOR 01110011
-        
-Paso a paso:
-  11010110
-XOR 10100101
------------
-  01110011
-XOR 01110011
------------
-  00000000  ← Paridad (Disco 3)
-
-Si falla Disco 1, recuperar:
-D1 = D0 XOR D2 XOR Paridad
-   = 11010110 XOR 01110011 XOR 00000000
-   = 10100101 ✓
-```
-Este cálculo se hace a nivel de bloque completo (típicamente 512 bytes o 4 KiB). Cada bit de la paridad protege la posición correspondiente en todos los bloques de datos.  
-\begin{theory}
-La ventaja de RAID 5 es que distribuye la paridad. A diferencia de tener un disco dedicado solo a paridad (lo que crearía un cuello de botella), la paridad se esparce entre todos los discos. Esto significa que todas las escrituras se distribuyen uniformemente, evitando que un disco se desgaste más rápido que los otros.
-\end{theory}
-
-
-\begin{highlight}
-Las ventajas de RAID 5 crean un balance excelente:\\
-- Buena capacidad: (N-1)/N de espacio útil (75% con 4 discos, 80% con 5 discos)\\
-- Tolerancia a fallos: cualquier disco puede fallar sin pérdida de datos\\
-- Rendimiento de lectura excelente: N discos leyendo en paralelo\\
-- Costo/beneficio superior a RAID 1: más capacidad útil con la misma protección\\
-\\
-Para servidores de archivos o NAS domésticos/empresariales, RAID 5 es a menudo la elección óptima.
-\end{highlight}
-\begin{warning}
-Las desventajas de RAID 5 son sutiles pero importantes:\\
-- Escritura más lenta: cada escritura requiere: (1) leer bloques viejos, (2) calcular nueva paridad, (3) escribir datos y paridad. Esto se llama "write penalty" y típicamente hace que escrituras sean 4× operaciones en vez de 1×.\\
-- Recuperación lenta: reconstruir un disco requiere leer todos los otros discos y calcular cada bloque faltante con XOR.\\
-- Vulnerable durante reconstrucción: si un segundo disco falla mientras estás reconstruyendo el primero, perdés todo. Con discos grandes (multi-TB), la reconstrucción puede tomar días.\\
-NO tolera fallas simultáneas de 2+ discos
-\end{warning}
-
-Cálculos:
-```
-N discos de C capacidad cada uno (N ≥ 3):
-Capacidad útil = (N - 1) × C
-Espacio para paridad = 1 × C (distribuido)
-Tolerancia a fallos = 1 disco
-```
-
-Ejemplo práctico:  
-- 4 discos de 1 TiB cada uno  
-- Capacidad útil: 3 TiB (75%)  
-- Espacio de paridad: 1 TiB  
-- Si 1 disco falla: datos recuperables  
-- Si 2 discos fallan: pérdida total  
-
-**Uso típico:** NAS (Network Attached Storage) domésticos y empresariales, servidores de archivos, almacenamiento general donde se busca balance entre rendimiento, capacidad y confiabilidad. Es el "sweet spot" para muchas aplicaciones.
-
-### Comparación de RAID
-
-| Nivel | Discos mín | Capacidad útil | Tolerancia fallos | Rendimiento lectura | Rendimiento escritura | Uso típico |
-|-------|-----------|----------------|-------------------|---------------------|----------------------|------------|
-| RAID 0 | 2 | N × C | 0 | Excelente (N×) | Excelente (N×) | Edición video, cache |
-| RAID 1 | 2 | C (50%) | N-1 | Bueno (N×) | Normal (1×) | Datos críticos |
-| RAID 5 | 3 | (N-1) × C | 1 | Excelente | Medio (paridad) | Servidores, NAS |
-
-\begin{excerpt}
-\textbf{Nota sobre RAID 6:}\\
-RAID 6 extiende RAID 5 con doble paridad (bloques P y Q usando diferentes algoritmos matemáticos). Capacidad útil = (N-2) × C. Tolera la falla de 2 discos simultáneos, lo que es crítico con discos modernos de múltiples TB donde la reconstrucción puede tomar días.\\
-El costo es mayor write penalty (6 operaciones por escritura en vez de 4) y mayor complejidad de cálculo de paridad Q (usa aritmética de campos de Galois en vez de simple XOR).\\
-Uso: Almacenamiento empresarial crítico, arrays grandes (8+ discos) donde la probabilidad de fallo doble durante reconstrucción es significativa.
-\end{excerpt}
-
-## Buffering y Caching
-El subsistema de I/O no solo maneja dispositivos; también implementa técnicas de software para mejorar el rendimiento y manejar la asincronía entre componentes de diferentes velocidades.
-
-### Buffering
-
-\begin{infobox}
-\emph{Buffer:}
-Área de memoria temporal usada para almacenar datos durante transferencias entre componentes de diferente velocidad o cuando hay desincronización temporal.
-\end{infobox}
-Los buffers son esenciales porque los productores y consumidores de datos rara vez operan exactamente a la misma velocidad. Pensá en un buffer como un tanque de agua entre dos tuberías de diferente diámetro: suaviza las variaciones de flujo.
-
-**1. Simple Buffer:**
-```
-Productor → [Buffer] → Consumidor
-
-Mientras Productor llena el buffer, Consumidor espera
-Cuando buffer está lleno, Productor espera mientras Consumidor procesa
-```
-
-Este es el esquema más simple: un solo buffer. El problema es obvio: solo uno puede trabajar a la vez. Cuando el productor está llenando el buffer, el consumidor debe esperar. Cuando el consumidor está procesando, el productor debe esperar. No hay concurrencia real.
-
-**2. Double Buffering:**
-```
-Productor → [Buffer 1] ⟷ Consumidor
-              [Buffer 2]
-
-Mientras Consumidor procesa Buffer 1,
-Productor llena Buffer 2
-
-Luego intercambian (swap)
-```
-
-Double buffering es una mejora elegante: mientras el consumidor procesa los datos de un buffer, el productor ya está llenando el otro. Cuando ambos terminan, simplemente intercambian roles. Esto permite overlap real: ambos trabajan en paralelo.
-
-**Ejemplo numérico:**
-```
-Con simple buffer:
-  Tiempo_llenar = 10ms
-  Tiempo_procesar = 15ms
-  Tiempo_total_por_buffer = 25ms
-  
-Con double buffer:
-  Ambos trabajan en paralelo
-  Tiempo_total = max(10ms, 15ms) = 15ms por buffer
-  Mejora = 25/15 = 1.67× más rápido
-```
-En este ejemplo, double buffering mejora el throughput en 67%. Para dispositivos reales donde la diferencia de velocidad es mayor, las mejoras pueden ser aún más dramáticas.
-
-**3. Circular Buffer (Ring Buffer):**
-```
-   [B0] → [B1] → [B2] → [B3]
-     ↑                     ↓
-   [B7] ← [B6] ← [B5] ← [B4]
-
-Producer escribe en write_ptr
-Consumer lee desde read_ptr
-Ambos avanzan circularmente
-```
-
-El ring buffer extiende la idea de double buffering a N buffers organizados circularmente. Es ampliamente usado en drivers de dispositivos de alta velocidad.
-```c
-#define BUFFER_SIZE 8
-char buffer[BUFFER_SIZE];
-int write_ptr = 0;
-int read_ptr = 0;
-int count = 0;  // Elementos en buffer
-
-// Productor escribe
-void produce(char data) {
-    while (count == BUFFER_SIZE);  // Buffer lleno, esperar
-    buffer[write_ptr] = data;
-    write_ptr = (write_ptr + 1) % BUFFER_SIZE;
-    count++;
-}
-
-// Consumidor lee
-char consume() {
-    while (count == 0);  // Buffer vacío, esperar
-    char data = buffer[read_ptr];
-    read_ptr = (read_ptr + 1) % BUFFER_SIZE;
-    count--;
-    return data;
-}
-```
-
-\begin{highlight}
-Las ventajas del ring buffer son poderosas para I/O de alta velocidad:\\
-
-- Múltiples buffers permiten mayor concurrencia y paralelismo\\
-- Suaviza ráfagas (bursts) de datos: si llega un burst rápido, se almacena en múltiples buffers mientras el consumidor procesa a su ritmo\\
-- Usado extensivamente en drivers de red (para paquetes entrantes), audio (para evitar stuttering), y video streaming\\x
-- Permite que productor y consumidor operen a velocidades muy diferentes sin bloqueos frecuentes
-\end{highlight}
-
-Casos de uso reales:
-
-- **Disco → memoria:** Buffer cache mantiene bloques recientemente leídos  
-- **Tarjeta de red → memoria:** Ring buffers de paquetes entrantes/salientes  
-- **Teclado → aplicación:** Input buffer para keystrokes (por eso podés seguir escribiendo aunque la app esté ocupada)  
-- **Audio/video streaming:** Buffers para prevenir stuttering ante variaciones de red  
-
-
-### Caching
-
-\begin{infobox}
-\emph{Cache:}
-Copia de datos frecuentemente accedidos almacenada en un medio más rápido para acelerar accesos futuros.
-\end{infobox}
-
-Un cache es fundamentalmente diferente de un buffer. Un buffer almacena datos *en tránsito* temporalmente (hay una sola copia, moviéndose). Un cache almacena una *copia duplicada* de datos que también existen en su ubicación original (hay dos copias: la rápida en cache, la lenta en origen).
-
-**Diferencia conceptual:**
-```
-Buffer:
-  Datos en tránsito
-  Almacenamiento temporal
-  Una sola copia (moviéndose)
-  Propósito: suavizar diferencias de velocidad
-
-Cache:
-  Datos duplicados
-  Almacenamiento persistente (mientras esté en cache)
-  Dos copias (origen + cache)
-  Propósito: acelerar accesos repetidos
-```
-
-**Ejemplo: Buffer cache del sistema operativo**
-```
-Aplicación solicita read(fd, buffer, 4096)
-
-1. SO verifica buffer cache:
-   - ¿Bloque ya en cache? → Retornar inmediatamente (cache hit)
-     Tiempo: ~100 nanosegundos (acceso a RAM)
-   
-   - ¿No en cache? → Leer de disco y cachear (cache miss)
-     Tiempo: ~10 milisegundos (acceso a disco)
-
-2. Al escribir write(fd, buffer, 4096):
-   - Escribir en cache (write-back)
-   - Marcar bloque como "dirty" (modificado)
-   - Eventualmente flush a disco (asíncrono)
-   - Retornar inmediatamente a la aplicación
-```
-
-\begin{theory}
-El buffer cache del sistema operativo es uno de los componentes más críticos para el rendimiento. Un cache hit evita un acceso a disco completo (~10ms), reemplazándolo por un acceso a RAM (~100ns). Esto es una aceleración de 100.000×.
-
-Con un hit rate típico de 90-95% en sistemas con suficiente RAM, la mayoría de los accesos a "disco" realmente se sirven desde memoria, haciendo que el sistema se sienta muchísimo más rápido de lo que los discos realmente son.
-\end{theory}
-
-**Beneficios del buffer cache:**
-
-- *Reduce dramáticamente accesos a disco:* 100.000× más rápido servir desde RAM
-- *Write coalescing:* Múltiples escrituras pequeñas al mismo bloque se agrupan en una sola escritura física
-- *Read-ahead:* Al leer un bloque, el SO predice que probablemente querrás los siguientes y los precarga
-- *Mejora throughput general:* Menos tiempo esperando I/O = más tiempo ejecutando código útil
-
-**Hit rate típico:** 85-95% en sistemas de escritorio con 8-16 GB RAM, puede llegar a 98-99% en servidores con cientos de GB dedicados a cache.
-
-**Políticas de reemplazo de cache:**
-
-Cuando el cache está lleno y necesitás agregar un nuevo bloque, ¿cuál removés? Varias estrategias:
-
-- *LRU (Least Recently Used):* Reemplazar el bloque que hace más tiempo no se usó. Asume que lo que usaste recientemente probablemente lo uses pronto. Muy efectivo en práctica.
-
-- *LFU (Least Frequently Used):* Reemplazar el bloque que menos veces se ha usado en total. Asume que algunos bloques son "calientes" (frecuentemente usados) y deben mantenerse.
-
-- *Clock (Second Chance):* Aproximación eficiente de LRU. Usa un bit de "referencia" y una mano de reloj que recorre el cache. Cuando se necesita reemplazo, la mano avanza hasta encontrar un bloque con bit = 0, dándole "segunda oportunidad" a los que tienen bit = 1.
-
-Linux modernos usan variantes sofisticadas como *LRU de dos listas* (activa e inactiva) que balancea entre recencia y frecuencia.
-
-### Spooling
-\begin{infobox}
-\emph{Spooling (Simultaneous Peripheral Operations On-Line):}
-Técnica donde se almacena la salida de varios procesos en disco antes de enviarla a un dispositivo lento y dedicado (como una impresora).
-\end{infobox}
-
-Spooling es una técnica clásica para manejar dispositivos dedicados lentos. El ejemplo canónico es la impresión.
-
-### Ejemplo - Print spooler:
-```
-Proceso 1 --→ |
-Proceso 2 --→ | Spool Directory (disco) → Print Daemon → Impresora
-Proceso 3 --→ |
-
-Cada proceso escribe su documento al spool inmediatamente (rápido)
-Print daemon envía a impresora secuencialmente (lento)
-```
-
-Sin spooling, cada proceso tendría que esperar a que la impresora terminara completamente antes de continuar. Con spooling, el proceso escribe al spool (típicamente toma segundos) y puede continuar inmediatamente. El print daemon maneja la tarea lenta de imprimir en background.
-
-**Ventajas:**  
-- Procesos no bloquean esperando dispositivo lento  
-- Múltiples procesos pueden "usar" el dispositivo simultáneamente (sus trabajos se encolan)  
-- Permite priorización y reordenamiento de trabajos  
-- Facilita cancelación de trabajos antes de que se procesen  
-
-**Ubicación típica en Linux:** `/var/spool/cups/` para impresoras, `/var/spool/mail/` para correo saliente.
-
-Spooling es usado no solo para impresoras, sino también para correo saliente, faxes, y cualquier dispositivo dedicado lento donde querés desacoplar la generación de datos de su procesamiento.
-
-## Caso de Estudio: I/O en Linux
-Linux proporciona una implementación completa y sofisticada del subsistema de I/O. Veamos cómo estructura este complejo componente.
-
-### Arquitectura de I/O en Linux
-Linux implementa un subsistema de I/O en capas:
-```
-Aplicación
-    |
-  syscall (read, write, ioctl)
-    |
-VFS (Virtual File System)
-    |
-File System Driver (ext4, FAT, etc.)
-    |
-Block Layer / Page Cache
-    |
-Device Driver (SCSI, SATA, NVMe)
-    |
-Hardware Controller
-    |
-Dispositivo Físico
-```
-Cada capa tiene responsabilidades específicas. El *VFS* (Virtual File System) proporciona la abstracción que permite que todas las operaciones de archivo sean uniformes, sin importar si el archivo está en ext4, NTFS, o incluso NFS remoto. El *Block Layer* maneja el scheduling de I/O, request merging, y coordina el page cache. Los *Device Drivers* específicos traducen comandos genéricos a secuencias específicas de hardware.
-
-Esta arquitectura en capas permite que agregar soporte para un nuevo file system (digamos, BTRFS) no requiera modificar ningún device driver, y viceversa: agregar soporte para un nuevo tipo de disco (digamos, NVMe) no requiere modificar ningún file system.
-
-### Archivos Especiales en /dev
-Una de las ideas más elegantes de Unix/Linux es *"todo es un archivo"*. Los dispositivos se representan como archivos especiales en `/dev`:
-
-```
-$ ls -l /dev/
-brw-rw---- 1 root disk 8,  0 Dec 30 10:00 sda   # Disco completo
-brw-rw---- 1 root disk 8,  1 Dec 30 10:00 sda1  # Partición 1
-brw-rw---- 1 root disk 8,  2 Dec 30 10:00 sda2  # Partición 2
-crw-rw-rw- 1 root tty  5,  0 Dec 30 10:00 tty   # Terminal
-crw------- 1 root root 10, 1 Dec 30 10:00 psaux # Mouse PS/2
-```
-
-El primer carácter indica el tipo:  
-- `b` (block): Dispositivos de bloque (discos, particiones)  
-- `c` (character): Dispositivos de carácter (terminales, puertos serie)  
-
-Los dos números importantes son el *major* y *minor number*:
-```
-brw-rw---- 1 root disk 8, 1 Dec 30 10:00 sda1
-                         ^  ^
-                         |  |
-                    Major  Minor
-
-Major number: identifica el driver (8 = SCSI/SATA disk)
-Minor number: identifica el dispositivo específico (1 = primera partición)
-```
-
-El kernel usa el major number para determinar qué driver debe manejar las operaciones en ese dispositivo. El driver usa el minor number para saber cuál de sus dispositivos se está accediendo.  
-Esta abstracción permite que escribir a `/dev/sda1` sea idéntico sintácticamente a escribir a cualquier archivo regular. El kernel se encarga de rutear la operación al driver correcto.
-
-### Schedulers de I/O en Linux
-
-Linux provee varios schedulers de disco que se pueden cambiar dinámicamente según las necesidades del sistema. Cada uno implementa diferentes estrategias de los algoritmos que vimos.
-
-**CFQ (Completely Fair Queuing):**  
-- Default en kernels antiguos  
-- Similar a round-robin entre procesos  
-- Busca fairness  
-
-**Deadline:**  
-- Garantiza tiempo máximo de espera  
-- Usa read deadline y write deadline  
-- Bueno para sistemas de tiempo real  
-
-**Noop (No Operation):**  
-- Solo merge de requests consecutivos  
-- Mínimo overhead  
-- Óptimo para SSDs (que no tienen seek time)  
-
-**mq-deadline / BFQ / Kyber:**  
-- Schedulers modernos para dispositivos multi-cola (NVMe)  
-- Aprovechan paralelismo de SSDs modernos  
-
-Ver y cambiar el scheduler (dinámicamente):
-
-```bash
-# Ver scheduler actual
-$ cat /sys/block/sda/queue/scheduler
-[mq-deadline] kyber bfq none
-
-# Cambiar scheduler
-$ echo bfq > /sys/block/sda/queue/scheduler
-```
-La elección del scheduler puede tener impacto significativo en workloads específicos. Para SSDs, `noop` o `none` típicamente dan mejor rendimiento porque el overhead del scheduling es desperdicio. Para HDDs con carga mixta, `mq-deadline` o `bfq` típicamente son mejores.
-
-### ioctl: Operaciones Específicas de Dispositivo
-
-\begin{infobox}
-\emph{ioctl (Input/Output Control):}
-Syscall que permite ejecutar operaciones específicas de un dispositivo que no son read/write estándar. Es la "puerta trasera" para control de dispositivo.
-\end{infobox}
-No todas las operaciones de dispositivo son simplemente leer o escribir datos. A veces necesitás configurar parámetros, obtener información del dispositivo, o ejecutar comandos especiales. `ioctl` es el syscall catch-all para estas operaciones.
-
-Ejemplo conceptual:
-```c
-#include <sys/ioctl.h>
-
-int fd = open("/dev/sda", O_RDONLY);
-
-// Obtener tamaño del disco
-unsigned long long size;
-ioctl(fd, BLKGETSIZE64, &size);
-printf("Disk size: %llu bytes\n", size);
-
-// Obtener tamaño de bloque
-int block_size;
-ioctl(fd, BLKBSZGET, &block_size);
-printf("Block size: %d bytes\n", block_size);
-
 close(fd);
 ```
+Los archivos de log, los archivos de texto y el procesamiento por lotes son candidatos ideales para acceso secuencial. La localidad temporal y espacial de este patrón permite al sistema optimizar agresivamente las operaciones de I/O.
 
-**Uso típico de ioctl:**  
-- Configurar baudrate en puerto serie  
-- Cambiar resolución y modos de color en terminal  
-- Obtener geometría de disco (cilindros, heads, sectores)  
-- Controlar volumen en dispositivos de audio  
-- Configurar parámetros de captura de video  
-- Enviar comandos SCSI raw a discos  
-- Prácticamente cualquier operación específica de dispositivo  
+#### Acceso Directo (Random Access)
 
-Cada driver define sus propios códigos de ioctl. Por ejemplo, `BLKGETSIZE64` es específico de block devices, mientras que `TCGETS` es específico de terminales. Esta flexibilidad hace que ioctl sea tremendamente poderoso pero también algo caótico: no hay una interfaz uniforme como con read/write.
+El acceso directo permite leer o escribir cualquier byte del archivo sin recorrer los bytes anteriores. Simplemente calculamos la posición deseada y nos movemos allí con `seek()`.
+
+```c
+// Acceso directo
+int fd = open("base_datos.dat", O_RDWR);
+// Leer registro 100 (cada registro = 256 bytes)
+lseek(fd, 100 * 256, SEEK_SET);
+read(fd, &registro, 256);
+close(fd);
+```
+Este patrón es ideal para bases de datos y estructuras indexadas donde necesitamos acceso instantáneo a registros específicos sin procesar todo el archivo. No hay penalidad por "saltar" a posiciones arbitrarias.
+
+#### Acceso Indexado
+
+El acceso indexado mantiene un índice separado que mapea claves lógicas a posiciones físicas en el archivo de datos. El índice actúa como un directorio que nos dice exactamente dónde buscar.
+
+```
+Archivo de índice:
+  "Juan" → byte 0
+  "María" → byte 256
+  "Pedro" → byte 512
+
+Archivo de datos:
+  byte 0-255: datos de Juan
+  byte 256-511: datos de María
+  byte 512-767: datos de Pedro
+```
+
+Las búsquedas por clave son extremadamente rápidas. Podemos mantener múltiples índices sobre el mismo archivo —por ejemplo, uno por nombre y otro por ID— permitiendo consultas flexibles y eficientes.   Este método es la base de los sistemas de bases de datos modernos y las bibliotecas digitales.
+
+## Directorios: Organización Jerárquica
+
+### Concepto de Directorio
+
+\begin{theory}
+\emph{Directorio:}
+Archivo especial que contiene una tabla de entradas, donde cada entrada asocia un nombre de archivo con su FCB/inodo. Permite organización jerárquica del file system.
+\end{theory}
+
+Aunque los directorios aparecen como carpetas en nuestra interfaz gráfica, en realidad son archivos con un propósito especial: contienen una tabla que mapea nombres a referencias de FCB. Cada entrada en un directorio es simplemente un par (nombre, referencia_a_FCB).
+
+```c
+struct directory_entry {
+    char name[256];        // Nombre del archivo
+    uint32_t inode_number; // Referencia al FCB (en Unix)
+    uint8_t file_type;     // Regular, directorio, link, etc.
+};
+```
+
+Esta estructura tan simple permite construir jerarquías complejas. Un directorio puede contener referencias a archivos regulares y a otros directorios, formando un árbol de organización.
+
+### Estructuras de Directorios
+
+#### Directorio de Un Nivel (Single-Level)
+
+La estructura más simple coloca todos los archivos en un solo directorio raíz. No hay subdirectorios ni organización alguna.
 
 
-## 10. Síntesis y Puntos Clave
+```
+/ (raíz)
+  ├── programa1.c
+  ├── programa2.c
+  ├── datos.txt
+  └── imagen.jpg
+```
+
+Este diseño es impracticable para sistemas reales. Sin capacidad de organizar archivos por categorías, los conflictos de nombres entre usuarios son inevitables. La estructura no escala cuando tenemos miles de archivos, y encontrar un archivo específico se convierte en una tarea imposible.
+
+#### Directorio de Dos Niveles
+
+Una mejora asigna a cada usuario su propio directorio personal. Esto resuelve los conflictos de nombres, ya que dos usuarios pueden tener archivos con el mismo nombre en sus espacios separados.
+
+```
+/
+  ├── user1/
+  │   ├── programa.c
+  │   └── datos.txt
+  └── user2/
+      ├── programa.c  (mismo nombre, diferente archivo)
+      └── imagen.jpg
+```
+Sin embargo, sigue siendo limitado: no permite subdivisiones dentro del espacio de cada usuario. No podemos crear una estructura lógica de proyectos, documentos y código dentro de nuestro directorio personal.
+
+#### Estructura Jerárquica (Árbol)
+
+La solución moderna permite que los directorios contengan otros directorios, formando un árbol jerárquico arbitrariamente profundo. Esta estructura refleja naturalmente cómo organizamos información en el mundo real.
+
+```
+/
+├── home/
+│   ├── alumno/
+│   │   ├── documentos/
+│   │   │   ├── apuntes.txt
+│   │   │   └── ejercicios.pdf
+│   │   └── proyectos/
+│   │       └── tp1.c
+│   └── profesor/
+│       └── examen.txt
+├── etc/
+│   └── config.cfg
+└── tmp/
+    └── temporal.dat
+```
+
+Esta organización es intuitiva, escalable a millones de archivos, y permite aplicar permisos de manera jerárquica. Los namespaces quedan naturalmente separados por directorio, evitando conflictos de nombres.
+
+#### Grafo Acíclico Dirigido (con Links)
+
+Cuando permitimos hard links y soft links, la estructura deja de ser un árbol puro y se convierte en un grafo acíclico dirigido. Un mismo archivo puede ser accesible desde múltiples ubicaciones con diferentes nombres.
+
+```
+/home/alumno/
+  ├── proyecto/
+  │   └── datos.txt  (inodo 1234)
+  └── backup/
+      └── datos_respaldo.txt  (hard link a inodo 1234)
+```
+
+Ambos nombres apuntan al mismo archivo físico —mismo inodo, mismos bloques de datos. No hay duplicación, simplemente múltiples caminos para llegar al mismo contenido.
+
+\begin{warning}
+Los hard links a directorios NO se permiten (excepto . y ..) porque crearían ciclos en el grafo. Un ciclo haría imposible realizar operaciones como eliminación recursiva, que quedarían atrapadas en un bucle infinito.
+\end{warning}
+
+### Rutas: Absolutas y Relativas
+
+#### Ruta Absoluta
+
+\begin{theory}
+\emph{Ruta Absoluta:}
+Especifica la ubicación de un archivo desde el directorio raíz. Siempre comienza con \texttt{/} en Unix o \texttt{C:\textbackslash} en Windows.
+\end{theory}
+
+Una ruta absoluta es inequívoca: identifica exactamente un archivo sin importar desde dónde la invoquemos. `/home/alumno/documentos/apuntes.txt` siempre se refiere al mismo archivo, independientemente del directorio de trabajo actual.
+
+*Ejemplos:*
+```
+/home/alumno/documentos/apuntes.txt
+/etc/passwd
+/var/log/syslog
+```
+Las rutas absolutas son esenciales en scripts y programas que pueden ejecutarse desde cualquier ubicación, donde no podemos asumir un directorio de trabajo específico.
+
+#### Ruta Relativa
+
+\begin{theory}
+\emph{Ruta Relativa:}
+Especifica la ubicación desde el directorio de trabajo actual. No comienza con \texttt{/}.
+\end{theory}
+Las rutas relativas son más convenientes para trabajo interactivo. En lugar de escribir la ruta completa, nos movemos relativamente a nuestra posición actual. El símbolo `.` representa el directorio actual, `..` representa el directorio padre, y `~` (expandido por el shell) representa nuestro directorio home.
+
+*Ejemplos:*
+```bash
+# Si estoy en /home/alumno/proyectos/
+./datos.txt              # /home/alumno/proyectos/datos.txt
+../documentos/apuntes.txt   # /home/alumno/documentos/apuntes.txt
+../../profesor/examen.txt   # /home/profesor/examen.txt
+```
+
+Notar cómo `..` nos permite "subir" en la jerarquía. Podemos encadenar múltiples `..` para navegar a directorios ancestros más lejanos.
+
+### Operaciones sobre Directorios
+
+Las operaciones sobre directorios son análogas a las de archivos, pero con semántica específica. `mkdir(nombre)` crea un directorio nuevo: asigna un FCB de tipo directorio, lo inicializa con las entradas especiales `.` (referencia a sí mismo) y `..` (referencia al padre), y añade una entrada en el directorio padre.
+
+La operación `rmdir(nombre)` elimina un directorio, pero solo si está vacío —es decir, solo contiene `.` y `..`. Esta restricción previene la pérdida accidental de contenido. Para eliminar directorios con contenido, debemos hacerlo recursivamente, eliminando primero todos los archivos y subdirectorios.
+
+Para leer el contenido de un directorio, usamos `opendir(nombre)`, `readdir(dir)` para obtener cada entrada sucesivamente, y `closedir(dir)` para finalizar. Finalmente, `chdir(nombre)` cambia el directorio de trabajo actual del proceso, afectando cómo se resuelven las rutas relativas.
+
+## Estructuras Administrativas del SO
+
+El sistema operativo mantiene varias estructuras en memoria para gestionar archivos abiertos eficientemente. Estas estructuras forman una jerarquía de tres niveles que separa las preocupaciones de cada proceso de las preocupaciones globales del sistema.
+
+### Arquitectura de Tres Niveles
+
+```
+Proceso A                          Proceso B
++-----------------+                +-----------------+
+| File Descriptor |                | File Descriptor |
+| Table           |                | Table           |
+|  0: stdin       |                |  0: stdin       |
+|  1: stdout      |                |  1: stdout      |
+|  2: stderr      |                |  2: stderr      |
+|  3: -------+    |                |  3: -------+    |
+|  4: ----+  |    |                |  4: ----+  |    |
++---------|--+----+                +---------|--+----+
+          |  |                               |  |
+          |  +-------------------+           |  |
+          |                      |           |  |
+          v                      v           v  v
+    +---------------------------------------------+
+    |    Open File Table (System-Wide)           |
+    +---------------------------------------------+
+    | Entry 0:                                    |
+    |   - Modo: O_RDONLY                          |
+    |   - Offset: 1024                            |
+    |   - Ref count: 1                            |
+    |   - Ptr a inodo: -----> Inodo 5678          |
+    | Entry 1:                                    |
+    |   - Modo: O_RDWR                            |
+    |   - Offset: 0                               |
+    |   - Ref count: 2  (compartido por A y B)    |
+    |   - Ptr a inodo: -----> Inodo 1234          |
+    +---------------------------------------------+
+                                  |
+                                  v
+                        +-------------------+
+                        |   Inode Table     |
+                        +-------------------+
+                        | Inodo 1234:       |
+                        |   - Permisos      |
+                        |   - Tamaño        |
+                        |   - Bloques       |
+                        | Inodo 5678:       |
+                        |   - ...           |
+                        +-------------------+
+```
+
+### Nivel 1: File Descriptor Table (por proceso)
+
+Cada proceso mantiene su propia tabla de descriptores de archivo. Esta tabla es privada —no compartida con otros procesos— y contiene típicamente 1024 entradas, aunque este límite puede configurarse.
+
+```c
+struct file_descriptor_table {
+    struct file *entries[OPEN_MAX];  // Típicamente 1024 entradas
+};
+```
+
+El índice en esta tabla es el file descriptor: el número entero que retorna `open()` y que usamos en operaciones posteriores. Cada entrada apunta a una posición en la Open File Table global. Los primeros tres descriptores están reservados: 0 para stdin (entrada estándar), 1 para stdout (salida estándar) y 2 para stderr (error estándar). Estos descriptores preconfigurados permiten que los programas lean de la consola y escriban mensajes sin necesidad de abrir archivos explícitamente.
+
+### Nivel 2: Open File Table (system-wide)
+
+La Open File Table es una estructura global del sistema que mantiene información de todos los archivos abiertos por todos los procesos. A diferencia de la File Descriptor Table, esta tabla es compartida.
+
+```c
+struct open_file_entry {
+    int mode;              // O_RDONLY, O_WRONLY, O_RDWR
+    off_t offset;          // Posición actual de lectura/escritura
+    int ref_count;         // Cantidad de descriptores apuntando aquí
+    struct inode *inode;   // Puntero al inodo del archivo
+    int flags;             // O_APPEND, O_NONBLOCK, etc.
+};
+```
+Cada entrada mantiene el modo de apertura, el offset actual de lectura/escritura, un contador de referencias que indica cuántos file descriptors apuntan a esta entrada, y un puntero al inodo del archivo. Este nivel intermedio es crucial porque permite que múltiples procesos compartan el mismo offset —algo que ocurre cuando un proceso hace `fork()` después de abrir un archivo, heredando el file descriptor y compartiendo el offset con el padre. Sin embargo, diferentes procesos pueden abrir el mismo archivo con diferentes modos y offsets independientes simplemente creando entradas separadas en esta tabla.
+\begin{infobox}
+Múltiples procesos pueden compartir la misma entrada en Open File Table si se hizo \texttt{fork()} después de abrir el archivo, o si se pasó el descriptor via \texttt{dup()} o sockets UNIX. En estos casos, el offset es verdaderamente compartido: cuando un proceso lee, el offset avanza para todos los procesos que comparten la entrada.
+\end{infobox}
+
+### Nivel 3: Inode Table
+
+La Inode Table es una caché en memoria de los inodos almacenados en disco. El sistema operativo mantiene aquí los inodos de todos los archivos actualmente abiertos.
+
+```c
+struct inode {
+    mode_t mode;           // Tipo y permisos
+    uid_t uid;             // Propietario
+    gid_t gid;             // Grupo
+    off_t size;            // Tamaño en bytes
+    time_t atime, mtime, ctime;  // Timestamps
+    blkcnt_t blocks;       // Bloques asignados
+    uint32_t block_ptrs[15];  // Punteros a bloques
+    int ref_count;         // Cantidad de open file entries
+    // ... más campos
+};
+```
+
+Este nivel es global: existe un solo inodo en memoria por cada archivo, sin importar cuántos procesos lo tengan abierto o cuántas entradas existan en la Open File Table. El inodo contiene todos los metadatos persistentes del archivo y los punteros a sus bloques de datos. Los cambios en el inodo —como actualizaciones de tamaño o timestamps— eventualmente se escriben de vuelta al disco.
+
+### Ejemplo de Interacción
+Veamos cómo interactúan estos tres niveles en un escenario concreto:
+
+```c
+// Proceso A
+int fd1 = open("/home/alumno/datos.txt", O_RDONLY);  // fd1 = 3
+read(fd1, buffer, 100);  // offset avanza a 100
+
+// Proceso B (independiente)
+int fd2 = open("/home/alumno/datos.txt", O_RDONLY);  // fd2 = 3
+read(fd2, buffer, 50);   // offset avanza a 50 (INDEPENDIENTE de A)
+```
+Aquí, ambos procesos abrieron el mismo archivo, pero sus offsets son independientes. Cada proceso tiene su propia entrada en la Open File Table, aunque ambas entradas apuntan al mismo inodo. El proceso A puede estar leyendo desde el byte 100 mientras el proceso B lee desde el byte 50.  
+Ahora consideremos un escenario diferente:
+
+```c
+// Proceso A hace fork()
+pid_t pid = fork();
+if (pid == 0) {
+    // Hijo: heredó fd1, pero COMPARTE el offset con el padre
+    read(fd1, buffer, 50);  // Lee desde byte 100, offset ahora en 150
+}
+// Padre: el offset también está en 150 (compartido)
+```
+Después del `fork()`, tanto el padre como el hijo tienen un file descriptor 3 que apunta a la misma entrada en la Open File Table. Por lo tanto, comparten el offset. Cuando el hijo lee 50 bytes, el offset avanza a 150, y el padre ve este cambio porque están mirando la misma estructura.
+
+### File Locking: Sincronización de Acceso
+
+Cuando múltiples procesos acceden al mismo archivo, pueden ocurrir race conditions. Si dos procesos intentan escribir simultáneamente en la misma posición, los datos podrían corromperse. El sistema operativo provee mecanismos de locking para coordinar el acceso.
+
+#### Advisory Locking (flock)
+El advisory locking es un mecanismo cooperativo. Los procesos voluntariamente solicitan locks antes de acceder al archivo.
+
+```c
+#include <sys/file.h>
+
+int fd = open("archivo.dat", O_RDWR);
+
+// Adquirir lock exclusivo
+if (flock(fd, LOCK_EX) == 0) {
+    // Sección crítica: solo este proceso puede escribir
+    write(fd, datos, tamaño);
+    flock(fd, LOCK_UN);  // Liberar lock
+}
+```
+
+\begin{warning}
+Este tipo de lock es "cooperativo". Un proceso malicioso o mal programado puede IGNORAR el lock y escribir sin solicitarlo. Se confía en que todos los procesos respeten el protocolo. Es responsabilidad de los desarrolladores usar estos locks consistentemente.
+\end{warning}
+
+#### Mandatory Locking (fcntl)
+El mandatory locking es más robusto: el kernel impone los locks, bloqueando operaciones que violen restricciones activas.
+
+```c
+#include <fcntl.h>
+
+struct flock lock;
+lock.l_type = F_WRLCK;     // Write lock
+lock.l_whence = SEEK_SET;
+lock.l_start = 0;          // Desde byte 0
+lock.l_len = 1024;         // Lockear 1024 bytes
+
+// Intentar adquirir lock
+if (fcntl(fd, F_SETLK, &lock) == -1) {
+    perror("No se pudo obtener lock");
+} else {
+    // Tenemos el lock, trabajar con el archivo
+    write(fd, datos, 1024);
+    
+    // Liberar
+    lock.l_type = F_UNLCK;
+    fcntl(fd, F_SETLK, &lock);
+}
+```
+
+Existen dos tipos de locks: shared locks (F_RDLCK) permiten que múltiples procesos lean simultáneamente, mientras que exclusive locks (F_WRLCK) garantizan acceso exclusivo para escritura, bloqueando tanto lecturas como escrituras de otros procesos.
+\begin{example}
+Los locks son esenciales en sistemas de bases de datos para lockear registros específicos, en archivos de configuración para evitar escrituras concurrentes que podrían dejar el archivo en estado inconsistente, y en logs para coordinar appends de múltiples procesos sin sobrescribir datos.
+\end{example}
+
+## Protección y Permisos
+
+### Modelo de Permisos Unix
+
+Unix implementa un modelo simple pero efectivo de control de acceso basado en 9 bits que especifican permisos para tres categorías de usuarios: el propietario (owner), el grupo (group) y todos los demás (others).
+
+```
+-rwxr-xr--
+│││││││││└─ Others: execute
+││││││││└── Others: write
+│││││││└─── Others: read
+││││││└──── Group: execute
+│││││└───── Group: write
+││││└────── Group: read
+│││└─────── Owner: execute
+││└──────── Owner: write
+│└───────── Owner: read
+└────────── Tipo (- regular, d directorio, l link)
+```
+
+Los permisos también pueden expresarse en notación octal, donde cada grupo de tres bits forma un dígito:
+
+| Owner | Group | Others | Octal |
+|-------|-------|--------|-------|
+| rwx | rwx | rwx | 777 |
+| rwx | r-x | r-- | 754 |
+| rw- | r-- | r-- | 644 |
+| rwx | --- | --- | 700 |
+
+#### Significado de los Permisos
+
+Para archivos regulares, el permiso *read* permite leer el contenido, *write* permite modificar el contenido (pero no necesariamente eliminar el archivo), y *execute* permite ejecutar el archivo como programa.
+
+Para directorios, la semántica es diferente. El permiso *read* permite listar el contenido del directorio mediante `readdir()`, pero no acceder a los archivos dentro. El permiso *write* permite crear o eliminar archivos en el directorio —esta es una distinción crucial. El permiso *execute* permite "atravesar" el directorio, es decir, acceder a archivos dentro de él aunque no podamos listar el contenido.
+
+\begin{warning}
+Para eliminar un archivo, NO se necesita permiso de escritura sobre el archivo mismo, sino sobre el DIRECTORIO que lo contiene. El directorio es quien mantiene la lista de nombres, y eliminar un archivo es simplemente remover su entrada de esa lista.
+\end{warning}
+
+### Verificación de Permisos
+
+Cuando un proceso intenta abrir un archivo, el kernel ejecuta un algoritmo de verificación que considera la identidad del proceso (UID y GID efectivos) y los permisos del archivo.
+
+La verificación procede en orden: primero se verifica si el proceso es el propietario del archivo. Si lo es, se evalúan únicamente los bits de permiso del owner, ignorando los bits de group y others. Si el proceso no es el propietario pero pertenece al grupo del archivo, se evalúan únicamente los bits de group. Finalmente, si el proceso no es owner ni miembro del group, se evalúan los bits de others.
+```c
+// Pseudocódigo simplificado
+int check_permission(struct inode *inode, int operation) {
+    uid_t process_uid = current->uid;
+    gid_t process_gid = current->gid;
+    
+    // 1. ¿El proceso es el owner?
+    if (process_uid == inode->uid) {
+        if (operation == READ && (inode->mode & 0400)) return OK;
+        if (operation == WRITE && (inode->mode & 0200)) return OK;
+        if (operation == EXEC && (inode->mode & 0100)) return OK;
+        return -EACCES;  // Owner pero sin permiso específico
+    }
+    
+    // 2. ¿El proceso pertenece al group?
+    if (process_gid == inode->gid) {
+        if (operation == READ && (inode->mode & 0040)) return OK;
+        if (operation == WRITE && (inode->mode & 0020)) return OK;
+        if (operation == EXEC && (inode->mode & 0010)) return OK;
+        return -EACCES;
+    }
+    
+    // 3. Verificar permisos de others
+    if (operation == READ && (inode->mode & 0004)) return OK;
+    if (operation == WRITE && (inode->mode & 0002)) return OK;
+    if (operation == EXEC && (inode->mode & 0001)) return OK;
+    
+    return -EACCES;  // Sin permisos
+}
+```
+
+Es importante notar que esta verificación es en cascada: si somos owner, los permisos de group y others no importan. Esto puede crear situaciones contraintuitivas donde ser el propietario de un archivo nos da *menos* acceso que si fuéramos un usuario cualquiera, si configuramos los permisos de manera inadecuada.
+
+\begin{infobox}
+El usuario root (UID 0) bypasea todas las verificaciones de permisos. Root puede leer, escribir y ejecutar cualquier archivo del sistema, sin importar los permisos configurados. Esta es una de las razones por las que trabajar como root es peligroso: no hay red de seguridad que prevenga errores.
+\end{infobox}
+
+### Umask: Permisos por Defecto
+
+Cuando creamos un archivo nuevo, el sistema debe decidir qué permisos asignarle. Aquí entra en juego el **umask**.
+
+\begin{theory}
+\emph{Umask:}
+Máscara que especifica qué permisos NO otorgar al crear archivos nuevos. Se resta de los permisos solicitados mediante una operación AND con el complemento.
+\end{theory}
+```c
+// Si umask = 0022 (octal)
+// Permisos solicitados: 0666 (rw-rw-rw-)
+// Permisos finales: 0666 & ~0022 = 0644 (rw-r--r--)
+
+int fd = open("nuevo.txt", O_CREAT | O_WRONLY, 0666);
+// El archivo se crea con permisos 0644 debido al umask
+```
+
+Los umask típicos son 0022 (usuario puede escribir, grupo y others solo leer, resultando en archivos 644 y directorios 755), 0002 (usuario y grupo pueden escribir, others solo leer, resultando en archivos 664 y directorios 775), y 0077 (solo el usuario tiene acceso, resultando en archivos 600 y directorios 700, máxima privacidad).
+
+### Cambio de Permisos
+
+Los permisos pueden modificarse después de crear un archivo mediante las system calls `chmod()` y `chown()`.
+```c
+#include <sys/stat.h>
+
+// Cambiar permisos de un archivo
+chmod("archivo.txt", 0644);  // rw-r--r--
+
+// Cambiar propietario (requiere privilegios)
+chown("archivo.txt", 1000, 1000);  // UID 1000, GID 1000
+```
+
+Desde la shell, estos comandos tienen sintaxis conveniente:
+```bash
+chmod 755 script.sh        # rwxr-xr-x
+chmod u+x programa.c       # Agregar ejecución para owner
+chmod go-w archivo.txt     # Quitar escritura a group y others
+chown alumno:estudiantes datos.txt
+```
+
+La notación simbólica (`u+x`, `go-w`) es más legible para cambios incrementales, mientras que la notación octal (`755`) es más directa para configurar permisos completos de una vez.
+
+## Implementación Física: Disco
+
+Hasta ahora vimos la abstracción lógica de archivos y directorios. Ahora bajamos al nivel físico para entender cómo se almacenan realmente los datos en el disco y cómo el file system traduce operaciones lógicas en accesos físicos.
+
+### Hardware: Sectores vs Bloques
+
+#### Sectores (Físico)
+
+\begin{theory}
+\emph{Sector:}
+Unidad mínima de transferencia de datos en el hardware del disco. Es una característica física impuesta por la controladora, no por el software.
+\end{theory}
+
+Los discos históricos usaban sectores de 512 bytes, un estándar que dominó desde los años 1980 hasta 2010. Los discos modernos y SSD han migrado al formato Advanced Format con sectores de 4096 bytes (4 KiB), mejorando eficiencia y reduciendo overhead.
+
+El hardware del disco solo puede leer o escribir sectores completos. No existe forma de acceder a un byte individual sin leer todo el sector que lo contiene. Esta es una restricción fundamental del hardware que el file system debe manejar.
+
+#### Bloques (Lógico)
+
+\begin{theory}
+\emph{Bloque (o Cluster):}
+Unidad mínima de asignación utilizada por el file system. Agrupa uno o más sectores consecutivos. Es una abstracción del software, configurable al formatear el disco.
+\end{theory}
+
+El tamaño del bloque se elige al formatear el sistema de archivos. Si tenemos sectores de 512 bytes y elegimos bloques de 4 KiB, cada bloque agrupa 8 sectores consecutivos. Si tenemos sectores de 4 KiB y elegimos bloques de 4 KiB, hay correspondencia uno a uno.
+
+| Aspecto | Sector | Bloque |
+|---------|--------|--------|
+| Naturaleza | Física (hardware) | Lógica (software) |
+| Tamaño | Fijo por el disco | Configurable al formatear |
+| Usado por | Controladora de disco | Sistema de archivos |
+| Granularidad | Operaciones de bajo nivel | Asignación de archivos |
+
+### ¿Por qué usar bloques en vez de sectores directamente?
+
+La abstracción de bloques ofrece varias ventajas. Reduce la fragmentación al trabajar con unidades más grandes, disminuye la cantidad de entradas en estructuras administrativas (menos punteros que mantener), mejora el rendimiento al leer o escribir múltiples sectores de una sola vez, y simplifica la gestión de espacio libre.
+
+\begin{example}
+Un archivo de 100 KiB con bloques de 4 KiB requiere ⌈100 / 4⌉ = 25 bloques. Si usáramos sectores de 512 bytes directamente, necesitaríamos ⌈100 × 1024 / 512⌉ = 200 sectores. El sistema debe mantener 25 punteros en vez de 200, reduciendo significativamente el overhead de metadatos.
+\end{example}
+
+### Fragmentación Interna
+
+El uso de bloques introduce un problema conocido como fragmentación interna. Si un archivo ocupa 5 KiB pero los bloques son de 4 KiB, debemos asignar 2 bloques completos (8 KiB), desperdiciando 3 KiB que no pueden ser usados por otros archivos. Este espacio queda atrapado dentro del bloque asignado.
+
+\begin{warning}
+El desperdicio promedio es la mitad del tamaño del bloque por archivo. Con bloques de 4 KiB, un archivo de 1 byte desperdicia aproximadamente 4095 bytes, y un archivo de 4097 bytes también desperdicia aproximadamente 4095 bytes. En promedio, cada archivo desperdicia unos 2 KiB.
+\end{warning}
+
+Existe un trade-off fundamental en la elección del tamaño de bloque:
+
+| Tamaño | Fragmentación interna | Overhead metadatos | Rendimiento |
+|--------|----------------------|-------------------|-------------|
+| 1 KiB | Baja | Alto (muchos punteros) | Bajo |
+| 4 KiB | Media | Medio | Medio |
+| 8 KiB | Alta | Bajo | Alto (archivos grandes) |
+| 64 KiB | Muy alta | Muy bajo | Muy alto (streaming) |
+
+La elección típica de 4 KiB representa un buen balance para uso general, alineándose además con el tamaño de página de memoria en arquitecturas modernas.
+
+## Métodos de Asignación de Espacio
+
+El file system debe decidir cómo asignar bloques físicos del disco a los archivos lógicos. Esta decisión afecta el rendimiento, la fragmentación y la complejidad del sistema. Existen tres enfoques principales, cada uno con sus ventajas y desventajas.
+
+### Método 1: Asignación Contigua
+
+En la asignación contigua, todos los bloques de un archivo se almacenan en posiciones consecutivas del disco, uno detrás del otro sin interrupciones.
+
+```
+Disco:
++----+----+----+----+----+----+----+----+
+| A  | A  | A  | A  | libre | B  | B  | B  |
++----+----+----+----+----+----+----+----+
+  100  101  102  103   104    105  106  107
+
+Archivo A: bloque inicial = 100, longitud = 4
+Archivo B: bloque inicial = 105, longitud = 3
+```
+
+Para representar un archivo solo necesitamos dos números: el bloque inicial y la cantidad de bloques. Esta simplicidad es atractiva y hace que el acceso secuencial sea extremadamente rápido —el brazo del disco puede leer todos los bloques sin moverse. El acceso aleatorio también es eficiente porque podemos calcular directamente la posición física de cualquier byte.
+
+Sin embargo, los problemas aparecen con el uso. La fragmentación externa se vuelve severa con el tiempo: después de crear y eliminar muchos archivos, el disco queda lleno de huecos pequeños que no pueden utilizarse eficientemente. Hacer crecer un archivo es difícil o imposible si no hay espacio contiguo después del último bloque —podríamos necesitar mover TODO el archivo a otra ubicación. Esto requiere compactación periódica del disco, una operación costosa que mueve archivos para eliminar los huecos.
+
+\begin{infobox}
+La asignación contigua es ideal para medios de solo lectura como CD-ROM y DVD, donde los archivos nunca crecen ni se eliminan. En estos contextos, sus ventajas de rendimiento brillan sin sufrir sus desventajas de fragmentación.
+\end{infobox}
+
+### Método 2: Asignación Enlazada
+
+En la asignación enlazada, cada bloque contiene datos y un puntero al siguiente bloque, formando una lista enlazada dispersa por el disco.
+
+```
+Archivo A: primer bloque = 45
++--------+--------+
+| Datos  | ptr=78 |  Bloque 45
++--------+--------+
+              |
+              v
++--------+--------+
+| Datos  | ptr=12 |  Bloque 78
++--------+--------+
+              |
+              v
++--------+--------+
+| Datos  | NULL   |  Bloque 12 (último)
++--------+--------+
+```
+Este método elimina completamente la fragmentación externa —cualquier bloque libre puede ser usado— y los archivos pueden crecer dinámicamente sin necesidad de mover datos existentes. Solo necesitamos guardar el bloque inicial en los metadatos del archivo; el resto de la información de ubicación está distribuida en los punteros.
+
+Los problemas surgen con el acceso aleatorio. Para leer el byte 10,000 de un archivo con bloques de 4 KiB, debemos calcular que está en el bloque número 2 (10,000 / 4096). Pero para llegar al bloque 2, debemos leer el bloque 0, seguir su puntero al bloque 1, seguir ese puntero al bloque 2, y finalmente leer los datos. Son 3 accesos a disco en vez de 1. La pérdida de un puntero puede corromper el resto del archivo, y parte del espacio de cada bloque se desperdicia almacenando el puntero en vez de datos.
+
+#### Mejora: FAT (File Allocation Table)
+
+FAT mejora la asignación enlazada moviendo todos los punteros a una tabla centralizada en memoria.
+
+```
+Tabla FAT:
+Índice  Valor
+  45  →  78
+  78  →  12
+  12  → EOF
+```
+
+Ahora los bloques de datos quedan completos —no contienen punteros— y la tabla FAT se cachea en memoria para acceso rápido. La pérdida de datos en un bloque solo afecta su contenido, no la cadena de punteros completa. La recuperación ante corrupción es más fácil porque la estructura crítica está separada de los datos.
+
+Este es el método usado por el File System FAT de Microsoft, que veremos en detalle en secciones posteriores.
+
+### Método 3: Asignación Indexada
+
+La asignación indexada usa un bloque especial (bloque de índice) que contiene punteros a todos los bloques de datos del archivo.
+
+```
+Archivo A: bloque índice = 500
+
+Bloque Índice 500:
++------+------+------+------+
+| 123  | 456  | 789  | 234  |
++------+------+------+------+
+   |      |      |      |
+   v      v      v      v
+ Datos  Datos  Datos  Datos
+ (123)  (456)  (789)  (234)
+```
+
+El acceso aleatorio es eficiente: para leer el byte 10,000 con bloques de 4 KiB, calculamos que está en el bloque 2, leemos el bloque de índice, obtenemos el puntero en la posición 2 (que es 789), y leemos el bloque 789. Son solo 2 accesos a disco. No hay fragmentación externa, y toda la información de ubicación está consolidada en un solo lugar, facilitando operaciones como truncar o eliminar el archivo.
+
+El costo es el overhead del bloque de índice —archivos pequeños desperdician la mayor parte de este bloque— y el tamaño máximo de archivo está limitado por cuántos punteros caben en un bloque. Con bloques de 4 KiB y punteros de 4 bytes, caben 1024 punteros, limitando el tamaño máximo a 1024 × 4 KiB = 4 MiB. Para archivos más grandes, se usan índices multinivel, una técnica que veremos al estudiar EXT2.
+
+### Comparación de Métodos
+
+| Aspecto | Contigua | Enlazada (FAT) | Indexada |
+|---------|----------|----------------|----------|
+| Fragmentación externa | Alta | Ninguna | Ninguna |
+| Tamaño dinámico | No | Sí | Sí |
+| Acceso secuencial | Excelente | Bueno | Bueno |
+| Acceso aleatorio | Excelente | Muy malo | Excelente |
+| Overhead metadatos | Mínimo | Medio (tabla FAT) | Alto (bloques índice) |
+| Confiabilidad | Alta | Media | Alta |
+| Complejidad | Muy simple | Simple | Moderada |
+
+\begin{center}
+agregar diagrama
+%%\includegraphics[width=0.9\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-metodosAsignacion.png}
+\end{center}
+
+## Manejo de Espacio Libre
+
+Además de rastrear qué bloques pertenecen a qué archivos, el file system debe mantener información sobre qué bloques están libres y disponibles para asignación. La eficiencia de esta estructura impacta directamente el rendimiento de creación de archivos y escrituras que requieren bloques adicionales.
+
+### Método 1: Bitmap de Bloques
+
+Un bitmap es un array de bits donde cada bit representa un bloque del disco. Si el bit está en 1, el bloque está ocupado; si está en 0, está libre.
+
+```
+Bitmap (1 = ocupado, 0 = libre):
+[1 1 1 1 0 0 0 1 1 0 1 1 1 0 0 0 ...]
+ 0 1 2 3 4 5 6 7 8 9...
+
+Bloque 0: ocupado
+Bloque 4: libre
+Bloque 5: libre
+```
+Para buscar un bloque libre, recorremos el bitmap buscando el primer bit en 0. Cuando lo encontramos, lo cambiamos a 1 para marcarlo como ocupado. Para liberar un bloque, simplemente cambiamos su bit a 0.
+
+```c
+// Buscar primer bit en 0
+for (int i = 0; i < total_bloques; i++) {
+    if (bitmap[i / 8] & (1 << (i % 8)) == 0) {
+        // Bloque i está libre
+        bitmap[i / 8] |= (1 << (i % 8));  // Marcar como ocupado
+        return i;
+    }
+}
+
+// Liberar bloque
+bitmap[bloque / 8] &= ~(1 << (bloque % 8));
+```
+
+El bitmap es extremadamente compacto —solo 1 bit por bloque— y buscar bloques contiguos es relativamente fácil (buscamos secuencias de bits en 0). Para un disco de 500 GiB con bloques de 4 KiB, tenemos 131.072.000 bloques, y el bitmap ocupa aproximadamente 16 MiB. Este overhead es razonable y el bitmap típicamente se mantiene cacheado en memoria.
+
+### Método 2: Lista Enlazada de Bloques Libres
+
+En este método, los bloques libres forman una lista enlazada donde cada bloque libre contiene el número del siguiente bloque libre.
+
+```
+Head → Bloque 45 → Bloque 78 → Bloque 12 → NULL
+```
+
+Este enfoque es ineficiente para encontrar bloques contiguos y requiere accesos a disco para explorar la lista. Parte del espacio en los bloques libres se desperdicia almacenando punteros. Este método era común en sistemas antiguos pero ha sido mayormente abandonado en favor de bitmaps.
+
+### Método 3: Agrupamiento
+
+El agrupamiento combina ideas de bitmap y lista: cada entrada de la lista apunta a un grupo de bloques contiguos.
+
+```
+Head → [45-48] → [78-82] → [100-103] → NULL
+```
+Esto reduce la cantidad de punteros necesarios y facilita encontrar bloques contiguos cuando los necesitamos.
+
+### Método Usado en Práctica
+
+Los file systems modernos han convergido en soluciones eficientes. EXT2/3/4 usa bitmap de bloques por su simplicidad y eficiencia. FAT reutiliza la misma tabla FAT (una entrada con valor 0x0000 indica bloque libre). NTFS usa bitmap de bloques junto con su Master File Table (MFT).
+
+## Seguridad y Recuperación
+
+### Journaling: Registro de Transacciones
+
+\begin{theory}
+\emph{Journaling:}
+Técnica que registra cambios ANTES de aplicarlos al file system. Si ocurre un fallo durante una operación, el sistema puede usar el journal para completar o deshacer operaciones incompletas, manteniendo consistencia.
+\end{theory}
+
+Sin journaling, un corte de energía durante una operación puede dejar el file system en estado inconsistente. Supongamos que estamos escribiendo un archivo nuevo. El proceso requiere actualizar el bitmap (marcar bloques como usados), crear o actualizar el inodo, actualizar el directorio padre y escribir los datos. Si el sistema se apaga después de actualizar el bitmap pero antes de escribir el inodo, tenemos bloques marcados como usados que no pertenecen a ningún archivo —espacio perdido que ni siquiera podemos recuperar fácilmente.
+
+El journaling resuelve este problema registrando nuestras intenciones antes de ejecutarlas. Primero escribimos al journal: "Voy a asignar bloque 500 a inodo 1234, actualizar directorio /home/user". Luego marcamos esta operación como COMMIT —lista para aplicar. Después aplicamos los cambios reales al bitmap, inodo, directorio y datos. Finalmente, marcamos la operación como CLEANUP —completada exitosamente.
+
+Si el sistema se apaga durante el paso de aplicar cambios, al reiniciar el sistema operativo lee el journal. Ve que hay una operación con COMMIT pero sin CLEANUP, lo que indica que comenzó pero no terminó. El sistema vuelve a aplicar los cambios —las operaciones son idempotentes, aplicarlas dos veces produce el mismo resultado que una vez. El file system queda consistente sin pérdida de datos.
+
+Existen diferentes niveles de journaling con diferentes garantías de seguridad y costos de rendimiento. El modo *metadata only* solo registra cambios en inodos, directorios y bitmaps, ofreciendo alto rendimiento pero protección media. El modo *ordered* registra metadata y además garantiza que los datos se escriben ANTES del commit, evitando que un archivo con tamaño actualizado contenga basura en los bloques recién asignados. El modo *full data* registra tanto metadata como el contenido completo de los archivos, ofreciendo máxima seguridad a costa de rendimiento significativamente menor.
+
+\begin{highlight}
+La ventaja principal del journaling es la recuperación casi instantánea después de un crash. En lugar de escanear todo el disco con fsck (lo que puede tardar horas en discos grandes), simplemente reproducimos las entradas del journal (operación que toma segundos).
+\end{highlight}
+
+Los file systems modernos implementan journaling: EXT3, EXT4, XFS, NTFS, HFS+ y Btrfs todos proveen esta protección.
+
+### fsck / chkdsk: File System Consistency Check
+
+\begin{theory}
+\emph{fsck (File System Consistency Check):}
+Herramienta que verifica y repara inconsistencias en un file system NO montado. Escanea inodos, directorios, bitmaps y bloques de datos buscando y corrigiendo errores estructurales.
+\end{theory}
+
+`fsck` se ejecuta después de un apagado incorrecto en sistemas sin journaling, periódicamente cada N montajes o M días como mantenimiento preventivo, o manualmente cuando se detecta corrupción. La herramienta debe ejecutarse con el file system desmontado para evitar modificaciones durante la verificación.
+
+La operación de `fsck` en EXT2 procede en cinco fases. La Fase 1 verifica inodos: que la estructura de cada inodo sea válida, que los bloques referenciados estén dentro del rango del disco, y que el tipo de archivo sea válido. La Fase 2 verifica directorios: que las entradas apunten a inodos válidos, que no existan ciclos en la estructura, y que cada directorio tenga las entradas especiales `.` y `..` correctas.
+
+La Fase 3 verifica conectividad: todos los inodos marcados como usados deben ser accesibles desde el directorio raíz. Los inodos huérfanos —que existen pero no tienen entrada de directorio— se mueven a `/lost+found` donde el usuario puede inspeccionarlos. La Fase 4 verifica contadores: el campo `links_count` de cada inodo debe coincidir con la cantidad real de entradas de directorio que apuntan a él. Si no coincide, se corrige.
+
+Finalmente, la Fase 5 verifica bitmaps: el bitmap de bloques debe coincidir exactamente con qué bloques están realmente en uso, el bitmap de inodos debe coincidir con qué inodos están usados, y los contadores de espacio libre en el superbloque deben ser correctos.
+
+\begin{example}
+Problemas comunes que fsck detecta y repara:
+
+- "Bloque X reclamado por múltiples inodos" → hay que elegir a cuál pertenece
+- "Inodo Y no tiene entrada de directorio" → mover a /lost+found
+- "Directorio Z referencia inodo inexistente" → eliminar entrada corrupta
+- "links\_count incorrecto en inodo W" -> corregir contador
+- "Bloques marcados como libres pero en uso" → corregir bitmap
+\end{example}
+
+\begin{warning}
+Las desventajas de fsck son significativas. En discos grandes de varios terabytes, la verificación completa puede tardar HORAS. El file system debe desmontarse durante la operación, dejándolo offline. Además, fsck solo detecta y repara inconsistencias estructurales; no puede recuperar datos que se perdieron físicamente.
+\end{warning}
+
+En Windows, el equivalente es `chkdsk` (Check Disk):
+```bash
+# Linux
+fsck /dev/sda1         # Verificar partición
+fsck -y /dev/sda1      # Auto-reparar sin preguntar
+
+# Windows
+chkdsk C:              # Verificar
+chkdsk C: /F           # Reparar
+```
+
+## Caso de Estudio 1: FAT (File Allocation Table)
+
+FAT es uno de los sistemas de archivos más simples y ampliamente soportados. Creado por Microsoft para MS-DOS entre 1977 y 1980, sigue siendo el estándar de facto en dispositivos portátiles como pendrives y tarjetas SD.
+
+### Características Generales
+
+Antes de sumergirnos en los detalles técnicos, es crucial entender una diferencia conceptual fundamental que distingue a FAT de sistemas más sofisticados como EXT2.
+\begin{warning}
+En FAT NO existe el concepto de FCB/inodo como estructura separada. La entrada del directorio contiene DIRECTAMENTE todos los metadatos del archivo: nombre, tamaño, primer cluster, atributos y timestamps. La tabla FAT solo contiene información de enlazamiento entre clusters, no metadatos completos.
+\end{warning}
+Esta arquitectura unificada hace que FAT sea más simple de implementar, pero también más limitado en funcionalidad. No hay separación entre la identidad del archivo y su ubicación en el directorio, lo que imposibilita características como hard links.
+
+### Componentes de FAT
+El volumen FAT se estructura en cinco regiones distintas, cada una con un propósito específico:
+
+```
+Estructura del volumen FAT:
++----------------+
+| Boot Sector    |  Sector 0: parámetros del FS
++----------------+
+| FAT 1         |  Tabla de asignación principal
++----------------+
+| FAT 2         |  Copia de respaldo
++----------------+
+| Root Directory |  Solo en FAT12/16 (ubicación fija)
++----------------+
+| Data Area      |  Clusters de datos (numerados desde 2)
++----------------+
+```
+
+\begin{center}
+agregar diagrama
+%%\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-estructuraFAT.png}
+\end{center}
+
+#### 1. Boot Sector
+
+El primer sector del volumen contiene los parámetros fundamentales del file system. Aquí se especifican los bytes por sector (típicamente 512 o 4096), los sectores por cluster (siempre una potencia de 2), la cantidad de tablas FAT (típicamente 2 para redundancia), el tamaño de las tablas FAT y el tipo específico de FAT (12, 16 o 32 bits).
+
+#### 2. Tabla FAT
+
+La tabla FAT es esencialmente un array de entradas donde cada índice representa un cluster del disco.  
+Esta tabla implementa el método de asignación enlazada que estudiamos anteriormente.
+
+```
+Índice     Valor        Significado
+--------------------------------------
+0          Reservado    Media descriptor
+1          Reservado    Marcador de limpieza
+2          0x0003       Cluster 2 apunta a cluster 3
+3          0x0004       Cluster 3 apunta a cluster 4
+4          0xFFFF       Fin de cadena (último cluster)
+5          0x0000       Cluster libre
+6          0x0008       Cluster 6 apunta a cluster 8
+7          0xFFF7       Bad cluster (sector defectuoso)
+8          0xFFFF       Fin de cadena
+```
+
+Los valores en la tabla tienen significados específicos. El valor `0x0000` indica un cluster libre disponible para asignación. Valores entre `0x0002` y `0xFFEF` son punteros que indican el siguiente cluster del archivo. El valor `0xFFF7` marca un bad cluster —un sector físicamente defectuoso que debe evitarse— y valores entre `0xFFF8` y `0xFFFF` marcan el final de una cadena de clusters.
+\begin{infobox}
+La tabla FAT se mantiene duplicada (FAT 1 y FAT 2) para proporcionar redundancia básica. Si la primera copia se corrompe, el sistema puede recuperar usando la segunda. Esta es una de las pocas características de confiabilidad de FAT.
+\end{infobox}
+
+#### 3. Entrada de Directorio
+
+Cada archivo o subdirectorio tiene una entrada de exactamente 32 bytes en su directorio padre. Esta estructura compacta contiene toda la información necesaria para acceder al archivo.
+
+```c
+struct fat_directory_entry {
+    char name[8];              // Nombre (sin extensión)
+    char extension[3];         // Extensión (sin el punto)
+    uint8_t attributes;        // Ver atributos abajo
+    uint8_t reserved[10];      // Reservado (case, timestamps extendidos)
+    uint16_t time;             // Hora de última modificación
+    uint16_t date;             // Fecha de última modificación
+    uint16_t first_cluster;    // Número del primer cluster (FAT16)
+    uint32_t file_size;        // Tamaño en bytes
+};  // Total: 32 bytes
+```
+
+El campo `attributes` es un byte de flags donde cada bit tiene un significado específico:
+
+| Bit | Nombre | Significado |
+|-----|--------|-------------|
+| 0 | READ_ONLY | Archivo de solo lectura |
+| 1 | HIDDEN | Archivo oculto |
+| 2 | SYSTEM | Archivo de sistema |
+| 3 | VOLUME_LABEL | Etiqueta del volumen (no es archivo) |
+| 4 | DIRECTORY | Es un subdirectorio |
+| 5 | ARCHIVE | Modificado desde último backup |
+
+La limitación histórica más notoria de FAT es el esquema de nombres 8.3: ocho caracteres para el nombre más tres para la extensión. Nombres más largos se truncan usando una notación con tilde: "documento.txt" se convierte en "DOCUMEN~1.TXT", y "mi archivo largo.doc" en "MIARCH~1.DOC".
+
+\begin{infobox}
+FAT32 y las extensiones VFAT agregaron soporte para nombres largos usando entradas de directorio adicionales especialmente codificadas. Sin embargo, internamente el sistema sigue siendo 8.3, y cada nombre largo requiere múltiples entradas de 32 bytes encadenadas.
+\end{infobox}
+
+### Concepto de Cluster
+
+\begin{theory}
+\emph{Cluster (en FAT):}
+Unidad mínima de asignación. Agrupa varios sectores consecutivos. El tamaño del cluster depende del tamaño de la partición y se elige al formatear.
+\end{theory}
+
+Por ejemplo, si los sectores son de 512 bytes y elegimos clusters de 4 KiB, cada cluster agrupa 8 sectores consecutivos. Esta agrupación reduce el overhead de la tabla FAT —menos entradas que mantener— pero aumenta la fragmentación interna, especialmente en archivos pequeños.
+
+### FAT12, FAT16, FAT32: Evolución
+
+Las tres variantes de FAT difieren principalmente en el tamaño de las entradas de la tabla FAT, lo que determina cuántos clusters pueden direccionar:
+
+| Versión | Bits/entrada | Clusters máximos | Tamaño máx partición |
+|---------|--------------|------------------|----------------------|
+| FAT12 | 12 bits | 4.096 (2¹²) | ~32 MiB (clusters de 8 KiB) |
+| FAT16 | 16 bits | 65.536 (2¹⁶) | ~2 GiB (clusters de 32 KiB) |
+| FAT32 | 32 bits (28 usados) | ~268 millones | ~2 TiB (clusters de 32 KiB) |
+
+FAT12 dominó la era de los disquetes de 1.44 MiB en los años 1980 y 1990. FAT16 fue el estándar para discos duros pequeños hasta 2 GiB en MS-DOS y Windows 95. FAT32, introducido con Windows 95 OSR2 en 1996, sigue siendo el estándar actual en pendrives y tarjetas SD por su compatibilidad universal.
+
+\begin{warning}
+Aunque una partición FAT32 puede ser de 2 TiB, el sistema NO puede almacenar archivos individuales mayores a 4 GiB. Esta limitación proviene del campo \texttt{file\_size} de 32 bits en la entrada de directorio: $2^{32}$ bytes = 4 GiB exactos. Intentar copiar un archivo de 5 GiB a un pendrive FAT32 fallará, independientemente del espacio libre disponible.
+\end{warning}
+
+### Ejemplo de Operación: Lectura de Archivo
+
+Veamos paso a paso cómo FAT lee un archivo, siguiendo la cadena de clusters. Consideremos un archivo "documento.txt" de 12 KiB, con clusters de 4 KiB y primer cluster en la posición 245.
+
+El proceso comienza buscando en el directorio padre. Leemos el directorio, encontramos la entrada con `name="DOCUMEN~1"` y `extension="TXT"`, y obtenemos `first_cluster = 245`.
+
+Ahora leemos el primer cluster de 4 KiB accediendo al cluster 245 en el área de datos y copiando 4 KiB a memoria. Consultamos la tabla FAT: `FAT[245] = 246`, lo que indica que hay más datos en el cluster 246.
+
+Leemos el segundo cluster accediendo al cluster 246, acumulando 8 KiB. Consultamos nuevamente: `FAT[246] = 247`, todavía hay más datos.
+
+Leemos el tercer cluster en la posición 247, completando los 12 KiB del archivo. La consulta final `FAT[247] = 0xFFFF` indica EOF (end of file), señalando que hemos llegado al final.
+
+El costo total es aproximadamente 4 accesos reales a disco: uno para el directorio más tres para los clusters de datos. Las tres consultas a la tabla FAT típicamente se resuelven desde memoria, ya que el sistema operativo mantiene la tabla FAT cacheada en RAM para mejorar el rendimiento.
+
+\begin{example}
+Para un archivo de 100 KiB con clusters de 4 KiB, necesitaríamos seguir 25 punteros en la tabla FAT. Si todos estos punteros están en memoria (lo cual es típico), el costo es solo 25 lecturas de clusters de datos, no 50 operaciones de I/O.
+\end{example}
+
+## Caso de Estudio 2: EXT2 / UFS (Unix File System)
+
+EXT2 (Second Extended File System) es el sistema de archivos clásico de Linux, basado conceptualmente en UFS de BSD Unix. Representa una evolución significativa sobre FAT, introduciendo características que soportan entornos multiusuario robustos y archivos de gran tamaño.
+
+### Filosofía de Diseño
+
+La diferencia arquitectural fundamental con FAT es la separación clara entre metadatos y nombres. Los **inodos** almacenan todos los metadatos del archivo excepto su nombre: permisos, propietario, tamaños, timestamps y punteros a bloques de datos. Los **directorios** solo almacenan pares simples de (nombre, número_de_inodo).
+
+Esta separación elegante permite funcionalidades que FAT no puede ofrecer. Los hard links se vuelven triviales: múltiples nombres en diferentes directorios pueden referenciar el mismo número de inodo. Los permisos robustos de Unix (owner, group, others con lectura, escritura y ejecución) se almacenan naturalmente en el inodo. La información extendida puede agregarse al inodo sin modificar las entradas de directorio, manteniendo compatibilidad hacia atrás.
+
+### Estructura General: Block Groups
+
+EXT2 divide el volumen completo en **grupos de bloques** (block groups) para mejorar la localidad de los datos.
+```
++-------------+------------------+------------------+-----+
+| Boot Block  | Block Group 0    | Block Group 1    | ... |
+| (1024 bytes)|                  |                  |     |
++-------------+------------------+------------------+-----+
+```
+
+\begin{center}
+agregar diagrama
+%%\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-estructuraEXT2.png}
+\end{center}
+
+La organización en block groups no es arbitraria. Esta estructura mejora la localidad manteniendo el inodo de un archivo y sus bloques de datos cerca físicamente, típicamente en el mismo grupo. Proporciona escalabilidad mediante una estructura repetida que permite volúmenes enormes sin overhead excesivo. Aumenta la confiabilidad replicando el superbloque crítico en múltiples grupos. Y reduce la fragmentación manteniendo juntos los archivos de un mismo directorio.
+
+### Componentes de un Block Group
+
+Cada grupo de bloques contiene una estructura idéntica con cinco componentes:
+```
++------------+-----+----------+----------+-------------+--------------+
+| Superblock | GDT | Bitmaps  | Bitmaps  | Inode Table | Data Blocks  |
+| (1 block)  |(var)| Bloques  | Inodos   | (var blocks)| (resto)      |
+|            |     | (1 block)| (1 block)|             |              |
++------------+-----+----------+----------+-------------+--------------+
+```
+
+#### 1. Superbloque
+
+\begin{theory}
+\emph{Superbloque:}
+Estructura crítica que contiene metadatos globales del file system. Se replica en varios block groups para redundancia, permitiendo recuperación si el superbloque principal se corrompe.
+\end{theory}
+La estructura del superbloque mantiene información esencial del sistema de archivos:
+
+```c
+struct ext2_superblock {
+    uint32_t s_inodes_count;      // Total de inodos
+    uint32_t s_blocks_count;      // Total de bloques
+    uint32_t s_free_blocks_count; // Bloques libres
+    uint32_t s_free_inodes_count; // Inodos libres
+    uint32_t s_first_data_block;  // Primer bloque de datos (0 o 1)
+    uint32_t s_log_block_size;    // Tamaño de bloque (log2(size) - 10)
+    uint32_t s_blocks_per_group;  // Bloques por grupo
+    uint32_t s_inodes_per_group;  // Inodos por grupo
+    uint16_t s_magic;             // Magic number: 0xEF53
+    // ... más campos (mtime, state, creator_os, etc.)
+};
+```
+
+El magic number `0xEF53` identifica inequívocamente un volumen EXT2, permitiendo al sistema operativo detectar el tipo de file system al montar. El superbloque se copia estratégicamente en los grupos 0, 1 y en grupos cuyo número es potencia de 3, 5 o 7, balanceando redundancia con overhead de espacio.
+
+#### 2. Group Descriptor Table (GDT)
+
+La GDT es un array que describe cada block group del sistema. Cada entrada contiene punteros a las estructuras administrativas del grupo:
+
+```c
+struct ext2_group_desc {
+    uint32_t bg_block_bitmap;       // Bloque que contiene bitmap de bloques
+    uint32_t bg_inode_bitmap;       // Bloque que contiene bitmap de inodos
+    uint32_t bg_inode_table;        // Primer bloque de la inode table
+    uint16_t bg_free_blocks_count;  // Bloques libres en este grupo
+    uint16_t bg_free_inodes_count;  // Inodos libres en este grupo
+    uint16_t bg_used_dirs_count;    // Cantidad de directorios en el grupo
+    uint16_t bg_pad;                // Padding para alineación
+};
+```
+
+#### 3. Bitmaps
+
+EXT2 usa bitmaps para rastrear espacio libre, una técnica eficiente que vimos anteriormente. El **block bitmap** dedica 1 bit por bloque del grupo: 1 indica ocupado, 0 indica libre. El **inode bitmap** usa la misma técnica para los inodos del grupo.
+
+```
+Ejemplo: [1 1 1 1 0 0 0 1 1 0 1 1 1 0 0 0]
+         Bloques 0-3: ocupados
+         Bloques 4-6: libres
+         Bloque 7: ocupado
+```
+
+Las operaciones son simples y eficientes. Para buscar un bloque o inodo libre, escaneamos el bitmap hasta encontrar un bit en 0. Para asignar, cambiamos el bit a 1 y decrementamos el contador correspondiente en el superbloque y el GDT. Para liberar, cambiamos el bit a 0 e incrementamos los contadores.
+
+#### 4. Inode Table
+
+La tabla de inodos es un array de estructuras inodo. Cada grupo tiene su propia tabla con `inodes_per_group` entradas. El tamaño típico de cada inodo es 128 bytes, aunque puede configurarse a 256 bytes para soportar características extendidas.
+
+#### 5. Data Blocks
+
+El resto del grupo está dedicado a data blocks: los bloques donde realmente se almacena el contenido de archivos y directorios. Esta es la porción más grande de cada grupo, representando la mayor parte del espacio utilizable.
+
+### El Inodo: Corazón de EXT2
+
+\begin{theory}
+\emph{Inodo (Index Node):}
+Estructura de datos que almacena todos los metadatos de un archivo EXCEPTO su nombre. Contiene permisos, tamaños, timestamps y los punteros cruciales a los bloques de datos.
+\end{theory}
+La estructura completa del inodo es:
+
+```c
+struct ext2_inode {
+    uint16_t i_mode;          // Tipo de archivo y permisos
+    uint16_t i_uid;           // User ID del propietario
+    uint32_t i_size;          // Tamaño en bytes (límite 4 GiB en EXT2)
+    uint32_t i_atime;         // Tiempo de último acceso
+    uint32_t i_ctime;         // Tiempo de creación/cambio de metadatos
+    uint32_t i_mtime;         // Tiempo de última modificación de datos
+    uint32_t i_dtime;         // Tiempo de eliminación
+    uint16_t i_gid;           // Group ID
+    uint16_t i_links_count;   // Cantidad de hard links
+    uint32_t i_blocks;        // Cantidad de bloques (en unidades de 512 bytes)
+    uint32_t i_flags;         // Flags del archivo
+    
+    // Punteros a bloques de datos (15 punteros)
+    uint32_t i_block[15];     // [0-11] directos, [12] ind. simple, 
+                              // [13] ind. doble, [14] ind. triple
+    
+    uint32_t i_generation;    // Número de versión (para NFS)
+    uint32_t i_file_acl;      // Access Control List extendida
+    uint32_t i_dir_acl;       // (EXT2) o i_size_high (EXT4)
+    // ... más campos
+};  // Total: 128 bytes típicamente
+```
+
+### Esquema de Punteros del Inodo
+
+El inodo contiene **15 punteros** que permiten acceder a los bloques de datos:
+
+```
+INODO
++------------------+
+| Metadatos        |
+| (mode, uid, size)|
++------------------+
+| i_block[0]   ----|----> Bloque de datos directo (4 KiB)
+| i_block[1]   ----|----> Bloque de datos directo (4 KiB)
+| i_block[2]   ----|----> Bloque de datos directo (4 KiB)
+| ...              |
+| i_block[11]  ----|----> Bloque de datos directo (4 KiB)  [12 × 4 KiB = 48 KiB]
++------------------+
+| i_block[12]  ----|----> Bloque indirecto simple
+|                  |         |
+|                  |         +---> [ptr0 | ptr1 | ... | ptr1023]
+|                  |                  |      |            |
+|                  |                  v      v            v
+|                  |               Datos  Datos        Datos
++------------------+
+| i_block[13]  ----|----> Bloque indirecto doble
+|                  |         |
+|                  |         +---> [ptr0 | ptr1 | ... | ptr1023]
+|                  |                  |      |            |
+|                  |                  v      v            v
+|                  |            [Ind. Simple] [Ind. Simple] ...
+|                  |                  |           |
+|                  |                  v           v
+|                  |               Datos       Datos
++------------------+
+| i_block[14]  ----|----> Bloque indirecto triple
+|                  |         |
+|                  |         +---> [ptrs] ---> [Ind. Dobles] ---> [Ind. Simples] ---> Datos
++------------------+
+```
+
+\begin{center}
+agregar diagrama
+%%\includegraphics[width=0.9\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-estructuraInodo.png}
+\end{center}
+
+Los primeros 12 punteros son directos: apuntan inmediatamente a bloques de datos. Esto hace que archivos pequeños (hasta 48 KiB con bloques de 4 KiB) sean extremadamente eficientes —solo se necesita leer el inodo y luego directamente los bloques de datos.  
+El puntero 13 (indirecto simple) apunta a un bloque que contiene punteros. Con bloques de 4 KiB y punteros de 4 bytes, caben 1024 punteros, lo que permite direccionar $1024 × 4 KiB = 4 MiB$ adicionales.  
+El puntero 14 (indirecto doble) apunta a un bloque de punteros a bloques de punteros. Esto permite $1024 × 1024 × 4 KiB = 4 GiB$ adicionales.  
+El puntero 15 (indirecto triple) agrega un nivel más de indirección, permitiendo teóricamente $1024 × 1024 × 1024 × 4 KiB = 4 TiB$.
+
+### Cálculo de Tamaño Máximo Teórico
+
+Consideremos un sistema con bloques de 4 KiB y punteros de 4 bytes. El número de punteros por bloque es $4096 / 4 = 1024$.  
+Los 12 bloques directos proporcionan $12 × 4 KiB = 48 KiB$. El indirecto simple agrega $1024 × 4 KiB = 4 MiB$. El indirecto doble contribuye $1024² × 4 KiB = 4 GiB$. El indirecto triple permitiría $1024³ × 4 KiB = 4 TiB$.  
+Sumando todo: $48 KiB + 4 MiB + 4 GiB + 4 TiB ≈ 4 TiB$ de capacidad teórica.
+\begin{warning}
+EXT2 usa un campo \texttt{i\_size} de 32 bits para el tamaño del archivo. Por lo tanto, el límite REAL es $2^{32} bytes = 4 GiB$, independientemente de que la estructura de punteros podría soportar 4 TiB. Esta es una limitación del diseño original que EXT4 corrige usando 64 bits para el tamaño.
+\end{warning}
+
+Si tenemos un disco de 512 GiB con bloques de 4 KiB, tenemos $(512 × 1024 × 1024) / 4 = 134.217.728$ bloques totales. Cada puntero de 4 bytes puede direccionar hasta $2^{32} = 4.294.967.296$ bloques posibles, más que suficiente. El límite real sigue siendo el campo
+`i_size` de 32 bits: 4 GiB máximo por archivo.
+
+### Ejemplo de Acceso a Archivo en EXT2
+Veamos dos casos que ilustran la eficiencia del esquema de punteros.
+
+*Caso 1:* Archivo pequeño (40 KiB) - Solo bloques directos
+
+El archivo ocupa 10 bloques ($40 KiB / 4 KiB = 10 bloques$).  
+Para leer los primeros 8 KiB necesitamos leer el inodo (1 acceso) para obtener `i_block[0]` e `i_block[1]`, luego leer el bloque de datos apuntado por `i_block[0]` (1 acceso) y el bloque apuntado por `i_block[1]` (1 acceso).
+Total: 3 accesos a disco, sin ningún bloque de punteros intermedio.
+
+*Caso 2:* Archivo mediano (5 MiB) - Requiere indirecto simple
+
+El archivo ocupa 1280 bloques (5 MiB / 4 KiB = 1280).
+- Primeros 12 bloques en punteros directos (48 KiB)
+- Restantes 1268 bloques en indirecto simple
+
+Para leer desde el byte 200.000, primero calculamos el bloque objetivo: $200.000 / 4096 = bloque 48$. Como $48 > 11$, está fuera de los punteros directos. Su posición en el indirecto simple es $48 - 12 = índice 36$.  
+Los pasos son: leer el inodo (1 acceso) para obtener `i_block[12]`, leer el bloque indirecto simple (1 acceso) para obtener el puntero en el índice 36, y finalmente leer el bloque de datos (1 acceso).  
+
+Total: 3 accesos a disco, comparable al caso anterior a pesar de que el archivo es 128 veces más grande.
+
+## Comparación: FAT vs EXT2
+
+| Característica | FAT | EXT2/UFS |
+|----------------|-----|----------|
+| **Separación metadatos/nombre** | No (todo en entrada dir.) | Sí (inodo separado) |
+| **Método de asignación** | Lista enlazada (tabla FAT) | Indexación multinivel |
+| **Hard links** | No soporta | Soportado (contador links\_count) |
+| **Permisos** | Atributos básicos (R/O, hidden) | Completo (owner/group/others, rwx) |
+| **Acceso aleatorio** | Lento (recorrer cadena FAT) | Rápido (cálculo directo) |
+| **Tamaño máx archivo** | 4 GiB (FAT32) | 4 GiB (por i_size de 32 bits) |
+| **Tamaño máx volumen** | 2 TiB (FAT32) | 32 TiB (en práctica) |
+| **Fragmentación** | Alta (clusters dispersos) | Baja (block groups, localidad) |
+| **Confiabilidad** | Baja (tabla FAT es punto único de falla) | Alta (superbloque replicado) |
+| **Journaling** | No (exFAT añade algo básico) | No en EXT2, sí en EXT3/4 |
+| **Complejidad** | Muy simple | Moderada |
+| **Overhead metadatos** | Bajo | Medio (inodos preasignados) |
+| **Compatibilidad** | Universal (todos los SO) | Linux nativo, soportado en otros |
+| **Uso típico** | Pendrives, SD cards, cámaras | Discos Linux, servidores |
+
+\begin{highlight}
+FAT sigue usándose porque ofrece compatibilidad universal—todos los sistemas operativos lo soportan nativamente sin drivers adicionales. Su simplicidad hace que sea ideal para dispositivos embebidos con recursos limitados. No requiere el overhead de permisos complejos en dispositivos portátiles que se comparten entre múltiples usuarios y sistemas. Y tiene menor overhead de metadatos en dispositivos pequeños donde cada byte cuenta.
+\end{highlight}
+\begin{highlight}
+EXT2 es superior para sistemas operativos porque proporciona soporte robusto de permisos necesario en entornos multiusuario. Los hard links permiten una estructura de directorios más flexible y eficiente. El acceso aleatorio eficiente es crítico para bases de datos y aplicaciones que requieren seek frecuente. Y la escalabilidad a volúmenes grandes lo hace apropiado para servidores y estaciones de trabajo modernas.
+\end{highlight}
+
+## Links: Hard Links y Soft Links
+
+Ahora que entendemos cómo funcionan FAT (sin inodos) y EXT2 (con inodos), podemos comprender los links.
+
+### Hard Links
+
+\begin{theory}
+\emph{Hard Link:}
+Entrada de directorio adicional que apunta al MISMO inodo de un archivo existente. Ambos nombres son completamente equivalentes—no existe concepto de "original" versus "copia".
+\end{theory}
+Veamos un ejemplo práctico:
+
+```bash
+$ ls -li archivo.txt
+1234567 -rw-r--r-- 1 alumno alumno 5000 Dec 29 10:00 archivo.txt
+
+$ ln archivo.txt copia.txt
+
+$ ls -li
+1234567 -rw-r--r-- 2 alumno alumno 5000 Dec 29 10:00 archivo.txt
+1234567 -rw-r--r-- 2 alumno alumno 5000 Dec 29 10:00 copia.txt
+```
+
+Observemos los detalles: ambos archivos muestran el mismo número de inodo (1234567), confirmando que apuntan a la misma estructura. El contador `links_count` ha incrementado a 2, indicando que el inodo tiene dos nombres. Cualquier modificación por cualquier nombre afecta al mismo contenido físico. Y eliminar un nombre no elimina el archivo mientras `links_count` sea mayor que cero.
+
+La estructura interna es reveladora:
+
+```
+Directorio /home/alumno/:
++------------------+-------+
+| Nombre           | Inodo |
++------------------+-------+
+| archivo.txt      | 1234567 |
+| copia.txt        | 1234567 |  ← Mismo inodo
++------------------+-------+
+
+Inodo 1234567:
+- i_links_count = 2
+- i_size = 5000
+- i_block[0] = 8945  ← Datos reales
+```
+
+\begin{warning}
+Los hard links tienen tres limitaciones fundamentales. Primero, no pueden cruzar file systems—cada FS tiene su propia tabla de inodos numerada independientemente. Segundo, no pueden apuntar a directorios (excepto las entradas especiales \texttt{.} y \texttt{..}) porque permitirlo crearía ciclos que romperían algoritmos de traversal recursivo. Tercero, solo funcionan en sistemas con inodos, lo que excluye a FAT.
+\end{warning}
+El archivo se elimina realmente solo cuando el último nombre desaparece:
+
+```bash
+$ rm archivo.txt    # links_count: 2 → 1 (archivo SIGUE existiendo)
+$ rm copia.txt      # links_count: 1 → 0 (AHORA se liberan los bloques)
+```
+
+### Soft Links (Symbolic Links)
+
+\begin{theory}
+\emph{Soft Link (Symbolic Link):}
+Archivo especial cuyo contenido es la RUTA (path) textual a otro archivo. Es una redirección a nivel de nombres, no de inodos—el sistema operativo debe "seguir" el link para llegar al destino.
+\end{theory}
+
+Un ejemplo ilustrativo:
+```bash
+$ ln -s /home/alumno/proyecto/datos.txt acceso_datos.txt
+
+$ ls -l
+lrwxrwxrwx 1 alumno alumno 30 Dec 29 10:05 acceso_datos.txt -> /home/alumno/proyecto/datos.txt
+-rw-r--r-- 1 alumno alumno 5000 Dec 29 10:00 datos.txt
+```
+
+El soft link tiene su propio inodo, completamente separado del archivo destino. El primer carácter `l` en los permisos indica que es un link. Los permisos aparecen como `rwxrwxrwx` pero son ignorados—el control de acceso real está en el archivo destino. El "contenido" del soft link es simplemente el path como string: "/home/alumno/proyecto/datos.txt".
+
+La estructura interna muestra la separación:
+
+```
+Directorio /home/alumno/:
++------------------+-------+
+| Nombre           | Inodo |
++------------------+-------+
+| acceso_datos.txt | 9876543 |  ← Inodo del LINK
+
+Inodo 9876543 (el soft link):
+- i_mode = S_IFLNK | 0777  (tipo = link)
+- i_size = 30  (longitud del path)
+- contenido: "/home/alumno/proyecto/datos.txt"
+
+Directorio /home/alumno/proyecto/:
++------------------+-------+
+| Nombre           | Inodo |
++------------------+-------+
+| datos.txt        | 1234567 |  ← Inodo del ARCHIVO REAL
+
+Inodo 1234567 (el archivo):
+- i_mode = S_IFREG | 0644
+- i_size = 5000
+- i_block[0] = datos reales
+```
+
+Si eliminamos el archivo original, el soft link queda "roto" (dangling link):
+
+```bash
+$ rm /home/alumno/proyecto/datos.txt
+$ cat acceso_datos.txt
+cat: acceso_datos.txt: No such file or directory
+```
+
+El link sigue existiendo pero apunta a un archivo inexistente. Interesantemente, si luego creamos un archivo nuevo con el mismo nombre y ubicación, el link vuelve a funcionar automáticamente.
+
+### Comparación Hard Link vs Soft Link
+
+\begin{center}
+agregar diagrama
+%%\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-hardVsSoftLink.png}
+\end{center}
+
+| Aspecto | Hard Link | Soft Link |
+|---------|-----------|-----------|
+| **Inodo** | Mismo que el original | Propio inodo |
+| **Contenido** | Apunta directamente a datos | Contiene path como string |
+| **Si se borra original** | Datos siguen accesibles | Link queda roto (dangling) |
+| **Cruza file systems** | No | Sí |
+| **Apunta a directorios** | No (excepto . y ..) | Sí |
+| **Overhead** | Mínimo (solo entrada dir.) | Un inodo extra |
+| **Transparencia** | Totalmente transparente | Se nota que es link |
+| **Uso típico** | Backups, deduplicación | Atajos, referencias flexibles |
+
+\begin{example}
+Los hard links son ideales para sistemas de backups incrementales. Los archivos sin cambios se hard-linkean en vez de copiarse, ahorrando espacio masivamente:
+\end{example}
+```bash
+backup/2024-12-01/archivo.txt  ← Inodo 12345
+backup/2024-12-02/archivo.txt  ← Inodo 12345 (mismo, no usa espacio)
+backup/2024-12-03/archivo.txt  ← Inodo 67890 (cambió, nueva copia)
+```
+\begin{example}
+Los soft links son perfectos para gestión de versiones de software:  
+\end{example}
+```bash
+/usr/bin/python3 -> /usr/bin/python3.11  (soft link)
+# Actualizar Python solo requiere cambiar el link, no recompilar programas
+```
+
+
+## Ejercicios Integradores
+
+### Ejercicio 1: Lectura Simple en EXT2
+
+**Enunciado:**
+
+Se tiene un sistema EXT2 con las siguientes características:
+- Tamaño de bloque: 4 KiB
+- Tamaño de puntero: 4 bytes
+
+Un archivo ocupa 20 KiB y está almacenado completamente en la zona de punteros directos del inodo.
+
+Se desea **leer el archivo completo** desde el byte 0 hasta el byte 20.479.
+
+**¿Cuántos accesos a disco se requieren? Diferenciar entre accesos a bloques de datos y accesos a bloques de punteros.**
+
+---
+
+**Solución Detallada:**
+
+**Paso 1: Calcular cantidad de bloques necesarios**
+
+```
+Tamaño archivo = 20 KiB = 20.480 bytes
+Tamaño bloque = 4 KiB = 4.096 bytes
+Bloques necesarios = ⌈20.480 / 4.096⌉ = 5 bloques
+```
+
+**Paso 2: Verificar si usa solo bloques directos**
+
+El inodo EXT2 tiene 12 punteros directos.
+```
+5 bloques < 12 bloques directos → SÍ, solo usa punteros directos
+```
+
+**Paso 3: Identificar accesos necesarios**
+
+Para leer el archivo completo necesitamos:
+
+1. **Acceso al inodo:** Leer la estructura del inodo para obtener los punteros i_block[0] a i_block[4]
+2. **Acceso a bloque 0:** Leer i_block[0] (bytes 0-4095)
+3. **Acceso a bloque 1:** Leer i_block[1] (bytes 4096-8191)
+4. **Acceso a bloque 2:** Leer i_block[2] (bytes 8192-12287)
+5. **Acceso a bloque 3:** Leer i_block[3] (bytes 12288-16383)
+6. **Acceso a bloque 4:** Leer i_block[4] (bytes 16384-20479)
+
+**Paso 4: Clasificar accesos**
+
+- **Accesos a bloques de punteros:** 0 (los punteros directos están EN el inodo mismo)
+- **Accesos a bloques de datos:** 5 (los bloques con contenido del archivo)
+- **Acceso al inodo:** 1 (estructura de metadatos)
+
+**Respuesta Final:**
+
+\textcolor{blue!50!black}{\textbf{Respuesta:}\\
+- \textbf{Accesos a bloques de datos:} 5\\
+- \textbf{Accesos a bloques de punteros:} 0 (punteros directos están en el inodo)\\
+- \textbf{Total de accesos a disco:} 6 (1 inodo + 5 datos)\\
+}
+
+---
+
+### Ejercicio 2: Escritura Compleja en EXT2 (Integrador)
+
+**Enunciado:**
+
+Se tiene un sistema que utiliza EXT2 como File System con **bloques de 8 KiB** y **punteros de 64 bits**. A su vez, cada inodo está conformado por **12 punteros directos**, **1 indirecto simple** y **2 indirectos dobles**.
+
+Se pide determinar la cantidad de accesos a bloques necesaria para **leer un archivo desde el byte nro 6.553.600 hasta el byte nro 8.631.975.936**. Diferenciar entre accesos a bloques de datos y accesos a bloques de punteros.
+
+**Solución Detallada:**
+
+#### Paso 1: Calcular parámetros del sistema
+
+```
+Tamaño de bloque (B) = 8 KiB = 8.192 bytes
+Tamaño de puntero (P) = 64 bits = 8 bytes
+
+Punteros por bloque (N) = B / P = 8.192 / 8 = 1.024 punteros
+```
+
+#### Paso 2: Calcular capacidad de cada nivel de punteros
+
+**Bloques directos (12):**
+```
+Capacidad = 12 × 8 KiB = 96 KiB = 98.304 bytes
+Rango de bytes: 0 a 98.303
+```
+
+**Indirecto simple (1):**
+```
+Capacidad = N × B = 1.024 × 8 KiB = 8 MiB = 8.388.608 bytes
+Rango de bytes: 98.304 a 8.486.911
+```
+
+**Indirecto doble 1:**
+```
+Capacidad = N × N × B = 1.024 × 1.024 × 8 KiB = 8 GiB = 8.589.934.592 bytes
+Rango de bytes: 8.486.912 a 17.076.846.503
+```
+
+**Indirecto doble 2:**
+```
+Capacidad = N × N × B = 8 GiB = 8.589.934.592 bytes
+Rango de bytes: 17.076.846.504 a 25.666.781.095
+```
+
+#### Paso 3: Determinar qué bloques cubren el rango solicitado
+
+**Byte inicial:** 6.553.600  
+**Byte final:** 8.631.975.936
+
+**Calcular bloque inicial:**
+```
+Bloque inicial = ⌊6.553.600 / 8.192⌋ = 800
+```
+
+**Calcular bloque final:**
+```
+Bloque final = ⌊8.631.975.936 / 8.192⌋ = 1.053.710
+```
+
+**Total de bloques a leer:**
+```
+Bloques = 1.053.710 - 800 + 1 = 1.052.911 bloques
+```
+
+#### Paso 4: Clasificar bloques por nivel de indirección
+
+**¿Bloques directos? (rango: bloque 0-11)**
+```
+Bloque inicial = 800 → NO está en bloques directos
+```
+
+**¿Indirecto simple? (rango: bloque 12 a 1.035)**
+```
+Primer bloque del ind. simple = 12
+Último bloque del ind. simple = 12 + 1.024 - 1 = 1.035
+
+¿800 está en [12, 1.035]? SÍ
+¿1.053.710 está en [12, 1.035]? NO
+
+Bloques usados del ind. simple = 1.035 - 800 + 1 = 236 bloques
+```
+
+**¿Indirecto doble 1? (rango: bloque 1.036 a 1.049.611)**
+```
+Primer bloque = 1.036
+Último bloque = 1.036 + (1.024 × 1.024) - 1 = 1.049.611
+
+Rango solicitado [800, 1.053.710]:
+- Inicio (800) NO está aquí
+- Final (1.053.710) SÍ cruza este rango
+
+Bloques usados = 1.049.611 - 1.036 + 1 = 1.048.576 bloques (TODO el ind. doble #1)
+```
+
+**¿Indirecto doble 2? (rango: bloque 1.049.612 a 2.098.187)**
+```
+Primer bloque = 1.049.612
+Último bloque = 1.049.612 + (1.024 × 1.024) - 1 = 2.098.187
+
+¿1.053.710 está en [1.049.612, 2.098.187]? SÍ
+
+Bloques usados = 1.053.710 - 1.049.612 + 1 = 4.099 bloques
+```
+
+**Verificación:**
+```
+236 (ind. simple) + 1.048.576 (ind. doble #1) + 4.099 (ind. doble #2) = 1.052.911 ✓
+```
+
+#### Paso 5: Calcular accesos a bloques de punteros
+
+**Indirecto simple:**
+```
+Necesitamos 236 bloques de datos del ind. simple.
+Todos están en UN SOLO bloque de punteros.
+
+Accesos = 1 (el bloque indirecto simple contiene los 1.024 punteros)
+```
+
+**Indirecto doble 1:**
+```
+Necesitamos TODO el indirecto doble #1 (1.048.576 bloques de datos).
+
+Cantidad de bloques indirectos simples = 1.048.576 / 1.024 = 1.024 bloques
+
+Accesos = 1 (bloque ind. doble raíz) + 1.024 (bloques ind. simples) = 1.025 accesos
+```
+
+**Indirecto doble 2:**
+```
+Necesitamos 4.099 bloques de datos del segundo indirecto doble.
+
+Bloques indirectos simples necesarios = ⌈4.099 / 1.024⌉ = 5 bloques
+
+Accesos = 1 (bloque ind. doble raíz) + 5 (bloques ind. simples) = 6 accesos
+```
+
+**Total accesos a bloques de punteros:**
+```
+1 (ind. simple) + 1.025 (ind. doble #1) + 6 (ind. doble #2) = 1.032 accesos
+```
+
+#### Paso 6: Calcular accesos a bloques de datos
+
+```
+Total bloques de datos a leer = 1.052.911 accesos
+```
+
+#### Paso 7: Respuesta Final
+
+\textcolor{blue!50!black}{\textbf{Respuesta:}\\
+- \textbf{Accesos a bloques de datos:} 1.052.911\\
+- \textbf{Accesos a bloques de punteros:} 1.032\\
+- \textbf{Total de accesos a disco:} 1.053.943 (sin contar el acceso inicial al inodo)\\
+}
+
+\textcolor{orange!70!black}{\textbf{Nota importante para parcial:}\\
+En la práctica, el SO cachea bloques de punteros en memoria, por lo que accesos subsecuentes al mismo archivo serían mucho más rápidos. Pero en el análisis teórico contamos TODOS los accesos.\\
+}
+
+## Otros Sistemas de Archivos (Mención Breve)
+
+En la cátedra se enfocan en FAT y EXT2, pero es importante conocer la existencia de otros file systems modernos:
+
+### EXT3 (Third Extended File System)
+
+**Año:** 2001  
+**Mejora principal:** Agrega **journaling** a EXT2
+
+\textcolor{teal!60!black}{\textbf{Características:}\\
+- Compatibilidad hacia atrás: se puede montar EXT2 como EXT3\\
+- Tres modos de journaling: journal (más lento, más seguro), ordered (default), writeback (más rápido)\\
+- Recuperación rápida después de crashes\\
+- Mismo formato de inodos y estructura que EXT2\\
+}
+
+**Sistema operativo:** Linux (estándar en distribuciones 2001-2008)
+
+### EXT4 (Fourth Extended File System)
+
+**Año:** 2008  
+**Mejoras significativas:**
+
+- **Extents:** En vez de lista de bloques individuales, se usan rangos contiguos → reduce fragmentación
+- **Soporte de archivos hasta 16 TiB** (usa 64 bits para tamaño)
+- **Volúmenes hasta 1 EiB** (exabyte)
+- **Delayed allocation:** Asigna bloques justo antes de escribir a disco → mejor decisión de ubicación
+- **Multiblock allocation:** Asigna múltiples bloques de una vez → reduce fragmentación
+
+**Sistema operativo:** Linux (estándar actual en la mayoría de distribuciones)
+
+### NTFS (New Technology File System)
+
+**Año:** 1993  
+**Creador:** Microsoft
+
+\textcolor{teal!60!black}{\textbf{Características:}\\
+- Sistema de archivos principal de Windows desde NT 4.0\\
+- Journaling completo (incluye datos y metadatos)\\
+- Soporte de ACL (Access Control Lists) más complejas que Unix\\
+- Streams alternativos: un archivo puede tener múltiples contenidos\\
+- Compresión y encriptación a nivel de file system\\
+}
+
+**Límites:**
+- Archivos hasta 16 EiB
+- Volúmenes hasta 256 TiB (en práctica)
+
+**Sistema operativo:** Windows (NT, 2000, XP, Vista, 7, 8, 10, 11)
+
+### exFAT (Extended File Allocation Table)
+
+**Año:** 2006  
+**Creador:** Microsoft
+
+Creado para dispositivos de almacenamiento flash de gran capacidad (SD cards >32 GiB, pendrives grandes).
+
+\textcolor{teal!60!black}{\textbf{Mejoras sobre FAT32:}\\
+- Elimina límite de 4 GiB para archivos individuales (usa 64 bits)\\
+- Soporte de volúmenes hasta 128 PiB teóricos\\
+- Menos overhead que NTFS\\
+- Mejor para flash (menos escrituras que NTFS)\\
+}
+
+**Uso típico:** Tarjetas SD de >32 GiB, discos externos USB
+
+**Sistema operativo:** Windows (Vista SP1+), macOS (10.6.5+), Linux (con driver)
+
+### APFS (Apple File System)
+
+**Año:** 2017  
+**Creador:** Apple
+
+Sistema moderno que reemplaza HFS+ en dispositivos Apple.
+
+\textcolor{teal!60!black}{\textbf{Características:}\\
+- Copy-on-write: nunca sobrescribe datos in-place\\
+- Snapshots instantáneos (sin costo de espacio hasta que se modifica)\\
+- Encriptación nativa (por archivo o por volumen)\\
+- Optimizado para almacenamiento SSD/flash\\
+}
+
+**Sistema operativo:** macOS (High Sierra+), iOS, watchOS, tvOS
+
+### XFS
+
+**Año:** 1994 (SGI), 2001 (Linux)
+
+Sistema de alto rendimiento creado originalmente para servidores IRIX de Silicon Graphics.
+
+\textcolor{teal!60!black}{\textbf{Características:}\\
+- Excelente para archivos muy grandes (video, científicos)\\
+- Alto throughput en I/O paralelo\\
+- Journaling de metadatos\\
+- Allocation groups similares a block groups de EXT\\
+}
+
+**Uso típico:** Servidores, sistemas de almacenamiento masivo, edición de video
+
+**Sistema operativo:** Linux (default en RHEL/CentOS desde v7)
+
+### Btrfs (B-tree File System)
+
+**Año:** 2009
+
+Sistema moderno de Linux con características avanzadas.
+
+\textcolor{teal!60!black}{\textbf{Características:}\\
+- Copy-on-write\\
+- Snapshots y clones instantáneos\\
+- Checksums de datos y metadatos (detecta corrupción)\\
+- Compresión transparente\\
+- RAID integrado a nivel de file system\\
+}
+
+**Sistema operativo:** Linux (usado en SUSE, Fedora como opción)
+
+### ZFS (Zettabyte File System)
+
+**Año:** 2005  
+**Creador:** Sun Microsystems (ahora Oracle)
+
+Uno de los file systems más avanzados, diseñado para servidores enterprise.
+
+\textcolor{teal!60!black}{\textbf{Características:}\\
+- Copy-on-write y snapshots\\
+- Checksums end-to-end (detecta y corrige bit rot)\\
+- RAID integrado (RAID-Z)\\
+- Compresión y deduplicación\\
+- Límites masivos: 256 trillones de zettabytes\\
+}
+
+**Sistema operativo:** Solaris, FreeBSD, Linux (OpenZFS)
+
+### Resumen Comparativo
+
+| File System | Año | Journaling | Max File | Max Volume | Uso Principal |
+|-------------|-----|------------|----------|------------|---------------|
+| FAT32 | 1996 | No | 4 GiB | 2 TiB | Dispositivos portátiles |
+| EXT2 | 1993 | No | 4 GiB | 32 TiB | Linux legacy |
+| EXT3 | 2001 | Sí | 4 GiB | 32 TiB | Linux (histórico) |
+| EXT4 | 2008 | Sí | 16 TiB | 1 EiB | Linux (actual) |
+| NTFS | 1993 | Sí | 16 EiB | 256 TiB | Windows |
+| exFAT | 2006 | Básico | 16 EiB | 128 PiB | Flash grande |
+| APFS | 2017 | Sí (CoW) | 8 EiB | 8 EiB | macOS/iOS |
+| XFS | 1994 | Sí | 8 EiB | 8 EiB | Servidores Linux |
+| Btrfs | 2009 | Sí (CoW) | 16 EiB | 16 EiB | Linux avanzado |
+| ZFS | 2005 | Sí (CoW) | 16 EiB | 256 ZiB | Enterprise |
+
+## Síntesis y Puntos Clave
 
 ### Conceptos Fundamentales
 
-El *subsistema de I/O* enfrenta una complejidad única en el sistema operativo: debe coordinar una enorme diversidad de dispositivos con rangos de velocidad que van de 6 órdenes de magnitud (desde teclados a 10 bytes/seg hasta SSDs NVMe a 7 GB/seg). La necesidad de abstracción (device independence) permite que las aplicaciones usen interfaces uniformes sin preocuparse por los detalles de cada dispositivo.  
-Los dispositivos se clasifican por **transferencia** (bloque, carácter, red) y por **acceso** (compartibles, dedicados). Los controladores de dispositivo actúan como interfaz entre el bus del sistema y el dispositivo físico, y el driver del SO interactúa con el controlador, no directamente con el dispositivo.
+1. **File System = Abstracción**
+   - Transforma sectores físicos en archivos y directorios organizados
+   - Proporciona naming, organización, protección, persistencia
 
-Las tres *técnicas de I/O* representan una evolución en eficiencia:
+2. **Archivo = Secuencia de bytes con nombre**
+   - El SO no interpreta el contenido
+   - Metadatos separados del contenido (excepto en FAT)
 
-**Polling:** CPU espera activamente (busy-wait). Simple pero extremadamente ineficiente. Solo útil si el dispositivo responde en < 100 ciclos.  
-**Interrupciones:** Dispositivo avisa cuando termina. Mucho mejor uso de CPU, pero overhead de context switch en cada evento. Ideal para eventos esporádicos y transferencias pequeñas.  
-**DMA:** Transferencia directa sin CPU. Óptimo para bloques grandes. Es obligatorio en dispositivos modernos de alta velocidad.
+3. **Directorio = Archivo especial con tabla de nombres**
+   - Permite organización jerárquica
+   - En Unix: solo almacena (nombre, inodo)
 
-### Estructura y Rendimiento de Discos:
-La geometría física del disco (plato → pista → sector → cilindro) determina fundamentalmente su rendimiento. El tiempo de acceso total se descompone en:
-$$
-T_{total}​=T_{seek}​+T_{rotacional}​+T_{transferencia}
-$$
-Valores típicos en HDD de 7200 RPM:  
+4. **Sectores vs Bloques**
+   - Sector: unidad física del hardware (512B, 4KB)
+   - Bloque: unidad lógica del file system (configurable)
+   - Trade-off: bloques grandes → menos overhead, más fragmentación interna
 
-Seek promedio: ~9 ms  
-Latencia rotacional promedio: ~4.17 ms  
-Transferencia de 4 KiB: ~0.027 ms (despreciable)  
-Leer 10 sectores consecutivos toma apenas más tiempo que leer 1 sector (13.44 ms vs 13.2 ms), pero leer 10 sectores dispersos toma 10× más (132 ms). Esta es la razón fundamental por la que necesitamos algoritmos de scheduling de disco.
+5. **FCB/Inodo**
+   - Estructura que almacena metadatos (TODO excepto el nombre)
+   - En Unix: separado del directorio
+   - En FAT: integrado en entrada de directorio
 
-### Scheduling de Disco
+### Operaciones y Estructuras del SO
 
-El objetivo del disk scheduling es minimizar el movimiento del brazo. Los algoritmos principales son:
+6. **Arquitectura de 3 niveles para archivos abiertos**
+   - File Descriptor Table (por proceso)
+   - Open File Table (system-wide, offset compartible)
+   - Inode Table (metadatos del archivo)
 
-FCFS: Simple, justo, pero muy ineficiente
-SSTF: Greedy, mejor throughput, pero puede causar starvation
-SCAN/C-SCAN: Tipo "ascensor", sin starvation
-LOOK/C-LOOK: Optimización de SCAN (no va hasta extremos innecesariamente)
-FSCAN/N-STEP: Variantes que congelan la cola para prevenir starvation
+7. **File Locking**
+   - Advisory: cooperativo, puede ignorarse
+   - Mandatory: forzado por el SO (fcntl)
+   - Shared (lectura) vs Exclusive (escritura)
 
-### RAID
-RAID combina múltiples discos para mejorar rendimiento y/o confiabilidad:  
+8. **Permisos Unix: 9 bits**
+   - Owner (rwx) + Group (rwx) + Others (rwx)
+   - Para archivos: r=leer, w=escribir, x=ejecutar
+   - Para directorios: r=listar, w=crear/borrar, x=atravesar
 
-RAID 0 (Striping): Capacidad = $N × C$, Tolerancia = 0 discos, Uso = máximo rendimiento  
-RAID 1 (Mirroring): Capacidad = $C (50%)$, Tolerancia = N-1 discos, Uso = datos críticos  
-RAID 5 (Paridad): Capacidad = $(N-1) × C$, Tolerancia = 1 disco, Uso = balance óptimo  
+### Métodos de Asignación
 
-*Propiedad XOR para recuperación:*  
+9. **Contigua**
+   - Acceso secuencial rápido, simple
+   - Fragmentación externa, archivos estáticos
+   - Uso: CD-ROM, DVD
+
+10. **Enlazada (FAT)**
+    - Sin fragmentación externa, archivos dinámicos
+    - Acceso aleatorio lento
+    - Mejora: tabla FAT centralizada en memoria
+
+11. **Indexada (Unix)**
+    - Acceso aleatorio eficiente
+    - Overhead en archivos pequeños
+    - Multinivel: directos + indirectos (simple, doble, triple)
+
+### Comparación FAT vs EXT2
+
+| Aspecto | FAT | EXT2 |
+|---------|-----|------|
+| Metadatos | En entrada de directorio | Inodo separado |
+| Asignación | Lista enlazada | Indexada multinivel |
+| Hard links | No | Sí |
+| Permisos | Básicos | Completos (rwx) |
+| Acceso aleatorio | Lento | Rápido |
+| Complejidad | Muy simple | Moderada |
+
+12. **FAT: Simplicidad universal**
+    - Tabla FAT: array donde FAT[i] = siguiente cluster
+    - FAT12/16/32: tamaño de entradas (4K, 64K, 268M clusters)
+    - Límite: 4 GiB por archivo (uint32_t file_size)
+    - Uso: Pendrives, SD cards
+
+13. **EXT2: Robustez y escalabilidad**
+    - Block groups: localidad de inodos y datos
+    - Inodo: 12 directos + 1 ind. simple + 2 ind. dobles
+    - Capacidad teórica: 4 TiB (pero límite real 4 GiB por i_size)
+    - Superbloque replicado para confiabilidad
+
+### Links
+
+14. **Hard Link**
+    - Múltiples nombres → mismo inodo
+    - No cruza file systems
+    - Archivo persiste hasta links\_count = 0
+
+15. **Soft Link**
+    - Archivo especial con path como contenido
+    - Propio inodo, puede quedar roto
+    - Cruza file systems, puede apuntar a directorios
+
+### Seguridad y Recuperación
+
+16. **Journaling**
+    - Registra operaciones ANTES de ejecutarlas
+    - Recuperación rápida después de crash
+    - Metadata-only vs Full data journaling
+
+17. **fsck/chkdsk**
+    - Escaneo completo del file system
+    - 5 fases: inodos, directorios, conectividad, contadores, bitmaps
+    - Lento en discos grandes (horas)
+
+### Fórmulas y Cálculos Clave
+
+18. **Punteros por bloque:**
+    ```
+    N = tamaño_bloque / tamaño_puntero
+    ```
+
+19. **Capacidad por nivel (EXT2):**
+    ```
+    Directos:         12 × B
+    Ind. simple:      N × B
+    Ind. doble:       N² × B
+    Ind. triple:      N³ × B
+    ```
+
+20. **Fragmentación interna promedio:**
+    ```
+    aprox tamaño_bloque / 2 por archivo
+    ```
+
+## Preparación para Parcial
+
+### Temas de Alta Probabilidad
+
+1. **Definiciones conceptuales:**
+   - Diferencia entre sector y bloque
+   - Qué es un FCB/inodo
+   - Hard link vs soft link
+   - Journaling
+
+2. **Comparaciones:**
+   - Métodos de asignación (tabla completa)
+   - FAT vs EXT2 (ventajas/desventajas)
+   - Hard link vs soft link (cuándo usar cada uno)
+
+3. **Estructuras de datos:**
+   - Entrada de directorio en FAT (32 bytes)
+   - Estructura de inodo en EXT2 (15 punteros)
+   - Tabla de archivos abiertos (3 niveles)
+
+4. **Ejercicios numéricos:**
+   - Cálculo de capacidades por nivel (directos, indirectos)
+   - Accesos a disco en lectura/escritura
+   - Diferenciar accesos a datos vs punteros
+
+5. **Permisos Unix:**
+   - Interpretación de rwxr-xr-- (notación octal)
+   - Verificación de permisos (owner, group, others)
+   - Umask y permisos por defecto
+
+### Estrategia para Ejercicios Numéricos
+
+**Paso 1:** Escribir parámetros dados
 ```
-Si A XOR B XOR C = Paridad
-Entonces: A = B XOR C XOR Paridad
+B = tamaño de bloque
+P = tamaño de puntero
+N = B / P (punteros por bloque)
 ```
 
-### Software de I/O
+**Paso 2:** Calcular capacidades de cada nivel
+```
+Directos (D):       D × B
+Ind. simple (IS):   N × B
+Ind. doble (ID):    N² × B
+Ind. triple (IT):   N³ × B
+```
 
-*Buffering vs Caching:*  
-- Buffer: Datos en tránsito, temporal, una copia  
-- Cache: Datos duplicados, persistente (en cache), dos copias
+**Paso 3:** Calcular rangos de bytes
+```
+Directos:    [0, D×B - 1]
+Ind. simple: [D×B, D×B + N×B - 1]
+Ind. doble:  [D×B + N×B, D×B + N×B + N²×B - 1]
+```
 
-**Double buffering** permite overlap: mientras el consumidor procesa un buffer, el productor llena el otro. Mejora típica: 50-100% en throughput.  
-**Ring buffers** extienden esto a N buffers circularmente, suavizando bursts y permitiendo máxima concurrencia.  
-**Buffer cache del SO** es crítico: un hit evita acceso a disco (~10ms → ~100ns), aceleración de 100.000×. Hit rate típico: 85-95%.  
-**Device Independence:** Aplicaciones usan interfaz uniforme (read/write), drivers específicos manejan hardware particular, VFS abstrae diferentes file systems.
+**Paso 4:** Determinar qué bloques se necesitan
+```
+Bloque inicial = byte_inicial / B
+Bloque final = byte_final / B
+Total bloques = bloque_final - bloque_inicial + 1
+```
 
-**Capas del subsistema I/O:**  
+**Paso 5:** Clasificar por nivel y contar accesos
+- Bloques de datos: todos los bloques a leer
+- Bloques de punteros: 
+  - Ind. simple: 1 acceso
+  - Ind. doble: 1 (raíz) + ⌈bloques_datos / N⌉ (simples)
+  - Ind. triple: aplicar recursivamente
 
-  ```
-  Aplicación
-    | syscall
-  File System
-    |
-  Block Layer / Cache
-    |
-  Device Driver
-    |
-  Hardware Controller
-    |
-  Dispositivo
-  ```
+**Paso 6:** Verificar respuesta
+- ¿Suma de bloques por nivel = total bloques? ✓
+- ¿Tiene sentido el número de accesos? ✓
 
 ### Errores Comunes a Evitar
 
-- Confundir seek time con latencia rotacional
+**Error 1:** Olvidar contar el acceso al bloque indirecto raíz
 ```
-Seek = movimiento del brazo (cambia cilindros)
-Rotacional = espera a que pase el sector (fijo por RPM)
-```
-
-- En SCAN/C-SCAN, olvidar ir hasta el extremo
-```
-SCAN va hasta 199 (o 0), no hasta última solicitud
-LOOK va solo hasta última solicitud
+Ind. doble NO es solo los simples, es: 1 + simples
 ```
 
-- En C-SCAN/C-LOOK, no contar el salto al inicio
+**Error 2:** Confundir bloques de datos con bloques de punteros
 ```
-C-SCAN: movimiento incluye |MAX-pos| + |MAX-0| + |primera_solicitud-0|
-El salto de MAX a 0 SÍ cuenta como movimiento
-```
-
-- Calcular mal capacidad en RAID 5
-```
-Correcto: (N-1) × C
-Incorrecto: N × C (olvidan el disco de paridad)
+Un bloque ind. simple NO es un bloque de datos
 ```
 
-- Confundir buffer con cache
+**Error 3:** No considerar que los bloques directos ocupan las primeras posiciones
 ```
-Buffer: temporal durante transferencia (tránsito)
-Cache: copia para acceso rápido (duplicado)
-```
-
-- No considerar que DMA usa cycle stealing
-```
-DMA "roba" ciclos del bus periódicamente
-CPU puede ralentizarse ligeramente (pero sigue siendo mejor que interrupciones)
+Bloque 0-11: directos
+Bloque 12+: comienza indirecto simple
 ```
 
-- Pensar que SSTF es siempre óptimo
+**Error 4:** Usar capacidad teórica cuando hay límite real
 ```
-SSTF puede causar starvation
-LOOK/C-LOOK son mejor balance en la práctica
+EXT2: capacidad teórica 4 TiB, pero límite REAL 4 GiB (i_size de 32 bits)
 ```
 
-### Tips para Ejercicios Numéricos
-
-**Cálculo de tiempos:**
-1. Separar claramente: seek, rotacional, transferencia
-2. Usar unidades consistentes (ms típicamente)
-3. Recordar: transferencia suele ser despreciable en HDD
-4. Para múltiples sectores consecutivos: solo 1 seek + 1 rotacional
-
-**Scheduling:**
-1. Dibujar timeline visual con las posiciones
-2. Para SCAN/C-SCAN: marcar claramente dirección inicial
-3. Verificar que todas las solicitudes se atiendan
-4. Revisar si hay starvation posible (SSTF)
-
-**RAID:**
-1. Identificar qué se pregunta: capacidad, tolerancia, o ambos
-2. Fórmulas clave:
-   ```
-   RAID 0: N × C
-   RAID 1: C (con 2 discos)
-   RAID 5: (N-1) × C
-   ```
-3. Para paridad XOR: aplicar bit a bit, recordar propiedad asociativa
-
-## 12. Conexiones con Otros Capítulos
-
-El I/O no existe en aislamiento. Se conecta profundamente con todos los componentes del sistema operativo que estudiamos anteriormente.  
-
-**Capítulo 1: Introducción**  
-Las interrupciones que mencionamos al principio del curso se usan extensivamente en I/O. Cada vez que un disco completa una operación, genera una interrupción. DMA es un caso especial de hardware especializado que trabaja junto con el mecanismo de interrupciones. Los modos de operación (kernel/user) son críticos para I/O protegido: solo el kernel puede acceder directamente a dispositivos.  
-**Capítulo 2: Procesos**  
-Los procesos se bloquean esperando I/O (transición a estado BLOCKED). Cuando solicitás leer un archivo, tu proceso se bloquea hasta que el disco complete la operación. El context switch ocurre precisamente aquí: mientras esperás I/O, otro proceso usa la CPU. Las syscalls read/write que vimos interactúan directamente con el scheduler de procesos.  
-**Capítulo 3: Planificación de CPU**  
-La distinción entre procesos I/O-bound y CPU-bound es fundamental. Los procesos I/O-bound pasan la mayoría del tiempo esperando I/O y tienen bursts de CPU cortos. Los algoritmos de scheduling de CPU consideran estos I/O bursts para dar mejor servicio interactivo. Típicamente, procesos I/O-bound reciben mayor prioridad para mejorar responsiveness.  
-**Capítulo 5: Sincronización**  
-Los drivers de dispositivos usan locks para proteger estructuras compartidas como las colas de I/O. Son posibles race conditions si múltiples CPUs acceden a la cola simultáneamente. Los interrupt handlers deben ser thread-safe porque pueden ejecutarse en cualquier momento, interrumpiendo código del kernel que podría estar accediendo a las mismas estructuras.  
-**Capítulo 7-8: Memoria** 
-El buffer cache reside en memoria RAM. En Linux modernos, el page cache y el buffer cache están unificados. Memory-mapped I/O usa directamente el espacio de direcciones virtual para acceder a dispositivos. El swap (memoria virtual usando disco) es fundamentalmente una operación de I/O: cuando hay page fault y la página está en swap, el SO debe leerla desde disco.  
-**Capítulo 9: File Systems**  
-Los file systems dependen completamente del subsistema de I/O. Los bloques lógicos del file system se mapean a sectores físicos del disco mediante la geometría. Los algoritmos de scheduling que estudiamos afectan directamente el rendimiento del file system: leer un archivo fragmentado es mucho más lento que uno contiguo. RAID típicamente se implementa por debajo del file system, en el block device layer.
-
-**Ejemplo integrador:**
-
+**Error 5:** No diferenciar entre FAT (no tiene inodo) y EXT2 (sí tiene inodo)
 ```
-Aplicación llama read(fd, buf, 4096):
-1. [Cap 9] VFS traduce fd a inodo
-2. [Cap 9] File system (EXT4) determina qué bloque leer
-3. [Cap 8] Verificar si bloque está en buffer cache (memoria)
-4. Si no: [Cap 10] Generar solicitud de I/O a disco
-5. [Cap 10] Scheduler de disco ordena la solicitud (LOOK)
-6. [Cap 10] DMA transfiere datos disco → RAM
-7. [Cap 10] Interrupción notifica completación
-8. [Cap 2] Proceso despierta (BLOCKED → READY)
-9. [Cap 3] Scheduler de CPU lo ejecuta eventualmente
-10. [Cap 8] Copiar datos de buffer cache a espacio usuario
+FAT: metadatos en directorio
+EXT2: metadatos en inodo separado
 ```
+
+**Error 6:** Calcular mal los bloques indirectos simples necesarios en un indirecto doble
+```
+Si necesito 5.000 bloques de datos:
+Bloques ind. simples = ⌈5.000 / 1.024⌉ = 5 (NO 4)
+Siempre usar techo (ceiling)
+```
+
+**Error 7:** Olvidar que para eliminar un archivo se necesita permiso de escritura en el DIRECTORIO, no en el archivo
+```
+chmod 000 archivo.txt  # Sin permisos en el archivo
+rm archivo.txt         # ¡Se puede borrar igual si tengo 'w' en el directorio!
+```
+
+### Checklist Pre-Examen
+
+- [ ] Sé definir: archivo, directorio, FCB/inodo, sector, bloque
+- [ ] Puedo comparar los 3 métodos de asignación (ventajas/desventajas)
+- [ ] Entiendo la estructura de FAT (tabla + entrada de directorio)
+- [ ] Entiendo la estructura de EXT2 (block groups, inodo, punteros)
+- [ ] Sé calcular capacidades por nivel dados B y P
+- [ ] Puedo resolver ejercicio de accesos a disco paso a paso
+- [ ] Entiendo diferencia entre hard link y soft link
+- [ ] Conozco permisos Unix (rwx, octal, verificación)
+- [ ] Sé explicar journaling y fsck brevemente
+- [ ] Entiendo las 3 tablas de archivos abiertos (FD, Open File, Inode)
+- [ ] Sé qué pasa con offsets después de fork() vs open() independiente
+
+### Tips Finales
+
+**Para ejercicios de accesos a disco:**
+- Dibuja un esquema visual del inodo con sus niveles
+- Marca claramente qué bloques caen en qué nivel
+- Cuenta los accesos por separado: primero punteros, después datos
+- Verifica que la suma de bloques por nivel sea correcta
+
+**Para permisos:**
+- Memoriza: 4=r, 2=w, 1=x
+- Practica conversión octal ↔ rwx mentalmente
+- Recuerda que para directorios 'x' es crítico para acceder
+
+**Para comparaciones:**
+- Arma tablas mentales: FAT vs EXT2, Contigua vs Enlazada vs Indexada
+- Identifica trade-offs: simplicidad vs funcionalidad, velocidad vs overhead
+
+## Conexiones con Otros Capítulos
+
+### Capítulo 2: Procesos
+- Cada proceso tiene tabla de file descriptors
+- `fork()` hereda descriptores (comparten offset en Open File Table)
+- Archivos ejecutables se cargan desde el file system
+
+### Capítulo 5: Sincronización
+- File locking previene race conditions en archivos compartidos
+- Operaciones read/write pueden requerir locks
+- Directorios compartidos necesitan sincronización
+
+### Capítulo 6: Interbloqueo
+- Procesos pueden entrar en deadlock por locks de archivos
+- Ejemplo: P1 lockea A y pide B, P2 lockea B y pide A
+
+### Capítulo 7-8: Gestión de Memoria
+- Buffer cache: bloques de disco cacheados en RAM
+- Memory-mapped files: archivo mapeado a espacio de direcciones
+- Page cache vs buffer cache (unificados en Linux moderno)
+
+### Capítulo 1: Interrupciones e I/O
+- Operaciones de file system generan operaciones de I/O al disco
+- Drivers de disco interactúan con file system para transferencias
+- DMA usado para transferir bloques sin CPU
 
 ---
 
-## 13. Ejercicios Adicionales (Práctica)
-
-### Ejercicio 1: Técnicas de I/O
-
-Un dispositivo de red recibe paquetes de 1500 bytes a una tasa de 100 Mbps. ¿Qué técnica de I/O recomendarías: polling, interrupciones o DMA? Justificar.
-
-*Respuesta:*
-- Calcular frecuencia de paquetes: ~8333 paquetes/seg
-- Polling: CPU 100% ocupada verificando → inviable
-- Interrupciones: ~8333 interrupciones/seg → overhead alto
-- **DMA es óptimo:** Transfiere cada paquete sin CPU, solo 1 interrupción por paquete
-- Plus: Ring buffers para batch de paquetes → aún mejor
-
-### Ejercicio 2: Tiempos de Acceso
-
-Se tiene un disco de 10000 RPM, seek promedio 6 ms, transferencia 200 MiB/s. Calcular tiempo para leer 100 sectores de 512 bytes:
-
-a) Consecutivos en la misma pista
-b) Dispersos aleatoriamente
-
-*Respuesta:*
-```
-Latencia rotacional = (60/10000)/2 = 3 ms
-
-a) Consecutivos:
-   T = 6 ms (seek) + 3 ms (rot) + (100×512)/(200×10^6) = 9.25 ms
-
-b) Dispersos:
-   T = 100 × (6 + 3 + 0.0025) = 900.25 ms
-   
-   ~97× más lento!
-```
-
-### Ejercicio 3: RAID Capacity
-
-Se tienen 6 discos de 2 TiB cada uno. Calcular capacidad útil para:
-
-a) RAID 0
-b) RAID 1
-c) RAID 5
-
-**Respuesta:**
-```
-a) RAID 0: 6 × 2 TiB = 12 TiB (sin redundancia)
-
-b) RAID 1: 3 × 2 TiB = 6 TiB (3 pares espejo)
-
-c) RAID 5: (6-1) × 2 TiB = 10 TiB (1 disco de paridad distribuida)
-```
-
-### Ejercicio 4: Scheduling Avanzado
-
-Teniendo los siguientes datos, Cola: [25, 179, 58, 120, 77, 190, 13, 85], posición: 100, dirección: DOWN, disco [0-199]. Calcular movimiento para LOOK y C-LOOK.
-
-*Respuesta:*
-```
-LOOK (DOWN luego UP):
-100 → 85 → 77 → 58 → 25 → 13 (fin de DOWN) → 120 → 179 → 190
-Movimiento: 15+8+19+33+12+107+59+11 = 264
-
-C-LOOK (DOWN hasta fin, saltar a máximo, continuar DOWN):
-100 → 85 → 77 → 58 → 25 → 13 → 190 (salto) → 179 → 120
-Movimiento: 15+8+19+33+12+177+11+59 = 334
-```
-
----
-
-Este capítulo completó la visión integral del sistema operativo: gestión de procesos, memoria, file systems, y ahora I/O. Entender cómo el SO coordina la CPU, RAM y dispositivos periféricos es esencial para comprender el funcionamiento completo de un sistema de computación moderno.
+Este capítulo cubrió desde los conceptos fundamentales de archivos y directorios, pasando por los métodos de asignación de espacio, hasta el análisis detallado de FAT y EXT2, los dos sistemas de archivos que estudiamos en profundidad en la cátedra. Los ejercicios integradores te preparan para resolver problemas numéricos típicos de parcial.
