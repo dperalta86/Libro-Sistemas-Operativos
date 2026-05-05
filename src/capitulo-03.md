@@ -98,6 +98,8 @@ La **tabla de procesos** actúa como punto de entrada hacia todas las demás tab
 
 La **tabla de memoria** rastrea cómo se asigna la memoria del sistema. Registra qué bloques de memoria están asignados a cada proceso, qué memoria está libre y disponible, los atributos de protección de cada región (lectura, escritura, ejecución), y toda la información necesaria para memoria virtual, como tablas de páginas y segmentos.  
 
+La **tabla de I/O** gestiona los dispositivos del sistema. Mantiene el estado actual de cada dispositivo (libre, ocupado, error), las colas de operaciones pendientes por dispositivo, los buffers asociados a cada operación en curso, y referencias a los controladores de dispositivos activos. Esta tabla es crucial para la multiprogramación: cuando un proceso se bloquea esperando I/O, el sistema necesita saber exactamente qué está esperando.
+
 \begin{center}
 \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/images/tables/cap02-memoryTable.png}
 \end{center}
@@ -106,7 +108,6 @@ La **tabla de memoria** rastrea cómo se asigna la memoria del sistema. Registra
 \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/images/tables/cap02-memoryTable01.png}
 \end{center}
 
-La **tabla de I/O** gestiona los dispositivos del sistema. Mantiene el estado actual de cada dispositivo (libre, ocupado, error), las colas de operaciones pendientes por dispositivo, los buffers asociados a cada operación en curso, y referencias a los controladores de dispositivos activos. Esta tabla es crucial para la multiprogramación: cuando un proceso se bloquea esperando I/O, el sistema necesita saber exactamente qué está esperando.
 \begin{center}
 \includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/images/tables/cap02-ioTable.png}
 \end{center}

@@ -278,17 +278,9 @@ Esta capacidad de interrumpir transparentemente la ejecución, atender un evento
 
 Los diferentes niveles de memoria en un sistema moderno forman una pirámide donde velocidad y capacidad están inversamente relacionados:  
 
-```
-Registros CPU (1 ciclo, bytes)
-    ↓
-Cache L1 (2-4 ciclos, KiB)
-    ↓  
-Cache L2 (10-20 ciclos, MiB)
-    ↓
-Memoria Principal RAM (100-300 ciclos, GiB)
-    ↓
-Almacenamiento Secundario (millones de ciclos, TiB)
-```
+\begin{center}
+\includegraphics[width=0.5\linewidth,keepaspectratio]{src/images/capitulo-02/capacidad-vs-velocidad.png}
+\end{center}
 
 Las implicaciones para el sistema operativo son profundas. La gestión eficiente de cache es crítica para rendimiento, ya que la diferencia entre un cache hit y un cache miss puede ser de dos órdenes de magnitud en latencia. La memoria virtual se vuelve necesaria cuando la RAM es insuficiente para todos los procesos activos. Los algoritmos de reemplazo deben optimizar para minimizar accesos al nivel más lento.  
 
