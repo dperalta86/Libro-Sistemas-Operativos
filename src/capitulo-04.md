@@ -387,7 +387,7 @@ P4      |    3    |     2     |     3     |     1
 
 Aplicaremos Round Robin con un quantum de Q=3. La clave está en trackear cuidadosamente el estado de cada proceso: cuánto tiempo de CPU ha consumido en su ráfaga actual, si está bloqueado esperando I/O, y cuándo puede volver a la cola READY.
 \begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap03-gantt-RR.png}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/images/tables/cap03-gantt-RR.png}
 \end{center}
 Desarrollemos el timeline paso a paso. En t=0, P1 es el único proceso en el sistema y comienza a ejecutarse. Usará 3 de sus 5 milisegundos de CPU antes de que su quantum expire. Mientras tanto, P2 y P3 llegan al sistema en t=1 y t=2 respectivamente, ingresando a la cola READY.  
 En t=3, P1 ha agotado su quantum habiendo ejecutado solo 3 de sus 5ms necesarios. Va al final de la cola READY con 2ms de CPU pendientes. P2, que ha estado esperando desde t=1, ahora obtiene el CPU. Simultáneamente, P4 llega y se agrega a la cola.  
@@ -429,7 +429,7 @@ Observá cómo el tiempo de respuesta promedio es excelente (solo 3ms), confirma
 Ahora analicemos el mismo conjunto de procesos usando SJF no preemptivo. Este algoritmo tomará decisiones completamente diferentes, priorizando la minimización del tiempo de retorno promedio sobre la justicia y la responsividad.
 
 \begin{center}
-\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/tables/cap03-gantt-SJF.png}
+\includegraphics[width=\linewidth,height=\textheight,keepaspectratio]{src/images/tables/cap03-gantt-SJF.png}
 \end{center}
 
 En t=0, P1 es el único proceso disponible y ejecuta sus 5ms completos, terminando su primera ráfaga en t=5 y bloqueándose para I/O. Durante este tiempo, P2, P3 y P4 han llegado y están esperando.  
