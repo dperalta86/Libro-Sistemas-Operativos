@@ -67,7 +67,7 @@ Las ventajas de este enfoque fueron revolucionarias. Primero, es completamente t
 La viabilidad de la memoria virtual se basa en dos observaciones fundamentales. Primero, no todo el programa necesita estar en RAM simultáneamente (esto se conoce como el *principio de localidad*). Segundo, podemos usar el disco como extensión de la RAM, con traducción automática de direcciones.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-08/01.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-virtual/01.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
@@ -149,7 +149,7 @@ Este programa ilustra un punto crucial: la dirección que vemos (como `0x7f8a3c0
 La separación entre espacios virtual y físico tiene consecuencias profundas. Ambos procesos pueden usar la misma dirección virtual (digamos, `0x1000`), pero estas se mapean a marcos físicos completamente diferentes. Esto proporciona protección automática: un proceso no puede acceder al marco de otro. Además, simplifica enormemente la programación, ya que cada proceso comienza en `0x0` y el programador no tiene que preocuparse de dónde están otros procesos en memoria.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-08/02.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-virtual/02.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
@@ -1003,7 +1003,7 @@ Thrashing es un estado del sistema donde se dedica más tiempo a manejar page fa
 \end{highlight}
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-08/03.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-virtual/03.png}
 
 <!-- \vspace{0.3em}
 {\small\itshape\color{gray!65}

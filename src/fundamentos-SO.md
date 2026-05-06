@@ -229,17 +229,13 @@ El rendimiento sufre debido al overhead de IPC entre componentes. Una operación
 La realidad es que la mayoría de sistemas operativos modernos no son puramente monolíticos ni microkernels puros, sino que combinan elementos de ambos enfoques según convenga. Windows NT usa un microkernel modificado pero mueve algunos servicios críticos de performance al kernel. macOS combina el microkernel Mach con componentes monolíticos de BSD. Linux, aunque principalmente monolítico, usa módulos cargables que pueden agregarse y removerse dinámicamente.  
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-01/02.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/fundamentos-SO/02.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
 Comparación de las principales arquitecturas de núcleo de un sistema operativo: kernel monolítico, microkernel y kernel multicapa, destacando la organización de sus componentes y su relación con el hardware.
 }
 \end{center}
-
-<!-- ![Comparación de las principales arquitecturas de núcleo de un sistema operativo: kernel monolítico, microkernel y kernel multicapa, destacando la organización de sus componentes y su relación con el hardware.](src/images/capitulo-01/02.png){width=0.9\linewidth}
- -->
-
 
 | Aspecto | Monolítico | Microkernel |
 |---------|------------|-------------|
@@ -279,7 +275,7 @@ Esta capacidad de interrumpir transparentemente la ejecución, atender un evento
 Los diferentes niveles de memoria en un sistema moderno forman una pirámide donde velocidad y capacidad están inversamente relacionados:  
 
 \begin{center}
-\includegraphics[width=0.5\linewidth,keepaspectratio]{src/images/capitulo-02/capacidad-vs-velocidad.png}
+\includegraphics[width=0.5\linewidth,keepaspectratio]{src/images/fundamentos-SO/capacidad-vs-velocidad.png}
 \end{center}
 
 Las implicaciones para el sistema operativo son profundas. La gestión eficiente de cache es crítica para rendimiento, ya que la diferencia entre un cache hit y un cache miss puede ser de dos órdenes de magnitud en latencia. La memoria virtual se vuelve necesaria cuando la RAM es insuficiente para todos los procesos activos. Los algoritmos de reemplazo deben optimizar para minimizar accesos al nivel más lento.  

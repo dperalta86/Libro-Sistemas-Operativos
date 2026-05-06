@@ -369,7 +369,7 @@ Esta interpretación explica por qué post despierta un proceso cuando el valor 
 \end{theory}
 
 \begin{highlight}
-Nota: Esta interpretación (valor negativo = procesos esperando) asume la implementación donde sem_wait() decrementa primero y luego bloquea si el valor es negativo. Esta es la implementación clásica mostrada en el pseudocódigo. En la práctica, las implementaciones reales de POSIX semáforos (sem_wait/sem_post) no exponen el valor negativo; mantienen un contador no negativo y una cola separada de procesos bloqueados.
+Nota: Esta interpretación (valor negativo = procesos esperando) asume la implementación donde \texttt{sem\_wait()} decrementa primero y luego bloquea si el valor es negativo. Esta es la implementación clásica mostrada en el pseudocódigo. En la práctica, las implementaciones reales de POSIX semáforos (\texttt{sem\_wait()}/\texttt{sem\_post()}) no exponen el valor negativo; mantienen un contador no negativo y una cola separada de procesos bloqueados.
 \end{highlight}
 
 ### Tipos de Semáforos

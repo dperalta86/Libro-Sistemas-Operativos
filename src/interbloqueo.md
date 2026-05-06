@@ -79,7 +79,7 @@ Las aristas (flechas) pueden ser:
 - **Asignación**: $R_j \rightarrow P_i$ (una instancia de $R_j$ está asignada a $P_i$)
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/deadlock.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/interbloqueo/deadlock.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
@@ -372,7 +372,7 @@ La elección de estrategia no es técnica sino **económica y de ingeniería de 
 - **Regulaciones**: DO-178C (aviación), IEC 62304 (software médico) exigen análisis formal de deadlock.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/decision-deadlock.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/interbloqueo/decision-deadlock.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}

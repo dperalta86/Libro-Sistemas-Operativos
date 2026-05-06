@@ -57,7 +57,7 @@ typedef struct thread_control_block {
 El TID (Thread ID) identifica únicamente al hilo dentro de su proceso. El estado refleja su situación actual en el sistema: ready cuando está listo para ejecutar, running cuando tiene asignado un CPU, blocked cuando espera por algún recurso, o terminated cuando ha finalizado. Los punteros `stack_pointer` y `program_counter` capturan exactamente dónde se encuentra el hilo en su ejecución. El campo `registers` preserva el estado completo de los registros del procesador, permitiendo que el hilo retome su ejecución exactamente donde la dejó después de un cambio de contexto.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-04/thread_tcb.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/hilos/thread_tcb.png}
 \end{center}
 
 \begin{warning}
@@ -69,7 +69,7 @@ La organización del espacio de direcciones de un proceso multihilo revela clara
 En la parte baja de la memoria encontramos el segmento de texto (código ejecutable), idéntico para todos los hilos. Inmediatamente después está el segmento de datos inicializados y el BSS (datos no inicializados), también compartidos. El heap dinámico, gestionado por malloc() y free(), crece hacia direcciones más altas y es accesible por todos los hilos del proceso.
 
 \begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/01.png}  
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/hilos/01.png}  
 \end{center}
 
 La parte alta de la memoria se reserva para los stacks individuales de cada hilo. Estos crecen hacia direcciones más bajas y están separados por regiones de guarda (guard pages) que detectan desbordamientos. Esta separación física de los stacks garantiza que las variables locales de un hilo no interfieran con las de otro.
@@ -172,7 +172,7 @@ La relación entre hilos de usuario y kernel puede estructurarse de varias forma
 Múltiples hilos de usuario mapean a un solo hilo kernel. Este es el modelo clásico de ULT puro:
 
 \begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/02.png}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/hilos/02.png}
 \end{center}
 
 Este modelo maximiza la eficiencia del context switch y minimiza el uso de recursos del kernel, pero sacrifica completamente el paralelismo. Toda la aplicación se ejecuta como un único hilo desde la perspectiva del sistema operativo.
@@ -180,7 +180,7 @@ Este modelo maximiza la eficiencia del context switch y minimiza el uso de recur
 #### Modelo One-to-One (1:1)
 Cada hilo de usuario mapea a un hilo kernel dedicado. Este es el modelo más común en sistemas operativos modernos:  
 \begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/03.png}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/hilos/03.png}
 \end{center}
 
 Este modelo maximiza el paralelismo y permite que el kernel gestione directamente todos los hilos, pero incrementa el overhead de cada operación. Linux, Windows y la mayoría de sistemas UNIX modernos utilizan este modelo para sus implementaciones de hilos POSIX (pthreads).
@@ -188,7 +188,7 @@ Este modelo maximiza el paralelismo y permite que el kernel gestione directament
 #### Modelo Many-to-Many (M:N)
 M hilos de usuario mapean a N hilos kernel, donde M > N. Este modelo híbrido intenta combinar las ventajas de ambos enfoques:  
 \begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-04/04.png}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/hilos/04.png}
 \end{center}
 
 \begin{infobox}

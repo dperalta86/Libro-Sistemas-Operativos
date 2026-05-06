@@ -7,8 +7,19 @@ SRC_DIR = src
 
 # Lista de capítulos en orden
 CAPITULOS = $(SRC_DIR)/prefacio.md \
-			$(SRC_DIR)/capitulo-09.md \
-			$(SRC_DIR)/glosario.md
+	$(SRC_DIR)/arquitectura-de-computadores.md \
+	$(SRC_DIR)/fundamentos-SO.md \
+	$(SRC_DIR)/procesos.md \
+	$(SRC_DIR)/planificacion.md \
+	$(SRC_DIR)/hilos.md \
+	$(SRC_DIR)/sincronizacion.md \
+	$(SRC_DIR)/interbloqueo.md \
+	$(SRC_DIR)/memoria-real.md \
+	$(SRC_DIR)/memoria-virtual.md \
+	$(SRC_DIR)/filesystem.md \
+	$(SRC_DIR)/io.md \
+	$(SRC_DIR)/apendice.md \
+	$(SRC_DIR)/glosario.md
 
 # Archivos de configuración por formato
 METADATA_A4 = metadata-a4.yaml

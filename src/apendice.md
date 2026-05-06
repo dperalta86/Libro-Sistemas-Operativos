@@ -16,7 +16,7 @@ Para internals del kernel:
 
 ## Sobre este Libro
 
-*Versión actual:* 1.0 (Enero 2026)  
+*Versión actual:* 1.0 (Mayo de 2026)  
 *Repositorio:* [https://github.com/dperalta86/Libro-Sistemas-Operativos]  
 *Licencia:* Creative Commons BY-SA 4.0  
 

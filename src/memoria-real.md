@@ -140,7 +140,7 @@ En los esquemas más simples de gestión de memoria, la MMU usa solo dos registr
 La traducción es directa: `Dirección Física = Dirección Lógica + Base`. Pero hay una verificación crítica: `Si (Dirección Lógica >= Límite): Generar TRAP (Segmentation Fault)`.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/08.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-real/08.png}
 \end{center}
 
 \begin{warning}
@@ -156,7 +156,7 @@ La fragmentación es el desperdicio de memoria que no puede usarse eficientement
 La fragmentación interna es memoria desperdiciada DENTRO de una región asignada. Ocurre cuando se asigna más memoria de la necesitada. Imaginá que un proceso necesita 19 KiB pero el sistema asigna bloques de 4 KiB. Se asignan 5 bloques (20 KiB), desperdiciando 1 KiB.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/01.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-real/01.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
@@ -192,7 +192,7 @@ El problema crítico es evidente con un ejemplo: un proceso de 50 KiB en una par
 \end{example}
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/04.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-real/04.png}
 \end{center}
 
 ### Particiones Dinámicas
@@ -206,7 +206,7 @@ Las ventajas iniciales son claras: sin fragmentación interna, número dinámico
 \\vfill
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/02.jpg}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-real/02.jpg}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
@@ -225,7 +225,7 @@ Cuando llega un proceso que necesita memoria, el SO debe decidir **en qué bloqu
 **Escenario común para todos los algoritmos:**
 
 \begin{center}
-\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/09.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/memoria-real/09.png}
 \end{center}
 
 Veamos cómo cada algoritmo maneja esta situación.
@@ -241,7 +241,7 @@ El algoritmo busca secuencialmente en la lista de bloques libres y asigna el **p
 **Resultado:** P4 se asigna en el Bloque A (100 KiB), quedando un fragmento de 30 KiB.
 
 \begin{center}
-\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/10.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/memoria-real/10.png}
 \end{center}
 
 La complejidad es O(n) en el peor caso, pero rápido en promedio. Tiende a dejar bloques pequeños al inicio de la lista, lo que puede generar acumulación de fragmentos inútiles en esa zona.
@@ -259,7 +259,7 @@ Este algoritmo busca en **toda** la lista de bloques libres y asigna el **bloque
 **Resultado:** P4 se asigna en el Bloque C (75 KiB), quedando un fragmento de 5 KiB.
 
 \begin{center}
-\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/11.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/memoria-real/11.png}
 \end{center}
 
 La complejidad es O(n) siempre porque debe recorrer toda la lista. Minimiza el desperdicio por asignación individual, pero genera muchos bloques muy pequeños (como ese fragmento de 5 KiB) que terminan siendo inútiles.
@@ -277,7 +277,7 @@ Contraintuitivamente, este algoritmo busca en toda la lista y asigna el **bloque
 **Resultado:** P4 se asigna en el Bloque B (150 KiB), quedando un fragmento de 80 KiB.
 
 \begin{center}
-\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/12.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/memoria-real/12.png}
 \end{center}
 
 La complejidad es O(n) siempre, pero deja bloques grandes que son más útiles que los pequeños. En simulaciones, suele tener mejor rendimiento que Best Fit.
@@ -296,7 +296,7 @@ Similar a First Fit, pero continúa la búsqueda desde donde terminó la última
 *Nota:* En este ejemplo coincide con First Fit, simplemente porque se utilizó como ultimo proceso asignado P3, en cambio si el ultimo asignado hubiera sido P2, el asignado sería Bloque C.
 
 \begin{center}
-\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/13.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/memoria-real/13.png}
 \end{center}
 
 Tiene complejidad O(n) en el peor caso, distribuye asignaciones más uniformemente, y evita la concentración de bloques pequeños al inicio de la memoria.
@@ -320,7 +320,7 @@ La paginación es el fundamento de prácticamente todos los sistemas operativos 
 \end{highlight}
 
 \begin{center}
-\includegraphics[width=0.5\linewidth,keepaspectratio]{src/images/capitulo-07/03.png}
+\includegraphics[width=0.5\linewidth,keepaspectratio]{src/images/memoria-real/03.png}
 \end{center}
 
 ### Formato de Dirección Lógica
@@ -336,7 +336,7 @@ Veamos un ejemplo concreto. Con un espacio de 64 KiB con páginas de 4 KiB, tene
 El formato de dirección de 16 bits se divide en 4 bits para el número de página (permitiendo páginas 0-15) y 12 bits para el offset (permitiendo offset 0-4095).
 
 \begin{center}
-\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/capitulo-07/05.png}
+\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/memoria-real/05.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
@@ -379,7 +379,7 @@ Nota que hay que completar con la cantidad de bits la dirección logica (complet
 \end{infobox}
 
 \begin{center}
-\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/capitulo-07/06.png}
+\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/memoria-real/06.png}
 \end{center}
 
 Consultar tabla: $tabla[1] = marco 2$  
@@ -399,7 +399,7 @@ La tabla de páginas es una estructura de datos mantenida por el SO que mapea n�
 Cada entrada de la tabla (PTE - Page Table Entry) contiene más que solo el número de marco. Incluye el marco (número de marco físico donde está la página), el bit P o V (Presencia/Validate, indica si la página está en memoria o en disco), el bit U o R (Uso/Referenced, para algoritmos de reemplazo), el bit M o W (Modificada/Write/Dirty, indica si la página fue modificada), el bit X (Execute, permiso de ejecución), y otros campos para protección, compartición, etc.
 
 \begin{center}
-\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/capitulo-07/07.png}
+\includegraphics[width=0.7\linewidth,keepaspectratio]{src/images/memoria-real/07.png}
 \end{center}
 
 Un aspecto crucial es la ubicación: la tabla de páginas está en memoria RAM, no en registros del CPU (son demasiadas entradas). El SO mantiene un registro especial llamado PTBR (Page Table Base Register) que apunta al inicio de la tabla. En cada context switch, el SO actualiza el PTBR con la tabla del nuevo proceso.
@@ -408,7 +408,7 @@ Esto introduce un problema de rendimiento: cada acceso a memoria requiere 2 acce
 \end{warning}
 
 \begin{center}
-\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/capitulo-07/14.png}
+\includegraphics[width=0.75\linewidth,keepaspectratio]{src/images/memoria-real/14.png}
 \end{center}
 
 ### Fragmentación Interna en Paginación
@@ -448,7 +448,7 @@ Un proceso puede tener un segmento 0 de código (2000 bytes) con base en 1000 y 
 | Compartición | Complicada | Natural |
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/20.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-real/20.png}
 \end{center}
 
 ### Formato de Dirección Lógica en Segmentación
@@ -479,7 +479,7 @@ Traducir: (1, 600)
 ```
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/21.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-real/21.png}
 \end{center}
 
 ### Ventajas de Segmentación
@@ -527,7 +527,7 @@ Veamos la operación completa.
 
 Estado inicial: 256 KiB libre
 \begin{center}
-\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/22.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/memoria-real/22.png}
 \end{center}
 ```
 Solicitud: 40 KiB
@@ -538,7 +538,7 @@ Solicitud: 40 KiB
 ```
 
 \begin{center}
-\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/23.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/memoria-real/23.png}
 \end{center}
 
 ```
@@ -548,7 +548,7 @@ Solicitud: 35 KiB
 ```
 
 \begin{center}
-\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/26.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/memoria-real/26.png}
 \end{center}
 
 ```
@@ -558,7 +558,7 @@ Liberar primer bloque (64 KiB):
 ```
 
 \begin{center}
-\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/24.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/memoria-real/24.png}
 \end{center}
 ```
 Liberar segundo bloque (64 KiB):
@@ -568,7 +568,7 @@ Liberar segundo bloque (64 KiB):
 -> Fusionar en 256 KiB
 ```
 \begin{center}
-\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/25.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/memoria-real/25.png}
 \end{center}
 
 Las ventajas son asignación y liberación rápidas en O(log n), coalescing automático sin escanear toda la memoria, reduce fragmentación externa comparado con particiones dinámicas, e implementación simple con listas por tamaño. Las desventajas son la fragmentación interna (siempre se asigna potencia de 2), por ejemplo un proceso de 65 KiB recibe 128 KiB desperdiciando 63 KiB, y no es tan eficiente como paginación pura.
@@ -585,7 +585,7 @@ En un sistema de 32 bits con páginas de 4 KiB, hay $2^{32} = 4 GiB$ de direccio
 La solución es paginar la tabla de páginas misma, creando una jerarquía de múltiples niveles.
 
 \begin{center}
-\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/capitulo-07/15.png}
+\includegraphics[width=0.6\linewidth,keepaspectratio]{src/images/memoria-real/15.png}
 \end{center}
 
 #### Paginación de Dos Niveles
@@ -596,7 +596,7 @@ El formato de dirección lógica se divide en tres partes: directorio (p1), pág
 La ventaja es enorme: si un proceso no usa ciertas regiones de memoria, las tablas de nivel 2 correspondientes NO se crean, ahorrando memoria significativamente.
 
 \begin{center}
-\includegraphics[width=0.85\linewidth,keepaspectratio]{src/images/capitulo-07/16.png}
+\includegraphics[width=0.85\linewidth,keepaspectratio]{src/images/memoria-real/16.png}
 \end{center}
 
 En un sistema de 32 bits con páginas de 4 KiB, podés usar 10 bits para directorio (1024 entradas), 10 bits para página (1024 entradas por tabla nivel 2), y 12 bits para offset (4096 bytes). Si un proceso usa solo 4 MiB, requiere 1 entrada en directorio y 1 tabla de nivel 2 (1024 entradas), totalizando $(1024 + 1024) * 4 bytes = 8 KiB$, versus 4 MiB en tabla plana.
@@ -607,7 +607,7 @@ En un sistema de 32 bits con páginas de 4 KiB, podés usar 10 bits para directo
 Para espacios de direcciones de 64 bits, se requieren más niveles. La dirección se divide en p1, p2, p3, y offset.  
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/17.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-real/17.png}
 \end{center}
 
 Por ejemplo, x86-64 con páginas de 4 KiB usa direcciones de 48 bits (no se usan los 64 completos), divididas en 9 bits para cada uno de cuatro niveles (PML4, PDPT, PD, PT), más 12 bits de offset. Esto crea cuatro niveles de traducción: Page Map Level 4 (PML4), Page Directory Pointer Table (PDPT), Page Directory (PD), y Page Table (PT).
@@ -623,7 +623,7 @@ Un enfoque radicalmente diferente: en lugar de una tabla por proceso, una tabla 
 La estructura tiene una entrada por marco físico, conteniendo el PID del proceso dueño, el número de página lógica, y flags de protección y estado. La traducción requiere extraer página p y offset d de la dirección lógica, buscar en la tabla invertida la entrada donde `(PID == actual) AND (Página == p)`, usar el índice de esa entrada como el marco, y calcular `DF = marco * tamaño_página + d`.
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/18.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-real/18.png}
 \end{center}
 El problema crítico es que la búsqueda es O(n) donde n es la cantidad de marcos. Cada acceso a memoria requiere escanear toda la tabla, lo cual es INACEPTABLE sin optimización. La solución es usar una tabla hash para acelerar la búsqueda:  
 ```
@@ -642,7 +642,7 @@ El proceso reorganiza la memoria moviendo procesos activos para eliminar fragmen
 El algoritmo implica identificar todos los bloques libres, mover procesos hacia direcciones bajas, actualizar tablas de asignación, y actualizar todas las referencias (registros, punteros, tablas de páginas).
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-07/19.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-real/19.png}
 \end{center}
 
 Los costos son considerables: copiar todos los procesos en memoria es muy lento, hay que detener la ejecución durante la compactación, actualizar estructuras del SO, y en un sistema con 1 GiB ocupado, esto puede tomar varios segundos.
@@ -700,7 +700,7 @@ Los sistemas modernos permiten que múltiples procesos compartan páginas de mem
 En código compartido, dos procesos ejecutando el mismo programa pueden apuntar al mismo marco físico para su segmento de código (con permisos read-only), mientras mantienen datos y stack privados en marcos separados. Si 100 procesos ejecutan bash (1 MiB de código), sin compartición se necesitarían 100 MiB de código en RAM. Con compartición, se necesita 1 MiB de código más 100 MiB de datos privados, ahorrando 99 MiB.
 
 \begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-07/27.png}  
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/memoria-real/27.png}  
 \end{center}
 
 Los requisitos para compartir código son que el código debe ser reentrante (no se modifica a sí mismo), las páginas compartidas deben tener permisos R-X (no escribibles), y cada proceso tiene sus propios datos y stack privados.

@@ -22,7 +22,7 @@ La característica distintiva de la arquitectura de von Neumann es que \textit{p
 \end{theory}
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-01/01.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/arquitectura-de-computadores/01.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
@@ -113,7 +113,7 @@ Las interrupciones de software son generadas explícitamente por instrucciones d
 Las excepciones son eventos síncronos generados por condiciones de error durante la ejecución. Una división por cero, un acceso a memoria inválida, o una instrucción ilegal generan excepciones que deben ser manejadas inmediatamente.  
 
 \begin{center}
-\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/capitulo-01/bloque-interrupciones.png}
+\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/images/arquitectura-de-computadores/bloque-interrupciones.png}
 \end{center}
 
 ### Interrupciones Enmascarables (Maskable Interrupts)
@@ -345,7 +345,7 @@ Esta separación de modos es la base de la seguridad y estabilidad del sistema. 
 Cuándo por algún motivo existe un cambio de proceso en ejecución (los motivos se verán en detalle mas adelante), se realizan varias tareas que son "transparentes" para el usuario final.  
 
 \begin{center}
-\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/capitulo-01/03.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/arquitectura-de-computadores/03.png}
 
 \vspace{0.3em}
 {\small\itshape\color{gray!65}
@@ -354,7 +354,7 @@ Diagrama del cambio de contexto entre procesos, donde el sistema operativo guard
 \end{center}
 
 <!-- 
-![Diagrama del cambio de contexto entre procesos, donde el sistema operativo guarda el estado del proceso en ejecución en su PCB y restaura el estado de otro proceso para continuar su ejecución.](src/images/capitulo-01/03.png){ width=0.8\linewidth height=370px style="display: block; margin: auto;" }
+![Diagrama del cambio de contexto entre procesos, donde el sistema operativo guarda el estado del proceso en ejecución en su PCB y restaura el estado de otro proceso para continuar su ejecución.](src/images/arquitectura-de-computadores/03.png){ width=0.8\linewidth height=370px style="display: block; margin: auto;" }
  -->
 \begin{center}
 \begin{minipage}{0.45\linewidth}
