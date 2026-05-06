@@ -368,6 +368,10 @@ La semántica del valor del semáforo es crucial para entender su funcionamiento
 Esta interpretación explica por qué post despierta un proceso cuando el valor es ≤ 0: un valor no positivo implica que hay procesos bloqueados esperando el recurso.
 \end{theory}
 
+\begin{highlight}
+Nota: Esta interpretación (valor negativo = procesos esperando) asume la implementación donde sem_wait() decrementa primero y luego bloquea si el valor es negativo. Esta es la implementación clásica mostrada en el pseudocódigo. En la práctica, las implementaciones reales de POSIX semáforos (sem_wait/sem_post) no exponen el valor negativo; mantienen un contador no negativo y una cola separada de procesos bloqueados.
+\end{highlight}
+
 ### Tipos de Semáforos
 Los semáforos vienen en dos variedades principales, cada una optimizada para casos de uso específicos.
 
@@ -548,8 +552,11 @@ typedef struct {
 cochera_t cochera;
 
 void inicializar_cochera() {
-    // Inicializar semáforos
+    // Semáforo contador para espacios disponibles (compartido entre hilos)
     sem_init(&cochera.espacios_disponibles, 0, CAPACIDAD_COCHERA);
+    
+    // NOTA: Para exclusión mutua entre hilos, es más convencional usar pthread_mutex_t.
+    // Se usan semáforos binarios aquí por consistencia, pero en la práctica se prefiere mutex.
     sem_init(&cochera.mutex_entrada, 0, 1);
     sem_init(&cochera.mutex_salida1, 0, 1);
     sem_init(&cochera.mutex_salida2, 0, 1);
@@ -565,6 +572,7 @@ void inicializar_cochera() {
 
 void* auto_entrando(void* arg) {
     int auto_id = *(int*)arg;
+    free(arg);  // Liberar el argumento dinámico
     
     printf("Auto %d llegó a la cochera\n", auto_id);
     
@@ -604,6 +612,7 @@ void* auto_entrando(void* arg) {
 
 void* auto_saliendo(void* arg) {
     int auto_id = *(int*)arg;
+    free(arg);  // Liberar el argumento dinámico
     
     printf("Auto %d quiere salir\n", auto_id);
     
@@ -655,7 +664,6 @@ void mostrar_estadisticas() {
 int main() {
     pthread_t hilos_entrada[NUM_AUTOS];
     pthread_t hilos_salida[NUM_AUTOS];
-    int auto_ids[NUM_AUTOS];
     
     // Inicializar sistema
     inicializar_cochera();
@@ -663,20 +671,31 @@ int main() {
     
     printf("Iniciando simulación: %d autos intentarán usar la cochera\n\n", NUM_AUTOS);
     
-    // Crear hilos de entrada
+    // Crear hilos de entrada (con argumentos dinámicos)
     for (int i = 0; i < NUM_AUTOS; i++) {
-        auto_ids[i] = i + 1;
-        pthread_create(&hilos_entrada[i], NULL, auto_entrando, &auto_ids[i]);
+        int* arg = malloc(sizeof(int));
+        *arg = i + 1;
+        int rc = pthread_create(&hilos_entrada[i], NULL, auto_entrando, arg);
+        if (rc != 0) {
+            fprintf(stderr, "Error creando hilo de entrada: %s\n", strerror(rc));
+            exit(1);
+        }
         
         // Espaciar llegadas aleatoriamente
         usleep(50000 + (rand() % 100000));  // 50-150ms entre llegadas
     }
     
     // Crear hilos de salida con delay
-    sleep(3);  // Esperar que algunos autos entren primero
+    sleep(3);  // NOTA: En producción se usaría una barrera, esto es didáctico
     
     for (int i = 0; i < NUM_AUTOS; i++) {
-        pthread_create(&hilos_salida[i], NULL, auto_saliendo, &auto_ids[i]);
+        int* arg = malloc(sizeof(int));
+        *arg = i + 1;
+        int rc = pthread_create(&hilos_salida[i], NULL, auto_saliendo, arg);
+        if (rc != 0) {
+            fprintf(stderr, "Error creando hilo de salida: %s\n", strerror(rc));
+            exit(1);
+        }
         usleep(100000 + (rand() % 200000));  // 100-300ms entre salidas
     }
     
@@ -686,9 +705,13 @@ int main() {
         mostrar_estadisticas();
     }
     
-    // Esperar que todos terminen
+    // Esperar que todos los hilos de entrada terminen
     for (int i = 0; i < NUM_AUTOS; i++) {
         pthread_join(hilos_entrada[i], NULL);
+    }
+    
+    // Esperar que todos los hilos de salida terminen
+    for (int i = 0; i < NUM_AUTOS; i++) {
         pthread_join(hilos_salida[i], NULL);
     }
     
