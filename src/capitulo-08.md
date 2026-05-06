@@ -129,7 +129,7 @@ El funcionamiento básico es simple en concepto pero crítico en implementación
 
 La MMU necesita consultar tablas de páginas en RAM para traducir direcciones. Como esto es lento (más de 100 nanosegundos), existe una caché especial dentro del CPU llamada TLB.
 
-El TLB es una caché hardware de alta velocidad que almacena traducciones recientes de páginas. Típicamente contiene entre 64 y 512 entradas, con tiempo de acceso menor a 1 nanosegundo. El proceso de traducción con TLB funciona así: el CPU genera una dirección lógica, la MMU busca en TLB en menos de 1 nanosegundo. Si hay un *TLB hit*, usa la traducción cacheada y el acceso total toma alrededor de 10 nanosegundos. Si hay un *TLB miss*, busca en la tabla de páginas en RAM, lo que toma alrededor de 100 nanosegundos. Si fue miss, la entrada se cachea en TLB para futuros accesos.
+El TLB es una caché hardware de alta velocidad que almacena traducciones recientes de páginas. Típicamente contiene entre 64 y 512 entradas, con tiempo de acceso del orden de 1 nanosegundo (típicamente 1-2 ciclos de CPU). El proceso de traducción con TLB funciona así: el CPU genera una dirección lógica, la MMU busca en TLB en menos de 1 nanosegundo. Si hay un *TLB hit*, usa la traducción cacheada y el acceso total toma alrededor de 10 nanosegundos. Si hay un *TLB miss*, busca en la tabla de páginas en RAM, lo que toma alrededor de 100 nanosegundos. Si fue miss, la entrada se cachea en TLB para futuros accesos.
 
 La efectividad del TLB es impresionante: el hit rate típico es de 98-99%, gracias a la localidad espacial (los procesos acceden memoria cercana) y temporal (mismas páginas repetidamente). Una aplicación bien escrita puede tener un hit rate mayor al 99%, lo que hace que el overhead de traducción sea casi imperceptible.
 
@@ -1224,20 +1224,20 @@ Si dividimos DL por el tamaño de página:
 DL = número_página * tamaño_página + offset
 ```
 
-Probemos con diferentes tamaños de página (potencias de 2):
+Como el tamaño de página siempre es potencia de 2, probamos candidatos típicos:
 
 ```
 Hipótesis 1: tamaño_página = 1024 bytes (2^10)
 DL = 12345 = 12 * 1024 + 57
     página = 12, offset = 57
 DF debería ser = 7 * 1024 + 57 = 7168 + 57 = 7225
-Pero DF real = 28729 X
+Pero DF real = 28729 -> no coincide
 
 Hipótesis 2: tamaño_página = 2048 bytes (2^11)
 DL = 12345 = 6 * 2048 + 57
     página = 6, offset = 57
 DF debería ser = 7 * 2048 + 57 = 14336 + 57 = 14393
-Pero DF real = 28729 X
+Pero DF real = 28729 -> no coincide
 
 Hipótesis 3: tamaño_página = 4096 bytes (2^12)
 DL = 12345 = 3 * 4096 + 57
@@ -1273,14 +1273,14 @@ Número de páginas = 2^4 = 16 páginas (0-15)
 
 *Parte 3: Traducir dirección lógica 15000*
 
+\begin{warning}
+En este inciso, el enunciado indica explícitamente que la página de 15000 mapea al marco 5.
+Eso debe tomarse como dato del inciso (puede corresponder a otro proceso o a otro estado de la tabla).
+No contradice el dato previo de 12345 -> marco 7, porque ese dato se usó para deducir el tamaño de página.
+\end{warning}
+
 ```
 Paso 1: Extraer página y offset
-15000 ÷ 4096 = 3 con resto 2616
--> página = 3, offset = 2616
-
-Verificación: 3 * 4096 + 2616 = 12288 + 2616 = 14904
-Hay un error, recalculemos:
-
 15000 ÷ 4096 = 3.66...
 3 * 4096 = 12288
 15000 - 12288 = 2712 (este es el offset correcto)
@@ -1296,6 +1296,15 @@ DF = 5 * 4096 + 2712
 DF = 20480 + 2712
 DF = 23192 bytes
 ```
+
+\begin{example}
+Error típico de parcial: equivocarse en el resto de la división y arrastrar ese error hasta el final.
+Regla práctica: siempre verificar que
+\[
+DL = pagina * tamanio\_pagina + offset
+\]
+si no cierra exactamente, hay que rehacer la cuenta.
+\end{example}
 
 *Verificación en binario:*
 
