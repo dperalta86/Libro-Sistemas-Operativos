@@ -137,9 +137,9 @@ En esos sistemas, el deadlock es inaceptable y se usan prevención o evasión.
 
 | SO | Estrategia principal | Excepciones |
 |----|---------------------|-------------|
-| **Windows** | Ostrich (ignorar) para procesos de usuario | Detección en handles de sincronización (mutex, semáforos) mediante Wait Chain Traversal API |
+| **Windows** | Ostrich para recursos de usuario; proporciona **Wait Chain Traversal API** para detección por aplicaciones | El kernel no previene/evita deadlock automáticamente, pero debuggers y aplicaciones (SQL Server) pueden detectarlos |
 | **Linux** | Ostrich para procesos de usuario | `lockdep` en kernels de desarrollo (detección estática de posibles deadlocks en código del kernel); en producción, off por defecto |
-| **macOS** | Ostrich puro (aún más extremo) | No hay detector general; se confía en la calidad de las aplicaciones |
+| **macOS** | Ostrich puro | No hay detector general; se confía en la calidad de las aplicaciones |
 
 Todos asumen que el deadlock es un bug de la aplicación, no del SO. Si ocurre, el usuario force-quits el programa (o reinicia).
 
@@ -255,6 +255,10 @@ Cuando $P_i$ pide recursos (vector $Petición[1..m]$):
 \textbf{Limitación fundamental:} El algoritmo del banquero requiere que cada proceso conozca su $Máximo$ de antemano, y que ese máximo nunca cambie. En la práctica, los procesos no saben cuántos recursos necesitarán (ej: un editor de texto puede abrir archivos arbitrarios). Por eso, el algoritmo del banquero es didáctico pero casi no se usa en SO reales.
 \end{warning}
 
+\begin{warning}
+Limitación adicional: El algoritmo del banquero asume que los procesos son \textbf{independientes} (no se comunican ni sincronizan). Si los procesos cooperan (productor-consumidor, barreras de sincronización), la secuencia segura calculada puede ser incorrecta, porque el orden real de ejecución está limitado por la sincronización, no solo por disponibilidad de recursos.
+\end{warning}
+
 ### Ejemplo 1: Estado seguro
 
 Sistema con 3 procesos ($P_1, P_2, P_3$) y 3 tipos de recursos ($A, B, C$) con instancias: (10, 5, 7).
@@ -324,6 +328,10 @@ Mantiene:
 La complejidad es $O(m \times n^2)$ en el peor caso. En sistemas con miles de procesos, se ejecuta periódicamente (ej: cada 5 minutos) o cuando la utilización del CPU cae abruptamente (síntoma de deadlock).
 \end{infobox}
 
+\begin{highlight}
+Nota: A diferencia del algoritmo del banquero (que usa Necesidad = máximo futuro), aquí usamos Petición = lo que el proceso está *actualmente esperando*. Esto es más realista porque los procesos no necesitan conocer su consumo máximo de antemano.
+\end{highlight}
+
 ### Recuperación de deadlocks
 
 Una vez detectado, hay que salir del deadlock. Opciones:
@@ -375,7 +383,7 @@ Diagrama de Decisión  para el Manejo de Deadlocks
 ## Ejercicios Tipo Parcial
 
 **Ejercicio 1 (Deadlock detection con múltiples instancias)**  
-Dado el siguiente estado de recursos (instancias totales: A=7, B=5, C=4):  
+Dado el siguiente estado de recursos (instancias totales: A=4, B=3, C=2):  
 
 | Proceso | Asignado (A,B,C) | Petición (A,B,C) |
 |---------|-----------------|------------------|
@@ -386,6 +394,11 @@ Dado el siguiente estado de recursos (instancias totales: A=7, B=5, C=4):
 
 \vspace{0.3em}
 Disponible = (1,0,0)  
+
+Verificar que la suma de asignados más disponible es igual al total de instancias:
+- A: 1+2+0+0+1 = 4 ✓
+- B: 0+1+0+2+0 = 3 ✓
+- C: 1+0+1+0+0 = 2 ✓
 
 Determinar si hay deadlock. En caso afirmativo, ¿qué procesos están involucrados?
 
@@ -414,7 +427,7 @@ Clasificar cada situación como Deadlock (D), Starvation (S), Livelock (L) o Nin
 - Dos procesos intentan entrar a una sección crítica. El scheduler siempre elige el mismo proceso, el otro nunca avanza. \_\_\_
 - Procesos P1 tiene recurso R1 y espera R2; P2 tiene R2 y espera R3; P3 tiene R3 y espera R1. \_\_\_
 - Dos procesos envían paquetes de red, detectan colisión, esperan tiempos aleatorios, colisionan nuevamente una y otra vez sin que ningún paquete llegue a destino. \_\_\_
-- Un proceso solicita una impresora. No hay disponible, pero el proceso no se bloquea; en su lugar, reintenta cada 10ms, pero siempre ve la impresora ocupada. \_\_\_
+- Un proceso solicita una impresora. No hay disponible, pero el proceso no se bloquea; en su lugar, reintenta cada 10ms, pero siempre ve la impresora ocupada. **Ninguno (espera activa sin deadlock/starvation/livelock)**
 
 ## Síntesis
 
