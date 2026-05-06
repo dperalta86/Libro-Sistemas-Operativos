@@ -45,8 +45,7 @@ typedef struct thread_control_block {
     int state;                  // READY, RUNNING, BLOCKED, TERMINATED
     void* stack_pointer;        // Puntero al tope del stack privado
     void* program_counter;      // Próxima instrucción a ejecutar
-    // NOTA: 'register_set_t' es conceptual; en implementaciones reales
-    // se usa un arreglo o estructura específica por arquitectura
+    // NOTA: 'registers' es conceptual;
     unsigned long registers[16]; // Simplificación didáctica
     void* stack_base;           // Base del stack
     size_t stack_size;          // Tamaño del stack

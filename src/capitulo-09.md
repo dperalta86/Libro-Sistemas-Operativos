@@ -83,20 +83,10 @@ Antes de sumergirnos en los detalles de la memoria virtual, necesitamos repasar 
 
 En el Capítulo 7 aprendimos que el espacio lógico se divide en *páginas* de tamaño fijo (típicamente 4 KiB), mientras que la memoria física se divide en *marcos* del mismo tamaño. Una tabla de páginas mapea páginas lógicas a marcos físicos, y la MMU (Memory Management Unit) traduce direcciones automáticamente en hardware.
 
-```
-Dirección Lógica:
-┌────────────────┬─────────────────────┐
-│ Número Página  │      Offset         │
-│     (p)        │       (d)           │
-└────────────────┴─────────────────────┘
-       ↓                    ↓
-[Tabla de Páginas]          │
-       ↓                    │
-┌────────────────┬─────────────────────┐
-│ Número Marco   │      Offset         │
-└────────────────┴─────────────────────┘
-    Dirección Física
-```
+\begin{center}
+\includegraphics[width=0.8\linewidth,keepaspectratio]{src/images/memoria-virtual/logica-fisica.png}
+\end{center}
+
 
 ### TLB (Recap)
 
@@ -108,7 +98,7 @@ El TLB es crítico en memoria virtual, donde cada acceso requiere traducción. S
 
 ### Lo Nuevo en Memoria Virtual
 
-En el Capítulo 7, todas las páginas del proceso estaban en RAM. Esta es la diferencia fundamental con memoria virtual: ahora, no todas las páginas están en RAM simultáneamente. Algunas páginas residen en disco (en el swap space), y el *bit presencia* en la tabla de páginas indica dónde está cada página. Cuando se intenta acceder a una página no presente, se produce un **page fault**.
+En el Capítulo 7, todas las páginas del proceso estaban en RAM. Esta es la diferencia fundamental con memoria virtual: ahora, no todas las páginas están en RAM simultáneamente. Algunas páginas residen en disco (en el swap space), y el *bit presente* en la tabla de páginas indica dónde está cada página. Cuando se intenta acceder a una página no presente, se produce un **page fault**.
 
 \begin{warning}
 \textbf{Diferencia clave:}
@@ -167,55 +157,51 @@ Ambos procesos pueden usar la misma dirección virtual 0x1000, se mapean a marco
 }
 \end{center}
 
-### El Bit Presencia: El Héroe de Memoria Virtual
+### El Bit Presente (Present bit): El Héroe de Memoria Virtual
 
-En el Capítulo 7, cada entrada de tabla de páginas era simplemente un número de marco. Ahora, agregamos información crucial que hace posible la memoria virtual. La estructura expandida incluye varios bits de control, siendo el más importante el *bit presencia*.
-
-```
-Entrada de Tabla de Páginas (expandida):
-┌────────────┬───┬───┬───┬───┬───────────┐
-│ Marco (20) │ P │ U │ M │ X │ Protec.   │
-└────────────┴───┴───┴───┴───┴───────────┘
-              ↑
-              Bit presencia (P)
-```
+En el Capítulo 7, cada entrada de tabla de páginas era simplemente un número de marco. Ahora, agregamos información crucial que hace posible la memoria virtual. La estructura expandida incluye varios bits de control, siendo el más importante el *bit presente*.
 
 \begin{highlight}
-El bit presencia (P) indica si la página está presente en memoria RAM (P=1) o está en disco/swap (P=0). Es la base del mecanismo de memoria virtual.
+En la mayoría de arquitecturas (x86, ARM), el bit se llama bit válido (Valid), para mantener relación con la cátedra, en el presente capítulo lo llamaremos bit P (presente).
+\end{highlight}
+
+\begin{center}
+\includegraphics[width=0.8\linewidth,keepaspectratio]{src/images/memoria-virtual/bit-P.png}
+\end{center}
+
+\begin{highlight}
+El bit presente (P) indica si la página está presente en memoria RAM (P=1) o está en disco/swap (P=0). Es la base del mecanismo de memoria virtual.
 \end{highlight}
 
 Los bits de control tienen diferentes significados según el estado de la página. Cuando P=1, la página está en RAM, y los otros bits indican si fue accedida recientemente (U=1), si fue modificada (M=1, también llamada *dirty*), y permisos de ejecución (X). Cuando P=0, la página no está en RAM y reside en disco, haciendo que los otros bits sean irrelevantes en ese momento.
 
 Consideremos un ejemplo concreto de una tabla de páginas con memoria virtual:
 
-```
 Proceso con 8 páginas:
-┌────┬───────┬───┬───┬───┬──────────────┐
-│Pág │ Marco │ P │ U │ M │ Ubicación    │
-├────┼───────┼───┼───┼───┼──────────────┤
-│ 0  │   5   │ 1 │ 1 │ 0 │ RAM (marco 5)│
-│ 1  │   -   │ 0 │ - │ - │ Disco blq 10 │
-│ 2  │   8   │ 1 │ 0 │ 1 │ RAM (marco 8)│
-│ 3  │   -   │ 0 │ - │ - │ Disco blq 15 │
-│ 4  │   2   │ 1 │ 1 │ 1 │ RAM (marco 2)│
-│ 5  │   -   │ 0 │ - │ - │ Disco blq 20 │
-│ 6  │   -   │ 0 │ - │ - │ Nunca usada  │
-│ 7  │   1   │ 1 │ 0 │ 0 │ RAM (marco 1)│
-└────┴───────┴───┴───┴───┴──────────────┘
+
+| Pág | Marco | P | U | M | Ubicación     |
+|-----|-------|---|---|---|---------------|
+| 0   | 5     | 1 | 1 | 0 | RAM (marco 5) |
+| 1   | -     | 0 | - | - | Disco blq 10  |
+| 2   | 8     | 1 | 0 | 1 | RAM (marco 8) |
+| 3   | -     | 0 | - | - | Disco blq 15  |
+| 4   | 2     | 1 | 1 | 1 | RAM (marco 2) |
+| 5   | -     | 0 | - | - | Disco blq 20  |
+| 6   | -     | 0 | - | - | Nunca usada   |
+| 7   | 1     | 1 | 0 | 0 | RAM (marco 1) |
 
 Solo 4 de 8 páginas en RAM
 Proceso usa 8 × 4 KiB = 32 KiB virtual
 Pero solo 4 × 4 KiB = 16 KiB físicos
-```
 
 La ventaja es crítica: un proceso de 1 GiB puede ejecutarse con solo 50 MiB en RAM. El resto permanece en disco hasta que se necesite, permitiendo una utilización mucho más eficiente de la memoria física.
 
 ### Page Fault: Evento Normal, NO Error
 
-Este es un punto que genera mucha confusión en estudiantes, y es importante aclararlo desde el principio. Un page fault es una interrupción generada por la MMU cuando el CPU intenta acceder a una página cuyo bit presencia está en 0 (página no presente en RAM). Contrario a lo que el nombre podría sugerir, es un mecanismo normal y esperado del sistema de memoria virtual, no un error de programación.
+Este es un punto que genera mucha confusión en estudiantes, y es importante aclararlo desde el principio. Un page fault es una interrupción generada por la MMU cuando el CPU intenta acceder a una página cuyo bit presente está en 0 (página no presente en RAM). Contrario a lo que el nombre podría sugerir, es un mecanismo normal y esperado del sistema de memoria virtual, no un error de programación.
 
 \begin{highlight}
-Un page fault es una interrupción generada por la MMU cuando el CPU intenta acceder a una página cuyo bit presencia está en 0. Es un mecanismo normal y esperado del sistema de memoria virtual, NO un error de programación.
+Un page fault es una interrupción generada por la MMU cuando el CPU intenta acceder a una página cuyo bit presente está en 0. Es un mecanismo normal y esperado del sistema de memoria virtual, NO un error de programación.
 \end{highlight}
 
 \begin{warning}
@@ -228,6 +214,10 @@ Page Fault ≠ Segmentation Fault
 \end{warning}
 
 La distinción es crucial. Un page fault ocurre cuando se accede a una página con P=0, y el SO lo maneja transparentemente cargando la página desde disco. El proceso ni siquiera se entera de que ocurrió. Por otro lado, un segmentation fault es un acceso fuera del espacio válido del proceso, lo que causa que el SO termine el proceso enviando la señal SIGSEGV.
+
+\begin{highlight}
+Nota avanzada: En algunos sistemas, es posible capturar \texttt{SIGSEGV} y recuperarse (ej: lenguajes con manejo de memoria seguro). Sin embargo, para propósitos educativos, page fault = página no está en RAM (recuperable por SO), segmentation fault = acceso fuera del espacio de direcciones del proceso (típicamente fatal).
+\end{highlight}
 
 ### Swap Space (Backing Store)
 
@@ -253,7 +243,7 @@ Ahora que entendemos qué es un page fault y por qué es necesario, veamos en de
 
 ### Flujo Paso a Paso
 
-El proceso comienza cuando el CPU ejecuta una instrucción como `MOV R1, [0x2000]`. La MMU intenta traducir la dirección virtual `0x2000` a una dirección física, determinando que corresponde a la página 2. Al consultar la tabla de páginas, descubre que el bit presencia está en 0, lo que indica que la página no está en RAM.
+El proceso comienza cuando el CPU ejecuta una instrucción como `MOV R1, [0x2000]`. La MMU intenta traducir la dirección virtual `0x2000` a una dirección física, determinando que corresponde a la página 2. Al consultar la tabla de páginas, descubre que el bit presente está en 0, lo que indica que la página no está en RAM.
 
 En este punto, la MMU genera una interrupción especial llamada *trap*, específicamente un trap de page fault. El hardware automáticamente guarda el estado completo del proceso, incluyendo todos los registros y el contador de programa (PC). El control pasa entonces al sistema operativo, específicamente al manejador de page faults.
 
@@ -278,24 +268,34 @@ Un detalle importante es la invalidación del TLB. Si existía una entrada anter
 
 Finalmente, el SO retorna de la interrupción. El hardware restaura automáticamente los registros del proceso, y el CPU reintenta la instrucción `MOV R1, [0x2000]`. Esta vez, como P=1, la traducción es exitosa y el acceso a RAM se completa normalmente.
 
+### Resumen de Casos de Page Fault
+
+| Tipo | Causa | Bit P | Acción del SO | ¿Se escribe a disco? |
+|------|-------|-------|---------------|---------------------|
+| Falta de página normal | Página en swap/disco | 0 | Cargar desde disco | No (solo lectura) |
+| Primer acceso | Página nunca asignada | 0 | Asignar nueva página (ceros) | No |
+| Página dirty (víctima) | Se necesita reemplazar página con M=1 | 1 (pero será reemplazada) | Escribir a disco antes de descartar | Sí |
+| Copy-on-Write | Escritura en página compartida (R/O) | 1 | Copiar página a nuevo marco | No (se copia en RAM) |
+
 ### Tiempos Aproximados
 
 Los tiempos involucrados en un page fault son significativos y vale la pena analizarlos en detalle. Estos valores están basados en mediciones de sistemas reales y literatura técnica estándar.
 
 \begin{infobox}
-\textbf{Tiempos típicos de page fault (validados):}
+\textbf{Tiempos típicos de page fault:}
 
 La detección por hardware (MMU) toma aproximadamente 1 nanosegundo. El context switch al manejador del SO requiere entre 1 y 5 microsegundos. La búsqueda de marco libre o ejecución del algoritmo de reemplazo toma entre 1 y 10 microsegundos.
 
-Las operaciones de disco son las más costosas. La escritura de una página dirty a disco HDD toma entre 5 y 10 milisegundos, mientras que la lectura desde disco HDD también requiere 5 a 10 milisegundos. Con SSDs, estos tiempos se reducen dramáticamente: entre 0.1 y 0.5 milisegundos para escritura, y entre 0.1 y 0.5 milisegundos para lectura.
+Las operaciones de disco son las más costosas. La escritura de una página dirty a disco HDD toma entre 5 y 10 milisegundos, mientras que la lectura desde disco HDD también requiere 5 a 10 milisegundos. Con SSDs SATA, estos tiempos se reducen dramáticamente: entre 0.1 y 0.5 milisegundos para escritura, y entre 0.1 y 0.5 milisegundos para lectura. Con NVMe, los tiempos son aún más rápidos: entre 0.03 y 0.1 milisegundos para escritura, y entre 0.03 y 0.1 milisegundos para lectura.
 
 La actualización de estructuras del SO requiere entre 1 y 5 microsegundos, y el context switch de vuelta al proceso toma otros 1 a 5 microsegundos.
 
 Total con HDD: 10-20 milisegundos\\
-Total con SSD: 0.2-1 milisegundo
+Total con SSD SATA: 0.2-1 milisegundo\\
+Total con NVMe: 0.06-0.2 milisegundos
 \end{infobox}
 
-Para poner estos números en perspectiva, comparémoslos con un acceso normal a RAM. Un acceso con TLB hit toma aproximadamente 10 nanosegundos (0.00001 ms). Un acceso con TLB miss requiere unos 100 nanosegundos (0.0001 ms). Un page fault con SSD toma alrededor de 500 microsegundos (0.5 ms), lo que es aproximadamente 50,000 veces más lento. Un page fault con HDD toma unos 10 milisegundos, lo que es aproximadamente 1,000,000 veces más lento que un acceso normal a RAM.
+Para poner estos números en perspectiva, comparémoslos con un acceso normal a RAM. Un acceso con TLB hit toma aproximadamente 10 nanosegundos (0.00001 ms). Un acceso con TLB miss requiere unos 100 nanosegundos (0.0001 ms). Un page fault con NVMe toma alrededor de 100 microsegundos (0.1 ms), lo que es aproximadamente 10,000 veces más lento. Un page fault con SSD SATA toma alrededor de 300 microsegundos (0.3 ms), lo que es aproximadamente 30,000 veces más lento. Un page fault con HDD toma unos 10 milisegundos, lo que es aproximadamente 1,000,000 veces más lento que un acceso normal a RAM.
 
 \begin{warning}
 \textbf{Consecuencia crítica:}
@@ -314,7 +314,7 @@ Existen varios casos especiales de page faults que vale la pena examinar, cada u
 
 #### Caso 1: Primera Referencia (Demand Paging)
 
-Cuando se crea un proceso nuevo, todas sus páginas tienen inicialmente el bit presencia en 0. La primera referencia a la página 0 (típicamente código) genera un page fault, y el SO carga esa página desde el archivo ejecutable. La primera referencia a la página 1 genera otro page fault, y así sucesivamente.
+Cuando se crea un proceso nuevo, todas sus páginas tienen inicialmente el bit presente en 0. La primera referencia a la página 0 (típicamente código) genera un page fault, y el SO carga esa página desde el archivo ejecutable. La primera referencia a la página 1 genera otro page fault, y así sucesivamente.
 
 Este enfoque se llama *demand paging* (paginación bajo demanda) porque las páginas se cargan solo cuando se necesitan. Es fundamentalmente diferente de cargar todo el programa en memoria antes de ejecutarlo, lo que sería más lento y desperdiciaría memoria en páginas que nunca se usan.
 
@@ -329,16 +329,6 @@ Si el hijo intenta escribir en una página compartida, se genera un page fault (
 Los archivos mapeados en memoria son otro caso especial fascinante. Cuando llamamos a `mmap()` para mapear un archivo de 1 MiB, la llamada no carga el archivo completo inmediatamente. Solo mapea direcciones virtuales al archivo.
 
 La primera lectura de la dirección mapeada genera un page fault. El SO carga la página correspondiente desde el archivo (no desde el swap). Si escribimos en esta dirección y la página no está en RAM, también habrá un page fault. Una vez en RAM, la página se marca como dirty (M=1), y el SO eventualmente escribirá los cambios de vuelta al archivo.
-
-### Diagrama de Flujo
-
-El diagrama completo del flujo de un page fault muestra todas estas decisiones y transiciones:
-
-```
-[Insertar aquí: cap08-pageFaultFlow.mmd]
-```
-
-Este diagrama incluye la detección por MMU, verificación de validez del acceso, búsqueda de marco libre, ejecución del algoritmo de reemplazo si es necesario, operaciones de lectura y escritura a disco, actualización de todas las estructuras relevantes, y finalmente el retry de la instrucción original.
 
 ## Principio de Localidad
 
@@ -431,20 +421,13 @@ El impacto en page faults es dramático. Para un array de 1,000,000 elementos (4
 Con acceso aleatorio (sin localidad espacial), cada acceso potencialmente va a una página diferente. Podríamos tener cientos de miles de page faults, resultando en un rendimiento desastroso.
 
 \begin{example}
-\textbf{Impacto medible de la localidad espacial:}
+\textbf{Impacto medible de la localidad espacial:}\\
 
-Array de 1,000,000 elementos (int):
-- Tamaño: 4 MiB
-- Páginas necesarias: 1024 páginas
+Array de 1,000,000 elementos (int): 4 MiB de tamaño y 1024 páginas ncesarias.\\
 
-Acceso secuencial:
-- Page faults: 1024 (uno por página)
-- Accesos sin PF: 998,976
-- Tiempo: ~10 ms + tiempo de procesamiento
+Acceso secuencial: 1024 page faults (uno por página), 998,976 accesos sin PF con una duración estimada de ~10 ms + tiempo de procesamiento.\\
 
-Acceso aleatorio:
-- Page faults: potencialmente cientos de miles
-- Rendimiento: 100-1000 veces peor
+Acceso aleatorio: potencialmente cientos de miles de page faults, rendimiento de 100-1000 veces peor
 \end{example}
 
 ### Localidad en Programas Reales
@@ -462,6 +445,10 @@ Este concepto de "conjunto activo" se formaliza en la noción de *working set*.
 \begin{highlight}
 El \textbf{working set} (conjunto de trabajo) es el conjunto de páginas que un proceso está usando activamente en un intervalo de tiempo dado. Representa el "tamaño mínimo de RAM" que el proceso necesita para ejecutar eficientemente.
 \end{highlight}
+
+\begin{theory}
+Formalmente, el working set en el instante \(\mathbf{t}\) es el conjunto de páginas referenciadas durante el intervalo \((t-\Delta,\, t]\), donde \(\Delta\) es un parámetro (típicamente la longitud de la ventana de tiempo). Si \(\Delta\) es muy pequeño, el working set no captura toda la localidad; si es muy grande, se acerca al tamaño total del proceso.
+\end{theory}
 
 El working set cambia con el tiempo a medida que el proceso pasa por diferentes fases de ejecución. Por ejemplo, en los primeros 5 segundos, un proceso podría tener un working set de las páginas {0,1,2,5,7}. En los siguientes 5 segundos, el working set podría ser {0,1,2,3,8}. Y en los siguientes 5 segundos, {0,1,10,11,12}.
 
@@ -613,28 +600,9 @@ Cuando un proceso hace `fork()`, el sistema operativo tendría que copiar todas 
 
 La solución con COW es elegante. Antes del `fork()`, el proceso padre tiene sus páginas marcadas como lectura-escritura (RW). Después del `fork()`, tanto el padre como el hijo tienen tablas de páginas que apuntan a los mismos marcos físicos, pero ahora marcados como solo lectura (R/O). Ambos procesos comparten la memoria física sin copiarla.
 
-```
-ANTES del fork():
-Proceso Padre:
-┌────┬───────┬───┬───┬───┐
-│Pág │ Marco │ P │ R │ W │
-├────┼───────┼───┼───┼───┤
-│ 0  │   5   │ 1 │ 1 │ 1 │  RW (read-write)
-│ 1  │   8   │ 1 │ 1 │ 1 │  RW
-└────┴───────┴───┴───┴───┘
-
-DESPUÉS del fork():
-Proceso Padre:              Proceso Hijo:
-┌────┬───────┬───┬───┬───┐ ┌────┬───────┬───┬───┬───┐
-│Pág │ Marco │ P │ R │ W │ │Pág │ Marco │ P │ R │ W │
-├────┼───────┼───┼───┼───┤ ├────┼───────┼───┼───┼───┤
-│ 0  │   5   │ 1 │ 1 │ 0 │ │ 0  │   5   │ 1 │ 1 │ 0 │  Mismo marco!
-│ 1  │   8   │ 1 │ 1 │ 0 │ │ 1  │   8   │ 1 │ 1 │ 0 │  Mismo marco!
-└────┴───────┴───┴───┴───┘ └────┴───────┴───┴───┴───┘
-     ↑ W=0 (ahora R/O)          ↑ W=0 (ahora R/O)
-     
-Ambos comparten marcos 5 y 8 (pero en modo solo lectura)
-```
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/memoria-virtual/COW.png}
+\end{center}
 
 El momento crítico ocurre cuando uno de los procesos intenta escribir. Supongamos que el hijo ejecuta `x = 20`, intentando modificar una variable.
 
@@ -651,15 +619,23 @@ int main() {
 ```
 Esto genera un page fault porque la página está marcada como solo lectura. El sistema operativo detecta que no es un error sino un caso de COW. En respuesta, asigna un nuevo marco (digamos, el marco 12), copia el contenido del marco compartido a este nuevo marco, actualiza la tabla del hijo para apuntar al nuevo marco con permisos de escritura, y finalmente reintenta la instrucción, que ahora tiene éxito.
 
-```
-Proceso Padre:              Proceso Hijo:
-┌────┬───────┬───┬───┬───┐ ┌────┬───────┬───┬───┬───┐
-│Pág │ Marco │ P │ R │ W │ │Pág │ Marco │ P │ R │ W │
-├────┼───────┼───┼───┼───┤ ├────┼───────┼───┼───┼───┤
-│ 0  │   5   │ 1 │ 1 │ 0 │ │ 0  │   5   │ 1 │ 1 │ 0 │  Aún compartida
-│ 1  │   8   │ 1 │ 1 │ 0 │ │ 1  │  12   │ 1 │ 1 │ 1 │  Ahora privada!
-└────┴───────┴───┴───┴───┘ └────┴───────┴───┴───┴───┘
-```
+\begin{verbatim}
+Proceso Padre:
+┌────┬───────┬───┬───┬───┐
+│Pág │ Marco │ P │ R │ W │
+├────┼───────┼───┼───┼───┤
+│ 0  │   5   │ 1 │ 1 │ 0 │
+│ 1  │   8   │ 1 │ 1 │ 0 │
+└────┴───────┴───┴───┴───┘ 
+
+Proceso Hijo:
+ ┌────┬───────┬───┬───┬───┐
+ │Pág │ Marco │ P │ R │ W │
+ ├────┼───────┼───┼───┼───┤
+ │ 0  │   5   │ 1 │ 1 │ 0 │  Aún compartida
+ │ 1  │  12   │ 1 │ 1 │ 1 │  Ahora privada!
+ └────┴───────┴───┴───┴───┘
+\end{verbatim}
 \begin{example}
 \textbf{Estadísticas reales de COW:}
 
@@ -729,29 +705,10 @@ int main() {
 
 Internamente, después de `mmap()`, la tabla de páginas tiene todas las entradas con P=0, pero en lugar de apuntar al swap, cada entrada indica qué offset del archivo contiene los datos para esa página.
 
-```
-Estado inicial (después de mmap):
-┌────┬───────┬───┬─────────────┐
-│Pág │ Marco │ P │ Backing     │
-├────┼───────┼───┼─────────────┤
-│ 0  │   -   │ 0 │ datos.bin:0 │  No en RAM
-│ 1  │   -   │ 0 │ datos.bin:4K│  No en RAM
-│ 2  │   -   │ 0 │ datos.bin:8K│  No en RAM
-└────┴───────┴───┴─────────────┘
+\begin{center}
+\includegraphics[width=0.8\linewidth,keepaspectratio]{src/images/memoria-virtual/mm-files.png}
+\end{center}
 
-Primera lectura de página 0:
-→ Page fault
-→ SO lee bloque 0 de datos.bin → marco 5
-┌────┬───────┬───┬─────────────┐
-│ 0  │   5   │ 1 │ datos.bin:0 │  EN RAM
-│ 1  │   -   │ 0 │ datos.bin:4K│
-│ 2  │   -   │ 0 │ datos.bin:8K│
-└────┴───────┴───┴─────────────┘
-
-Escritura en página 0:
-→ Marca M=1 (dirty)
-→ Eventualmente SO escribe marco 5 → datos.bin:0
-```
 Las ventajas de memory-mapped files son sustanciales. El I/O se simplifica dramáticamente: los archivos se tratan como arrays en memoria, eliminando las llamadas explícitas a `read()` y `write()`. La compartición entre procesos es fácil usando `MAP_SHARED`. El sistema operativo maneja el caché automáticamente, y se evitan copias entre user space y kernel space, mejorando el rendimiento.
 
 \begin{example}
@@ -768,22 +725,10 @@ IPC (Inter-Process Communication): El proceso A y B mapean el mismo archivo con 
 
 Las librerías compartidas son un caso especial particularmente importante de shared pages. Cuando tres procesos ejecutan programas que usan `libc`, sin compartición necesitaríamos tres copias completas de la librería en RAM. Con shared pages, los tres procesos apuntan a los mismos marcos físicos para el código de la librería.
 
-```
-Proceso A:                Proceso B:                Proceso C:
-Tabla de Páginas         Tabla de Páginas         Tabla de Páginas
-┌────┬───────┬───┐       ┌────┬───────┬───┐       ┌────┬───────┬───┐
-│Pág │ Marco │ W │       │Pág │ Marco │ W │       │Pág │ Marco │ W │
-├────┼───────┼───┤       ├────┼───────┼───┤       ├────┼───────┼───┤
-│ 0  │  100  │ 0 │ ──┐   │ 0  │  200  │ 0 │       │ 0  │  300  │ 0 │
-│... │  ...  │...│   │   │... │  ...  │...│       │... │  ...  │...│
-│ 10 │   50  │ 0 │ ──┼──→│ 5  │   50  │ 0 │ ──┐   │ 8  │   50  │ 0 │
-│ 11 │   51  │ 0 │ ──┼──→│ 6  │   51  │ 0 │ ──┼──→│ 9  │   51  │ 0 │
-└────┴───────┴───┘   │   └────┴───────┴───┘   │   └────┴───────┴───┘
-                     └───────────────────────┘
-                     
-Marcos 50-51: código de libc (compartido, R/O)
-Marcos 100,200,300: código privado de cada proceso
-```
+\begin{center}
+\includegraphics[width=0.8\linewidth,keepaspectratio]{src/images/memoria-virtual/shared-libraries.png}
+\end{center}
+
 Cada proceso tiene su propia tabla de páginas. Las páginas que contienen código privado del proceso apuntan a marcos únicos. Pero las páginas que contienen código de `libc` (marcadas como solo lectura) apuntan a los mismos marcos compartidos. Los marcos 50-51, por ejemplo, contienen código de `libc` y son compartidos por todos los procesos.
 
 El ahorro de memoria es considerable. Sin compartición, tres procesos cada uno usando 2 MiB de `libc` consumirían 6 MiB de RAM. Con compartición, los tres procesos comparten una sola copia de 2 MiB, ahorrando 4 MiB (66%). En un servidor con 100 procesos, el ahorro puede alcanzar varios cientos de megabytes.
@@ -836,16 +781,9 @@ El algoritmo más simple es FIFO: reemplazar la página que lleva más tiempo en
 
 La implementación usa una cola circular donde la página más antigua está al frente. Cuando se necesita una víctima, simplemente se toma la página del frente de la cola. Cuando se carga una nueva página, se agrega al final de la cola.
 
-```
-Estructura:
-┌─────┬─────┬─────┬─────┐
-│ Pág │ Pág │ Pág │ Pág │
-│  5  │   2  │  9  │  1  │
-└─────┴─────┴─────┴─────┘
-  ↑                   ↑
-Oldest              Newest
-(víctima)
-```
+\begin{center}
+\includegraphics[width=0.8\linewidth,keepaspectratio]{src/images/memoria-virtual/FIFO.png}
+\end{center}
 
 Las ventajas de FIFO son claras: es muy simple de implementar, encontrar la víctima tiene complejidad O(1), y el overhead es mínimo. Sin embargo, tiene desventajas significativas. No considera la frecuencia de uso de las páginas, por lo que puede reemplazar páginas que se usan constantemente. Peor aún, sufre de la *anomalía de Belady*, un fenómeno contraintuitivo donde agregar más marcos puede aumentar los page faults en lugar de reducirlos.
 
@@ -868,7 +806,8 @@ Pero hay un problema fundamental: este algoritmo requiere conocer el futuro, es 
 \begin{infobox}
 \textbf{¿Por qué estudiamos el algoritmo óptimo si es imposible implementarlo?}
 
-Aunque no podemos usarlo en la práctica, el algoritmo óptimo es invaluable como punto de referencia. Nos da una cota inferior: sabemos que ningún algoritmo puede tener menos page faults que el óptimo para una secuencia dada. Esto nos permite evaluar cuán buenos son los algoritmos prácticos, midiendo qué tan cerca están del óptimo.
+Aunque no podemos usarlo en la práctica, el algoritmo óptimo es invaluable como punto de referencia. Nos da una cota inferior: sabemos que ningún algoritmo puede tener menos page faults que el óptimo para una secuencia dada. Esto nos permite evaluar cuán buenos son los algoritmos prácticos, midiendo qué tan cerca están del óptimo.\\
+También es útil en sistemas con patrones de acceso predecibles (ej: procesamiento de streams).
 \end{infobox}
 
 ### LRU (Least Recently Used)
@@ -893,20 +832,9 @@ Cada acceso a memoria requiere tres operaciones: traducir la dirección (MMU), a
 
 Clock es una aproximación eficiente de LRU que usa un solo bit de referencia en lugar de timestamps. Los marcos se organizan conceptualmente en un anillo circular con un puntero (la "manecilla del reloj") que se mueve alrededor del anillo.
 
-```
-        ┌──────┐
-    ┌───│ P=5  │───┐
-    │   │ U=1  │   │
-┌───┴──┐└──────┘┌──┴───┐
-│ P=1  │        │ P=2  │
-│ U=0  │  ↑     │ U=1  │
-└───┬──┘ puntero└──┬───┘
-    │   (clock)    │
-    │   ┌──────┐   │
-    └───│ P=9  │───┘
-        │ U=0  │
-        └──────┘
-```
+\begin{center}
+\includegraphics[width=0.5\linewidth,keepaspectratio]{src/images/memoria-virtual/clock.png}
+\end{center}
 
 El algoritmo funciona de la siguiente manera. Cuando se busca una víctima, examinamos la página actual (donde apunta el puntero). Si su bit U (uso/referencia) está en 1, le damos una "segunda oportunidad": ponemos U=0, avanzamos el puntero, y continuamos. Si U está en 0, esta página es la víctima: la reemplazamos y avanzamos el puntero.
 
@@ -927,6 +855,10 @@ Clock-M es una versión mejorada del algoritmo Clock que considera tanto el bit 
 \begin{highlight}
 Clock-M (Clock Mejorado) es una extensión del algoritmo Clock que usa los bits U y M para clasificar páginas en 4 categorías de prioridad para reemplazo. Prefiere reemplazar páginas no modificadas para evitar escrituras a disco.
 \end{highlight}
+
+\begin{center}
+\includegraphics[width=0.5\linewidth,keepaspectratio]{src/images/memoria-virtual/clock_M.png}
+\end{center}
 
 Las páginas se clasifican en cuatro clases según sus bits:
 
@@ -965,17 +897,11 @@ Para comprender realmente las diferencias entre algoritmos, analicemos una secue
 
 Con FIFO, simplemente reemplazamos la página más antigua en cada page fault:
 
-```
-Referencia │ 7 │ 0 │ 1 │ 2 │ 0 │ 3 │ 0 │ 4 │ 2 │ 3 │ 0 │ 3 │ 2 │ 1 │ 2 │ 0 │ 1 │ 7 │ 0 │ 1 │
-───────────┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-Marco 0    │ 7 │ 7 │ 7 │ 2 │ 2 │ 2 │ 2 │ 4 │ 4 │ 4 │ 0 │ 0 │ 0 │ 1 │ 1 │ 1 │ 1 │ 7 │ 7 │ 7 │
-Marco 1    │   │ 0 │ 0 │ 0 │ 0 │ 3 │ 3 │ 3 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 0 │ 0 │ 0 │ 0 │ 0 │
-Marco 2    │   │   │ 1 │ 1 │ 1 │ 1 │ 1 │ 1 │ 1 │ 3 │ 3 │ 3 │ 3 │ 3 │ 3 │ 3 │ 1 │ 1 │ 1 │ 1 │
-───────────┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-PF         │ F │ F │ F │ F │   │ F │   │ F │ F │ F │ F │   │   │ F │   │ F │ F │ F │   │   │
-───────────┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+\begin{center}
+\includegraphics[width=0.95\linewidth,keepaspectratio]{src/images/memoria-virtual/fifo_table.png}
+\end{center}
+
 Total Page Faults: 15
-```
 
 FIFO genera 15 page faults en esta secuencia. Podemos ver que a veces reemplaza páginas que se usarán pronto, como cuando reemplaza la página 0 justo antes de que se necesite nuevamente.
 
@@ -983,17 +909,10 @@ FIFO genera 15 page faults en esta secuencia. Podemos ver que a veces reemplaza 
 
 El algoritmo óptimo, conociendo todo el futuro, toma decisiones perfectas:
 
-```
-Referencia │ 7 │ 0 │ 1 │ 2 │ 0 │ 3 │ 0 │ 4 │ 2 │ 3 │ 0 │ 3 │ 2 │ 1 │ 2 │ 0 │ 1 │ 7 │ 0 │ 1 │
-───────────┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-Marco 0    │ 7 │ 7 │ 7 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 2 │ 7 │ 7 │ 7 │
-Marco 1    │   │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │ 0 │
-Marco 2    │   │   │ 1 │ 1 │ 1 │ 3 │ 3 │ 4 │ 4 │ 3 │ 3 │ 3 │ 3 │ 1 │ 1 │ 1 │ 1 │ 1 │ 1 │ 1 │
-───────────┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-PF         │ F │ F │ F │ F │   │ F │   │ F │   │ F │   │   │   │ F │   │   │   │ F │   │   │
-───────────┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+\begin{center}
+\includegraphics[width=0.95\linewidth,keepaspectratio]{src/images/memoria-virtual/opt_table.png}
+\end{center}
 Total Page Faults: 9
-```
 
 OPT logra solo 9 page faults. Las decisiones clave incluyen: en la referencia 6 (página 3), reemplaza la página 7 porque su próxima referencia está muy lejos (posición 18). En la referencia 8 (página 4), reemplaza la página 1 cuya próxima referencia está en la posición 14. En la referencia 10 (página 3), reemplaza la página 4 que nunca se vuelve a usar.
 
@@ -1389,7 +1308,7 @@ void access_page(SystemState *sys, int page, AccessType type) {
         // Cargar nueva página
         printf("  [I/O] Leer página %d desde disco\n", page);
         sys->frames[frame_idx].page = page;
-        sys->frames[frame_idx].referenced = false;  // Recién cargada
+        sys->frames[frame_idx].referenced = true;   // El acceso que causó el fault
         sys->frames[frame_idx].modified = (type == ACCESS_WRITE);
     }
     
