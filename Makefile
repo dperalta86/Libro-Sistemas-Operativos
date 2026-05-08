@@ -93,13 +93,8 @@ install-deps:
 	@command -v pandoc >/dev/null 2>&1 && echo "  ✓ pandoc" || { echo "  ✗ pandoc (FALTA - crítico)"; exit 1; }
 	@command -v xelatex >/dev/null 2>&1 && echo "  ✓ xelatex" || { echo "  ✗ xelatex (FALTA - crítico)"; exit 1; }
 	@echo ""
-	@echo "Verificando comandos RECOMENDADOS (con fallbacks automáticos):"
-	@command -v mmdc >/dev/null 2>&1 && echo "  ✓ mermaid-cli (diagramas .mmd)" || echo "  ⚠ mermaid-cli (para diagramas - opcional)"
-	@if command -v chromium-browser >/dev/null 2>&1 || command -v chromium >/dev/null 2>&1; then \
-		echo "  ✓ Chromium (para tablas HTML→PNG)"; \
-	else \
-		echo "  ⚠ Chromium (fallback automático si falta wkhtmltopdf)"; \
-	fi
+	@echo "Verificando herramientas OPCIONALES:"
+	@command -v mmdc >/dev/null 2>&1 && echo "  ✓ mermaid-cli (diagramas .mmd)" || echo "  ⚠ mermaid-cli no instalado (se usarán marcadores de posición)"
 	@echo ""
 	@echo "💡 Para instalación completa en Kubuntu/Debian:"
 	@echo "   ./scripts/setup_minimalista.sh"
@@ -169,18 +164,13 @@ $(PNG_DIAGRAMS): %.png : %.mmd
 		if mmdc -i $< -o $@ --backgroundColor white --theme neutral 2>/dev/null; then \
 			echo "✓ Diagrama exportado: $@"; \
 		else \
-			echo "⚠️  mermaid-cli falla (probablemente falta Chromium)"; \
-			echo ""; \
-			echo "   Soluciones:"; \
-			echo "   1. Instalar Chromium sistema: sudo apt-get install chromium-browser"; \
-			echo "   2. O instalar Chrome para puppeteer: npx puppeteer browsers install chrome-headless-shell"; \
-			echo "   3. O configurar PUPPETEER_EXECUTABLE_PATH"; \
-			echo ""; \
-			echo "   Intenta: npx puppeteer browsers install chrome-headless-shell"; \
-			exit 1; \
+			echo "⚠️  mermaid-cli no pudo renderizar $<; usando marcador de posición"; \
+			printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/77cAAAAASUVORK5CYII=' | base64 -d > $@; \
 		fi; \
 	else \
-		echo "⚠️  mermaid-cli no disponible, saltando diagrama: $<"; \
+		echo "⚠️  mermaid-cli no disponible; usando marcador de posición para $@"; \
+		mkdir -p $(dir $@); \
+		printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/77cAAAAASUVORK5CYII=' | base64 -d > $@; \
 	fi
 
 # ===========================

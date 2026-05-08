@@ -124,28 +124,6 @@ else
     echo -e "${GREEN}✓${NC} mermaid-cli instalado"
 fi
 
-# Chromium (necesario para mermaid-cli)
-echo ""
-echo -e "${BLUE}[5/5]${NC} Verificando Chromium para mermaid..."
-
-if command -v chromium-browser &> /dev/null || command -v chromium &> /dev/null; then
-    echo -e "${GREEN}✓${NC} Chromium ya instalado"
-else
-    echo -e "${YELLOW}→${NC} Instalando Chromium (necesario para convertir diagramas)..."
-    if [ "$PKG_MANAGER" = "apt-get" ]; then
-        $INSTALL_CMD chromium-browser 2>/dev/null || $INSTALL_CMD chromium 2>/dev/null || true
-    else
-        $INSTALL_CMD chromium 2>/dev/null || true
-    fi
-    
-    if ! command -v chromium-browser &> /dev/null && ! command -v chromium &> /dev/null; then
-        echo -e "${YELLOW}⚠${NC} Chromium no se instaló desde repos. Usando puppeteer..."
-        npx puppeteer browsers install chrome-headless-shell 2>/dev/null || true
-    else
-        echo -e "${GREEN}✓${NC} Chromium instalado"
-    fi
-fi
-
 # ============================================================
 # 7. Verificación final
 # ============================================================

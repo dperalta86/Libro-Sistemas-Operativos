@@ -196,7 +196,7 @@ install_nodejs() {
 
 
 
-# Instalar Mermaid CLI y navegador para renderizado
+# Instalar Mermaid CLI
 install_mermaid_tools() {
     print_section "INSTALACIÓN DE MERMAID"
 
@@ -206,14 +206,6 @@ install_mermaid_tools() {
         print_status "Instalando mermaid-cli globalmente..."
         sudo npm install -g @mermaid-js/mermaid-cli
         print_success "mermaid-cli instalado"
-    fi
-
-    if command -v chromium-browser >/dev/null 2>&1 || command -v chromium >/dev/null 2>&1; then
-        print_success "Chromium/Chrome ya disponible"
-    else
-        print_status "Instalando Chrome para Puppeteer como fallback..."
-        npx puppeteer browsers install chrome-headless-shell
-        print_success "Chrome para Puppeteer instalado"
     fi
 }
 
@@ -359,7 +351,6 @@ verify_installation() {
         "pandoc:Pandoc" 
         "node:Node.js"
         "npm:npm"
-        "mmdc:mermaid-cli"
         "make:Make"
         "git:Git"
     )
@@ -395,6 +386,9 @@ verify_installation() {
         echo ""
         echo -e "${GREEN}📚 Para compilar el libro ejecuta:${NC}"
         echo -e "${BLUE}   make all${NC}"
+        echo ""
+        echo -e "${GREEN}🧩 Mermaid opcional:${NC}"
+        echo -e "${BLUE}   mmdc --version   # si querés regenerar diagramas reales${NC}"
         echo ""
         echo -e "${GREEN}🧹 Para limpiar archivos temporales:${NC}"
         echo -e "${BLUE}   make clean${NC}"
