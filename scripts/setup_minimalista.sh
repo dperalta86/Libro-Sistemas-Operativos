@@ -71,11 +71,6 @@ if command -v xelatex &> /dev/null; then
 else
     echo -e "${YELLOW}→${NC} Instalando texlive-xetex (minimalista, ~400MB)..."
     echo -e "${YELLOW}   (NOT: texlive-full para evitar los 6GB)${NC}"
-    
-else
-    echo -e "${YELLOW}→${NC} Instalando XeLaTeX (minimalista, ~400MB)..."
-    echo -e "${YELLOW}   (NOT: texlive-full para evitar los 6GB)${NC}"
-    
     if [ "$PKG_MANAGER" = "apt-get" ]; then
         $UPDATE_CMD
         # Paquetes esenciales pero MINIMALISTAS
@@ -104,42 +99,7 @@ else
 fi
 
 # ============================================================
-# 5. WKHTMLTOPDF (para tablas HTML → PNG) - OPCIONAL
-# ============================================================
-echo ""
-echo -e "${BLUE}[4/5]${NC} Verificando wkhtmltopdf (opcional)..."
-
-if command -v wkhtmltoimage &> /dev/null; then
-    echo -e "${GREEN}✓${NC} wkhtmltopdf ya instalado"
-else
-    echo -e "${YELLOW}→${NC} Intentando instalar wkhtmltopdf..."
-    
-    # Intenta instalación estándar
-    if $INSTALL_CMD wkhtmltopdf 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} wkhtmltopdf instalado"
-    else
-        echo -e "${YELLOW}⚠${NC} wkhtmltopdf no disponible en repositorios oficiales"
-        echo -e "${YELLOW}   (común en Ubuntu 24.04+, está deprecated)"
-        echo ""
-        echo -e "   ${YELLOW}Opciones:${NC}"
-        echo -e "   1. ${YELLOW}Instalar desde PPA (menos estable):${NC}"
-        echo "      sudo add-apt-repository ppa:wkhtmltopdf/ubuntu"
-        echo "      sudo apt-get update"
-        echo "      sudo apt-get install wkhtmltopdf"
-        echo ""
-        echo -e "   2. ${YELLOW}Compilar desde fuente (complejo):${NC}"
-        echo "      Ver: https://github.com/wkhtmltopdf/wkhtmltopdf"
-        echo ""
-        echo -e "   3. ${YELLOW}O simplemente continúa sin esto${NC}"
-        echo "      Las tablas HTML se pueden usar como imágenes directas"
-        echo ""
-        echo -e "${YELLOW}✓${NC} El proyecto funciona sin wkhtmltopdf (solo para tablas)"
-        echo ""
-    fi
-fi
-
-# ============================================================
-# 6. NODE.JS + mermaid-cli (para diagramas)
+# 5. NODE.JS + mermaid-cli (para diagramas)
 # ============================================================
 echo ""
 echo -e "${BLUE}[5/5]${NC} Verificando Node.js..."
@@ -208,7 +168,7 @@ done
 
 echo ""
 echo "Verificando comandos OPCIONALES:"
-for cmd in wkhtmltoimage mmdc node npm; do
+for cmd in mmdc node npm; do
     if command -v "$cmd" &> /dev/null; then
         echo -e "  ${GREEN}✓${NC} $cmd"
     else

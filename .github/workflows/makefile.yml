@@ -51,7 +51,8 @@ jobs:
         run: |
           # Ejecutar make con más verbosidad para debugging
           make debug
-          make print-a4
+          make
+          make print-b5
 
       - name: List generated files (debug)
         run: |

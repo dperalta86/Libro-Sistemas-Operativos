@@ -1,4 +1,4 @@
-.PHONY: all clean debug structure test-latex tables setup install-deps fedora fix-mermaid check-datos edit-datos sync-datos view-frontmatter list-todos
+.PHONY: all clean debug structure test-latex setup install-deps fedora fix-mermaid check-datos edit-datos sync-datos view-frontmatter list-todos
 
 # Configuración del libro
 BOOK_NAME = Introduccion_a_los_Sistemas_Operativos
@@ -34,12 +34,8 @@ TEMPLATE = templates/eisvogel-modified.latex
 DIAGRAMS := $(wildcard $(SRC_DIR)/diagrams/*.mmd)
 PNG_DIAGRAMS := $(DIAGRAMS:.mmd=.png)
 
-# Tablas HTML
-TABLES := $(wildcard $(SRC_DIR)/tables/*.html)
-PNG_TABLES := $(TABLES:.html=.png)
-
 # Todas las imágenes
-ALL_PNG := $(PNG_DIAGRAMS) $(PNG_TABLES)
+ALL_PNG := $(PNG_DIAGRAMS)
 
 # ===========================
 # Targets principales por formato
@@ -84,7 +80,7 @@ fix-mermaid:
 # ===========================
 # Setup - Verificar dependencias
 # ===========================
-setup: install-deps tables
+setup: install-deps
 	@echo "✅ Setup completado - listo para generar PDFs"
 
 # ===========================
@@ -185,31 +181,6 @@ $(PNG_DIAGRAMS): %.png : %.mmd
 		fi; \
 	else \
 		echo "⚠️  mermaid-cli no disponible, saltando diagrama: $<"; \
-	fi
-
-$(PNG_TABLES): %.png : %.html
-	@if command -v wkhtmltoimage >/dev/null 2>&1; then \
-		echo "📊 Exportando tabla HTML: $< → $@ (usando wkhtmltoimage)"; \
-		mkdir -p $(dir $@); \
-		wkhtmltoimage --width 1200 --quality 100 $< $@; \
-	elif command -v chromium-browser >/dev/null 2>&1 || command -v chromium >/dev/null 2>&1; then \
-		echo "📊 Exportando tabla HTML: $< → $@ (usando Chromium)"; \
-		mkdir -p $(dir $@); \
-		chmod +x ./scripts/html2png-chromium.sh; \
-		./scripts/html2png-chromium.sh $< $@; \
-	else \
-		echo "⚠️  wkhtmltoimage ni Chromium disponibles, saltando tabla: $<"; \
-		mkdir -p $(dir $@); \
-		touch $@; \
-	fi
-
-tables: install-deps
-	@if command -v wkhtmltoimage >/dev/null 2>&1; then \
-		echo "🔄 Convirtiendo tablas HTML a PNG..."; \
-		$(MAKE) $(PNG_TABLES); \
-		echo "✅ Tablas HTML convertidas a PNG"; \
-	else \
-		echo "⚠️  wkhtmltopdf no instalado - tablas HTML se incluirán como imágenes directas"; \
 	fi
 
 # ===========================
@@ -315,13 +286,12 @@ debug: $(COMBINED_MD)
 	@echo "🔍 Información de debugging:"
 	@wc -l $(COMBINED_MD)
 	@echo "📊 Diagrams: $(DIAGRAMS)"
-	@echo "📊 Tablas: $(TABLES)"
 
 clean:
 	rm -f $(COMBINED_MD) $(COMBINED_MD_A4) $(COMBINED_MD_B5)
 	rm -f pandoc.log
 	rm -rf $(OUTPUT_DIR)
-	rm -f $(PNG_DIAGRAMS) $(PNG_TABLES)
+	rm -f $(PNG_DIAGRAMS)
 	@echo "🧹 Archivos temporales eliminados"
 
 structure:
