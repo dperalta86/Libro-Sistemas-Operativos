@@ -38,6 +38,10 @@ jobs:
           # Verificar instalación
           mmdc --version
 
+      - name: Install browser for Mermaid
+        run: |
+          npx puppeteer browsers install chrome-headless-shell
+
       - name: Verify pandoc and xelatex
         run: |
           pandoc --version

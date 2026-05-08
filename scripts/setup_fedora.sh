@@ -196,25 +196,24 @@ install_nodejs() {
 
 
 
-# Instalar wkhtmltopdf
-install_wkhtmltopdf() {
-    print_section "INSTALACIÓN DE WKHTMLTOPDF"
-    
-    if command -v wkhtmltoimage >/dev/null 2>&1; then
-        print_success "wkhtmltopdf ya está instalado"
-        wkhtmltoimage --version | head -n 1
-        return
-    fi
-    
-    print_status "Instalando wkhtmltopdf..."
-    sudo dnf install -y wkhtmltopdf
-    
-    if command -v wkhtmltoimage >/dev/null 2>&1; then
-        print_success "wkhtmltopdf instalado correctamente"
-        wkhtmltoimage --version | head -n 1
+# Instalar Mermaid CLI y navegador para renderizado
+install_mermaid_tools() {
+    print_section "INSTALACIÓN DE MERMAID"
+
+    if command -v mmdc >/dev/null 2>&1; then
+        print_success "mermaid-cli ya está instalado"
     else
-        print_error "Error instalando wkhtmltopdf"
-        exit 1
+        print_status "Instalando mermaid-cli globalmente..."
+        sudo npm install -g @mermaid-js/mermaid-cli
+        print_success "mermaid-cli instalado"
+    fi
+
+    if command -v chromium-browser >/dev/null 2>&1 || command -v chromium >/dev/null 2>&1; then
+        print_success "Chromium/Chrome ya disponible"
+    else
+        print_status "Instalando Chrome para Puppeteer como fallback..."
+        npx puppeteer browsers install chrome-headless-shell
+        print_success "Chrome para Puppeteer instalado"
     fi
 }
 
@@ -311,7 +310,6 @@ setup_project_structure() {
     # Crear directorios si no existen
     mkdir -p src/images
     mkdir -p src/diagrams  
-    mkdir -p src/tables
     mkdir -p templates
     mkdir -p build
     mkdir -p scripts
@@ -332,7 +330,6 @@ test.*
 
 # Generated images
 src/diagrams/*.png
-src/tables/*.png
 
 # OS specific
 .DS_Store
@@ -362,7 +359,7 @@ verify_installation() {
         "pandoc:Pandoc" 
         "node:Node.js"
         "npm:npm"
-        "wkhtmltoimage:wkhtmltopdf"
+        "mmdc:mermaid-cli"
         "make:Make"
         "git:Git"
     )
@@ -398,9 +395,6 @@ verify_installation() {
         echo ""
         echo -e "${GREEN}📚 Para compilar el libro ejecuta:${NC}"
         echo -e "${BLUE}   make all${NC}"
-        echo ""
-        echo -e "${GREEN}📊 Para generar solo las tablas:${NC}"
-        echo -e "${BLUE}   make tables${NC}"
         echo ""
         echo -e "${GREEN}🧹 Para limpiar archivos temporales:${NC}"
         echo -e "${BLUE}   make clean${NC}"
@@ -439,7 +433,7 @@ EOF
     install_latex
     install_pandoc
     install_nodejs
-    install_wkhtmltopdf
+    install_mermaid_tools
     install_fonts
     setup_project_structure
     verify_installation
