@@ -66,6 +66,9 @@ $for(classoption)$
 $endfor$
   ,captions=tableheading
 ]{$if(book)$scrbook$else$scrartcl$endif$}
+$if(book)$
+\IfFileExists{scrhack.sty}{\usepackage{scrhack}}{}
+$endif$
 $if(beamerarticle)$
 \usepackage{beamerarticle} % needs to be loaded first
 $endif$
