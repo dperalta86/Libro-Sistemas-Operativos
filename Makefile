@@ -6,7 +6,7 @@ OUTPUT_DIR = build
 SRC_DIR = src
 
 # Lista de capítulos en orden
-#CAPITULOS = $(SRC_DIR)/prefacio.md \
+CAPITULOS = $(SRC_DIR)/prefacio.md \
 	$(SRC_DIR)/arquitectura-de-computadores.md \
 	$(SRC_DIR)/fundamentos-SO.md \
 	$(SRC_DIR)/procesos.md \
@@ -19,9 +19,6 @@ SRC_DIR = src
 	$(SRC_DIR)/filesystem.md \
 	$(SRC_DIR)/io.md \
 	$(SRC_DIR)/apendice.md \
-	$(SRC_DIR)/glosario.md
-
-CAPITULOS = $(SRC_DIR)/filesystem.md \
 	$(SRC_DIR)/glosario.md
 
 # Archivos de configuración por formato
