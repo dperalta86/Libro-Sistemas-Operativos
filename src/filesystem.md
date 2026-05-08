@@ -45,10 +45,11 @@ La *persistencia* asegura que los datos sobrevivan al apagado del sistema. A dif
 La eficiencia optimiza tanto el uso del espacio disponible como la velocidad de acceso. El sistema debe minimizar el desperdicio de espacio y maximizar la velocidad con la que podemos leer y escribir información.  
 
 Finalmente, la confiabilidad garantiza la *integridad de los datos ante fallas*. Mecanismos como journaling y verificaciones de consistencia protegen contra corrupción y pérdidas de información.
+
 \begin{center}
-agregar diagrama...
-%%\includegraphics[width=0.7\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-jerarquiaAlmacenamiento.png}
+\includegraphics[width=0.9\linewidth,height=\textheight,keepaspectratio]{src/images/filesystem/abstraccion-filesystem.png}
 \end{center}
+
 ## Archivos: Abstracción de Usuario
 
 ### Concepto de Archivo
@@ -146,7 +147,7 @@ Este patrón es ideal para bases de datos y estructuras indexadas donde necesita
 
 El acceso indexado mantiene un índice separado que mapea claves lógicas a posiciones físicas en el archivo de datos. El índice actúa como un directorio que nos dice exactamente dónde buscar.
 
-```
+```text
 Archivo de índice:
   "Juan" → byte 0
   "María" → byte 256
@@ -188,12 +189,12 @@ Esta estructura tan simple permite construir jerarquías complejas. Un directori
 La estructura más simple coloca todos los archivos en un solo directorio raíz. No hay subdirectorios ni organización alguna.
 
 
-```
+```text
 / (raíz)
-  ├── programa1.c
-  ├── programa2.c
-  ├── datos.txt
-  └── imagen.jpg
+|-- programa1.c
+|-- programa2.c
+|-- datos.txt
+`-- imagen.jpg
 ```
 
 Este diseño es impracticable para sistemas reales. Sin capacidad de organizar archivos por categorías, los conflictos de nombres entre usuarios son inevitables. La estructura no escala cuando tenemos miles de archivos, y encontrar un archivo específico se convierte en una tarea imposible.
@@ -202,14 +203,14 @@ Este diseño es impracticable para sistemas reales. Sin capacidad de organizar a
 
 Una mejora asigna a cada usuario su propio directorio personal. Esto resuelve los conflictos de nombres, ya que dos usuarios pueden tener archivos con el mismo nombre en sus espacios separados.
 
-```
+```text
 /
-  ├── user1/
-  │   ├── programa.c
-  │   └── datos.txt
-  └── user2/
-      ├── programa.c  (mismo nombre, diferente archivo)
-      └── imagen.jpg
+|-- user1/
+|   |-- programa.c
+|   `-- datos.txt
+`-- user2/
+    |-- programa.c  (mismo nombre, diferente archivo)
+    `-- imagen.jpg
 ```
 Sin embargo, sigue siendo limitado: no permite subdivisiones dentro del espacio de cada usuario. No podemos crear una estructura lógica de proyectos, documentos y código dentro de nuestro directorio personal.
 
@@ -217,21 +218,21 @@ Sin embargo, sigue siendo limitado: no permite subdivisiones dentro del espacio 
 
 La solución moderna permite que los directorios contengan otros directorios, formando un árbol jerárquico arbitrariamente profundo. Esta estructura refleja naturalmente cómo organizamos información en el mundo real.
 
-```
+```text
 /
-├── home/
-│   ├── alumno/
-│   │   ├── documentos/
-│   │   │   ├── apuntes.txt
-│   │   │   └── ejercicios.pdf
-│   │   └── proyectos/
-│   │       └── tp1.c
-│   └── profesor/
-│       └── examen.txt
-├── etc/
-│   └── config.cfg
-└── tmp/
-    └── temporal.dat
+|-- home/
+|   |-- alumno/
+|   |   |-- documentos/
+|   |   |   |-- apuntes.txt
+|   |   |   `-- ejercicios.pdf
+|   |   `-- proyectos/
+|   |       `-- tp1.c
+|   `-- profesor/
+|       `-- examen.txt
+|-- etc/
+|   `-- config.cfg
+`-- tmp/
+    `-- temporal.dat
 ```
 
 Esta organización es intuitiva, escalable a millones de archivos, y permite aplicar permisos de manera jerárquica. Los namespaces quedan naturalmente separados por directorio, evitando conflictos de nombres.
@@ -240,12 +241,12 @@ Esta organización es intuitiva, escalable a millones de archivos, y permite apl
 
 Cuando permitimos hard links y soft links, la estructura deja de ser un árbol puro y se convierte en un grafo acíclico dirigido. Un mismo archivo puede ser accesible desde múltiples ubicaciones con diferentes nombres.
 
-```
+```text
 /home/alumno/
-  ├── proyecto/
-  │   └── datos.txt  (inodo 1234)
-  └── backup/
-      └── datos_respaldo.txt  (hard link a inodo 1234)
+|-- proyecto/
+|   `-- datos.txt  (inodo 1234)
+`-- backup/
+    `-- datos_respaldo.txt  (hard link a inodo 1234)
 ```
 
 Ambos nombres apuntan al mismo archivo físico —mismo inodo, mismos bloques de datos. No hay duplicación, simplemente múltiples caminos para llegar al mismo contenido.
@@ -266,7 +267,8 @@ Especifica la ubicación de un archivo desde el directorio raíz. Siempre comien
 Una ruta absoluta es inequívoca: identifica exactamente un archivo sin importar desde dónde la invoquemos. `/home/alumno/documentos/apuntes.txt` siempre se refiere al mismo archivo, independientemente del directorio de trabajo actual.
 
 *Ejemplos:*
-```
+
+```bash
 /home/alumno/documentos/apuntes.txt
 /etc/passwd
 /var/log/syslog
@@ -305,48 +307,14 @@ El sistema operativo mantiene varias estructuras en memoria para gestionar archi
 
 ### Arquitectura de Tres Niveles
 
-```
-Proceso A                          Proceso B
-+-----------------+                +-----------------+
-| File Descriptor |                | File Descriptor |
-| Table           |                | Table           |
-|  0: stdin       |                |  0: stdin       |
-|  1: stdout      |                |  1: stdout      |
-|  2: stderr      |                |  2: stderr      |
-|  3: -------+    |                |  3: -------+    |
-|  4: ----+  |    |                |  4: ----+  |    |
-+---------|--+----+                +---------|--+----+
-          |  |                               |  |
-          |  +-------------------+           |  |
-          |                      |           |  |
-          v                      v           v  v
-    +---------------------------------------------+
-    |    Open File Table (System-Wide)           |
-    +---------------------------------------------+
-    | Entry 0:                                    |
-    |   - Modo: O_RDONLY                          |
-    |   - Offset: 1024                            |
-    |   - Ref count: 1                            |
-    |   - Ptr a inodo: -----> Inodo 5678          |
-    | Entry 1:                                    |
-    |   - Modo: O_RDWR                            |
-    |   - Offset: 0                               |
-    |   - Ref count: 2  (compartido por A y B)    |
-    |   - Ptr a inodo: -----> Inodo 1234          |
-    +---------------------------------------------+
-                                  |
-                                  v
-                        +-------------------+
-                        |   Inode Table     |
-                        +-------------------+
-                        | Inodo 1234:       |
-                        |   - Permisos      |
-                        |   - Tamaño        |
-                        |   - Bloques       |
-                        | Inodo 5678:       |
-                        |   - ...           |
-                        +-------------------+
-```
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/filesystem/niveles-filesystem.png}
+
+\vspace{0.3em}
+{\small\itshape\color{gray!65}
+Diagrama de arquitectura de tres niveles. File descriptor, system-wide, inode table.
+}
+\end{center}
 
 ### Nivel 1: File Descriptor Table (por proceso)
 
@@ -484,18 +452,18 @@ Los locks son esenciales en sistemas de bases de datos para lockear registros es
 
 Unix implementa un modelo simple pero efectivo de control de acceso basado en 9 bits que especifican permisos para tres categorías de usuarios: el propietario (owner), el grupo (group) y todos los demás (others).
 
-```
--rwxr-xr--
-│││││││││└─ Others: execute
-││││││││└── Others: write
-│││││││└─── Others: read
-││││││└──── Group: execute
-│││││└───── Group: write
-││││└────── Group: read
-│││└─────── Owner: execute
-││└──────── Owner: write
-│└───────── Owner: read
-└────────── Tipo (- regular, d directorio, l link)
+```text
+- r w x r - x r - -
+| | | | | | | | | |--  Others: execute
+| | | | | | | | -----  Others: write
+| | | | | | | -------  Others: read
+| | | | | | ---------  Group: execute
+| | | | | -----------  Group: write
+| | | | -------------  Group: read
+| | | ---------------  Owner: execute
+| | -----------------  Owner: write
+| -------------------  Owner: read
+---------------------  Tipo (- regular, d directorio, l link)
 ```
 
 Los permisos también pueden expresarse en notación octal, donde cada grupo de tres bits forma un dígito:
@@ -639,7 +607,7 @@ El tamaño del bloque se elige al formatear el sistema de archivos. Si tenemos s
 La abstracción de bloques ofrece varias ventajas. Reduce la fragmentación al trabajar con unidades más grandes, disminuye la cantidad de entradas en estructuras administrativas (menos punteros que mantener), mejora el rendimiento al leer o escribir múltiples sectores de una sola vez, y simplifica la gestión de espacio libre.
 
 \begin{example}
-Un archivo de 100 KiB con bloques de 4 KiB requiere ⌈100 / 4⌉ = 25 bloques. Si usáramos sectores de 512 bytes directamente, necesitaríamos ⌈100 × 1024 / 512⌉ = 200 sectores. El sistema debe mantener 25 punteros en vez de 200, reduciendo significativamente el overhead de metadatos.
+Un archivo de 100 KiB con bloques de 4 KiB requiere 100 / 4 = 25 bloques. Si usáramos sectores de 512 bytes directamente, necesitaríamos 100 × 1024 / 512 = 200 sectores. El sistema debe mantener 25 punteros en vez de 200, reduciendo significativamente el overhead de metadatos.
 \end{example}
 
 ### Fragmentación Interna
@@ -669,17 +637,6 @@ El file system debe decidir cómo asignar bloques físicos del disco a los archi
 
 En la asignación contigua, todos los bloques de un archivo se almacenan en posiciones consecutivas del disco, uno detrás del otro sin interrupciones.
 
-```
-Disco:
-+----+----+----+----+----+----+----+----+
-| A  | A  | A  | A  | libre | B  | B  | B  |
-+----+----+----+----+----+----+----+----+
-  100  101  102  103   104    105  106  107
-
-Archivo A: bloque inicial = 100, longitud = 4
-Archivo B: bloque inicial = 105, longitud = 3
-```
-
 Para representar un archivo solo necesitamos dos números: el bloque inicial y la cantidad de bloques. Esta simplicidad es atractiva y hace que el acceso secuencial sea extremadamente rápido —el brazo del disco puede leer todos los bloques sin moverse. El acceso aleatorio también es eficiente porque podemos calcular directamente la posición física de cualquier byte.
 
 Sin embargo, los problemas aparecen con el uso. La fragmentación externa se vuelve severa con el tiempo: después de crear y eliminar muchos archivos, el disco queda lleno de huecos pequeños que no pueden utilizarse eficientemente. Hacer crecer un archivo es difícil o imposible si no hay espacio contiguo después del último bloque —podríamos necesitar mover TODO el archivo a otra ubicación. Esto requiere compactación periódica del disco, una operación costosa que mueve archivos para eliminar los huecos.
@@ -692,31 +649,19 @@ La asignación contigua es ideal para medios de solo lectura como CD-ROM y DVD, 
 
 En la asignación enlazada, cada bloque contiene datos y un puntero al siguiente bloque, formando una lista enlazada dispersa por el disco.
 
-```
-Archivo A: primer bloque = 45
-+--------+--------+
-| Datos  | ptr=78 |  Bloque 45
-+--------+--------+
-              |
-              v
-+--------+--------+
-| Datos  | ptr=12 |  Bloque 78
-+--------+--------+
-              |
-              v
-+--------+--------+
-| Datos  | NULL   |  Bloque 12 (último)
-+--------+--------+
-```
 Este método elimina completamente la fragmentación externa —cualquier bloque libre puede ser usado— y los archivos pueden crecer dinámicamente sin necesidad de mover datos existentes. Solo necesitamos guardar el bloque inicial en los metadatos del archivo; el resto de la información de ubicación está distribuida en los punteros.
 
 Los problemas surgen con el acceso aleatorio. Para leer el byte 10,000 de un archivo con bloques de 4 KiB, debemos calcular que está en el bloque número 2 (10,000 / 4096). Pero para llegar al bloque 2, debemos leer el bloque 0, seguir su puntero al bloque 1, seguir ese puntero al bloque 2, y finalmente leer los datos. Son 3 accesos a disco en vez de 1. La pérdida de un puntero puede corromper el resto del archivo, y parte del espacio de cada bloque se desperdicia almacenando el puntero en vez de datos.
+
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/filesystem/metodos-de-asignacion.png}
+\end{center}
 
 #### Mejora: FAT (File Allocation Table)
 
 FAT mejora la asignación enlazada moviendo todos los punteros a una tabla centralizada en memoria.
 
-```
+```text
 Tabla FAT:
 Índice  Valor
   45  →  78
@@ -732,7 +677,7 @@ Este es el método usado por el File System FAT de Microsoft, que veremos en det
 
 La asignación indexada usa un bloque especial (bloque de índice) que contiene punteros a todos los bloques de datos del archivo.
 
-```
+```text
 Archivo A: bloque índice = 500
 
 Bloque Índice 500:
@@ -761,11 +706,6 @@ El costo es el overhead del bloque de índice —archivos pequeños desperdician
 | Confiabilidad | Alta | Media | Alta |
 | Complejidad | Muy simple | Simple | Moderada |
 
-\begin{center}
-agregar diagrama
-%%\includegraphics[width=0.9\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-metodosAsignacion.png}
-\end{center}
-
 ## Manejo de Espacio Libre
 
 Además de rastrear qué bloques pertenecen a qué archivos, el file system debe mantener información sobre qué bloques están libres y disponibles para asignación. La eficiencia de esta estructura impacta directamente el rendimiento de creación de archivos y escrituras que requieren bloques adicionales.
@@ -774,7 +714,7 @@ Además de rastrear qué bloques pertenecen a qué archivos, el file system debe
 
 Un bitmap es un array de bits donde cada bit representa un bloque del disco. Si el bit está en 1, el bloque está ocupado; si está en 0, está libre.
 
-```
+```text
 Bitmap (1 = ocupado, 0 = libre):
 [1 1 1 1 0 0 0 1 1 0 1 1 1 0 0 0 ...]
  0 1 2 3 4 5 6 7 8 9...
@@ -902,24 +842,8 @@ Esta arquitectura unificada hace que FAT sea más simple de implementar, pero ta
 ### Componentes de FAT
 El volumen FAT se estructura en cinco regiones distintas, cada una con un propósito específico:
 
-```
-Estructura del volumen FAT:
-+----------------+
-| Boot Sector    |  Sector 0: parámetros del FS
-+----------------+
-| FAT 1         |  Tabla de asignación principal
-+----------------+
-| FAT 2         |  Copia de respaldo
-+----------------+
-| Root Directory |  Solo en FAT12/16 (ubicación fija)
-+----------------+
-| Data Area      |  Clusters de datos (numerados desde 2)
-+----------------+
-```
-
 \begin{center}
-agregar diagrama
-%%\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-estructuraFAT.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/filesystem/estructura-FAT.png}
 \end{center}
 
 #### 1. Boot Sector
@@ -931,7 +855,7 @@ El primer sector del volumen contiene los parámetros fundamentales del file sys
 La tabla FAT es esencialmente un array de entradas donde cada índice representa un cluster del disco.  
 Esta tabla implementa el método de asignación enlazada que estudiamos anteriormente.
 
-```
+```text
 Índice     Valor        Significado
 --------------------------------------
 0          Reservado    Media descriptor
@@ -1037,33 +961,19 @@ La diferencia arquitectural fundamental con FAT es la separación clara entre me
 
 Esta separación elegante permite funcionalidades que FAT no puede ofrecer. Los hard links se vuelven triviales: múltiples nombres en diferentes directorios pueden referenciar el mismo número de inodo. Los permisos robustos de Unix (owner, group, others con lectura, escritura y ejecución) se almacenan naturalmente en el inodo. La información extendida puede agregarse al inodo sin modificar las entradas de directorio, manteniendo compatibilidad hacia atrás.
 
+\begin{center}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/filesystem/estructura-EXT2.png}
+\end{center}
+
 ### Estructura General: Block Groups
 
 EXT2 divide el volumen completo en **grupos de bloques** (block groups) para mejorar la localidad de los datos.
-```
-+-------------+------------------+------------------+-----+
-| Boot Block  | Block Group 0    | Block Group 1    | ... |
-| (1024 bytes)|                  |                  |     |
-+-------------+------------------+------------------+-----+
-```
-
-\begin{center}
-agregar diagrama
-%%\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-estructuraEXT2.png}
-\end{center}
 
 La organización en block groups no es arbitraria. Esta estructura mejora la localidad manteniendo el inodo de un archivo y sus bloques de datos cerca físicamente, típicamente en el mismo grupo. Proporciona escalabilidad mediante una estructura repetida que permite volúmenes enormes sin overhead excesivo. Aumenta la confiabilidad replicando el superbloque crítico en múltiples grupos. Y reduce la fragmentación manteniendo juntos los archivos de un mismo directorio.
 
 ### Componentes de un Block Group
 
 Cada grupo de bloques contiene una estructura idéntica con cinco componentes:
-```
-+------------+-----+----------+----------+-------------+--------------+
-| Superblock | GDT | Bitmaps  | Bitmaps  | Inode Table | Data Blocks  |
-| (1 block)  |(var)| Bloques  | Inodos   | (var blocks)| (resto)      |
-|            |     | (1 block)| (1 block)|             |              |
-+------------+-----+----------+----------+-------------+--------------+
-```
 
 #### 1. Superbloque
 
@@ -1110,7 +1020,7 @@ struct ext2_group_desc {
 
 EXT2 usa bitmaps para rastrear espacio libre, una técnica eficiente que vimos anteriormente. El **block bitmap** dedica 1 bit por bloque del grupo: 1 indica ocupado, 0 indica libre. El **inode bitmap** usa la misma técnica para los inodos del grupo.
 
-```
+```text
 Ejemplo: [1 1 1 1 0 0 0 1 1 0 1 1 1 0 0 0]
          Bloques 0-3: ocupados
          Bloques 4-6: libres
@@ -1164,44 +1074,8 @@ struct ext2_inode {
 
 El inodo contiene **15 punteros** que permiten acceder a los bloques de datos:
 
-```
-INODO
-+------------------+
-| Metadatos        |
-| (mode, uid, size)|
-+------------------+
-| i_block[0]   ----|----> Bloque de datos directo (4 KiB)
-| i_block[1]   ----|----> Bloque de datos directo (4 KiB)
-| i_block[2]   ----|----> Bloque de datos directo (4 KiB)
-| ...              |
-| i_block[11]  ----|----> Bloque de datos directo (4 KiB)  [12 × 4 KiB = 48 KiB]
-+------------------+
-| i_block[12]  ----|----> Bloque indirecto simple
-|                  |         |
-|                  |         +---> [ptr0 | ptr1 | ... | ptr1023]
-|                  |                  |      |            |
-|                  |                  v      v            v
-|                  |               Datos  Datos        Datos
-+------------------+
-| i_block[13]  ----|----> Bloque indirecto doble
-|                  |         |
-|                  |         +---> [ptr0 | ptr1 | ... | ptr1023]
-|                  |                  |      |            |
-|                  |                  v      v            v
-|                  |            [Ind. Simple] [Ind. Simple] ...
-|                  |                  |           |
-|                  |                  v           v
-|                  |               Datos       Datos
-+------------------+
-| i_block[14]  ----|----> Bloque indirecto triple
-|                  |         |
-|                  |         +---> [ptrs] ---> [Ind. Dobles] ---> [Ind. Simples] ---> Datos
-+------------------+
-```
-
 \begin{center}
-agregar diagrama
-%%\includegraphics[width=0.9\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-estructuraInodo.png}
+\includegraphics[width=0.9\linewidth,keepaspectratio]{src/images/filesystem/estructura-inodo.png}
 \end{center}
 
 Los primeros 12 punteros son directos: apuntan inmediatamente a bloques de datos. Esto hace que archivos pequeños (hasta 48 KiB con bloques de 4 KiB) sean extremadamente eficientes —solo se necesita leer el inodo y luego directamente los bloques de datos.  
@@ -1294,7 +1168,7 @@ Observemos los detalles: ambos archivos muestran el mismo número de inodo (1234
 
 La estructura interna es reveladora:
 
-```
+```text
 Directorio /home/alumno/:
 +------------------+-------+
 | Nombre           | Inodo |
@@ -1339,7 +1213,7 @@ El soft link tiene su propio inodo, completamente separado del archivo destino. 
 
 La estructura interna muestra la separación:
 
-```
+```text
 Directorio /home/alumno/:
 +------------------+-------+
 | Nombre           | Inodo |
@@ -1375,10 +1249,6 @@ El link sigue existiendo pero apunta a un archivo inexistente. Interesantemente,
 
 ### Comparación Hard Link vs Soft Link
 
-\begin{center}
-agregar diagrama
-%%\includegraphics[width=0.8\linewidth,height=\textheight,keepaspectratio]{src/diagrams/cap09-hardVsSoftLink.png}
-\end{center}
 
 | Aspecto | Hard Link | Soft Link |
 |---------|-----------|-----------|
@@ -1407,677 +1277,292 @@ Los soft links son perfectos para gestión de versiones de software:
 # Actualizar Python solo requiere cambiar el link, no recompilar programas
 ```
 
+## Ejercicios integradores
 
-## Ejercicios Integradores
+### Ejercicio 1: lectura simple en EXT2
 
-### Ejercicio 1: Lectura Simple en EXT2
+Se tiene un sistema EXT2 con bloques de 4 KiB y punteros de 4 bytes. Un archivo ocupa 20 KiB y está almacenado íntegramente en la zona de punteros directos del inodo. Se desea leer el archivo completo, del byte 0 al byte 20.479.
 
-**Enunciado:**
+*¿Cuántos accesos a disco se requieren? Diferenciar entre accesos a bloques de datos y accesos a bloques de punteros.*
 
-Se tiene un sistema EXT2 con las siguientes características:
-- Tamaño de bloque: 4 KiB
-- Tamaño de puntero: 4 bytes
+#### Solución
 
-Un archivo ocupa 20 KiB y está almacenado completamente en la zona de punteros directos del inodo.
+El archivo ocupa 20.480 bytes. Como cada bloque contiene 4.096 bytes, se necesitan exactamente cinco bloques:
 
-Se desea **leer el archivo completo** desde el byte 0 hasta el byte 20.479.
+$$\left\lceil \frac{20.480}{4.096} \right\rceil = 5 \text{ bloques}$$
 
-**¿Cuántos accesos a disco se requieren? Diferenciar entre accesos a bloques de datos y accesos a bloques de punteros.**
+El inodo EXT2 dispone de 12 punteros directos. Como $5 < 12$, todos los bloques caben en la zona directa y no se requiere ningún bloque indirecto.
 
----
+Para leer el archivo, el sistema operativo realiza los siguientes accesos a disco:
 
-**Solución Detallada:**
+1. Leer el inodo, para obtener `i_block[0]` a `i_block[4]` junto con el resto de metadatos.
+2. Leer el bloque 0 (bytes 0–4.095).
+3. Leer el bloque 1 (bytes 4.096–8.191).
+4. Leer el bloque 2 (bytes 8.192–12.287).
+5. Leer el bloque 3 (bytes 12.288–16.383).
+6. Leer el bloque 4 (bytes 16.384–20.479).
 
-**Paso 1: Calcular cantidad de bloques necesarios**
+Los cinco punteros viven dentro del propio inodo, de modo que no se accede a ningún bloque de indirección separado.
 
-```
-Tamaño archivo = 20 KiB = 20.480 bytes
-Tamaño bloque = 4 KiB = 4.096 bytes
-Bloques necesarios = ⌈20.480 / 4.096⌉ = 5 bloques
-```
-
-**Paso 2: Verificar si usa solo bloques directos**
-
-El inodo EXT2 tiene 12 punteros directos.
-```
-5 bloques < 12 bloques directos → SÍ, solo usa punteros directos
-```
-
-**Paso 3: Identificar accesos necesarios**
-
-Para leer el archivo completo necesitamos:
-
-1. **Acceso al inodo:** Leer la estructura del inodo para obtener los punteros i_block[0] a i_block[4]
-2. **Acceso a bloque 0:** Leer i_block[0] (bytes 0-4095)
-3. **Acceso a bloque 1:** Leer i_block[1] (bytes 4096-8191)
-4. **Acceso a bloque 2:** Leer i_block[2] (bytes 8192-12287)
-5. **Acceso a bloque 3:** Leer i_block[3] (bytes 12288-16383)
-6. **Acceso a bloque 4:** Leer i_block[4] (bytes 16384-20479)
-
-**Paso 4: Clasificar accesos**
-
-- **Accesos a bloques de punteros:** 0 (los punteros directos están EN el inodo mismo)
-- **Accesos a bloques de datos:** 5 (los bloques con contenido del archivo)
-- **Acceso al inodo:** 1 (estructura de metadatos)
-
-**Respuesta Final:**
-
-\textcolor{blue!50!black}{\textbf{Respuesta:}\\
-- \textbf{Accesos a bloques de datos:} 5\\
-- \textbf{Accesos a bloques de punteros:} 0 (punteros directos están en el inodo)\\
-- \textbf{Total de accesos a disco:} 6 (1 inodo + 5 datos)\\
-}
+\begin{highlight}
+Resultado: 5 accesos a bloques de datos, 0 accesos a bloques de punteros, 1 acceso al inodo. Total: 6 accesos a disco.
+\end{highlight}
 
 ---
 
-### Ejercicio 2: Escritura Compleja en EXT2 (Integrador)
+### Ejercicio 2: lectura con múltiples niveles de indirección en EXT2
 
-**Enunciado:**
+Se tiene un sistema EXT2 con bloques de 8 KiB y punteros de 64 bits. El inodo dispone de 12 punteros directos, 1 indirecto simple y 2 indirectos dobles. Se pide determinar la cantidad de accesos a disco necesaria para leer un archivo desde el byte 6.553.600 hasta el byte 8.631.975.936, diferenciando accesos a bloques de datos de accesos a bloques de punteros.
 
-Se tiene un sistema que utiliza EXT2 como File System con **bloques de 8 KiB** y **punteros de 64 bits**. A su vez, cada inodo está conformado por **12 punteros directos**, **1 indirecto simple** y **2 indirectos dobles**.
+#### Solución
 
-Se pide determinar la cantidad de accesos a bloques necesaria para **leer un archivo desde el byte nro 6.553.600 hasta el byte nro 8.631.975.936**. Diferenciar entre accesos a bloques de datos y accesos a bloques de punteros.
+#### Paso 1 — Parámetros del sistema
 
-**Solución Detallada:**
+Con los datos del enunciado se obtienen tres valores que se usarán en todo el ejercicio:
 
-#### Paso 1: Calcular parámetros del sistema
+$$B = 8.192 \text{ bytes}, \qquad P = 8 \text{ bytes}, \qquad N = \frac{B}{P} = \frac{8.192}{8} = 1.024 \text{ punteros/bloque}$$
 
-```
-Tamaño de bloque (B) = 8 KiB = 8.192 bytes
-Tamaño de puntero (P) = 64 bits = 8 bytes
+$N$ es la cantidad de punteros que caben en un bloque, y determina cuántos bloques de datos puede referenciar cada nivel de indirección.
 
-Punteros por bloque (N) = B / P = 8.192 / 8 = 1.024 punteros
-```
+#### Paso 2 — Capacidad y rango de bytes de cada nivel
 
-#### Paso 2: Calcular capacidad de cada nivel de punteros
+Con $B$ y $N$ se calcula la capacidad de cada nivel y, acumulando, el rango de bytes que le corresponde:
 
-**Bloques directos (12):**
-```
-Capacidad = 12 × 8 KiB = 96 KiB = 98.304 bytes
-Rango de bytes: 0 a 98.303
-```
+| Nivel | Capacidad | Rango de bytes |
+|---|---|---|
+| Directos (12 punteros) | $12 \times B = 96$ KiB | 0 – 98.303 |
+| Indirecto simple | $N \times B = 8$ MiB | 98.304 – 8.486.911 |
+| Indirecto doble \##1 | $N^2 \times B = 8$ GiB | 8.486.912 – 17.076.846.503 |
+| Indirecto doble \##2 | $N^2 \times B = 8$ GiB | 17.076.846.504 – 25.666.781.095 |
 
-**Indirecto simple (1):**
-```
-Capacidad = N × B = 1.024 × 8 KiB = 8 MiB = 8.388.608 bytes
-Rango de bytes: 98.304 a 8.486.911
-```
+#### Paso 3 — Bloques que abarca el rango solicitado
 
-**Indirecto doble 1:**
-```
-Capacidad = N × N × B = 1.024 × 1.024 × 8 KiB = 8 GiB = 8.589.934.592 bytes
-Rango de bytes: 8.486.912 a 17.076.846.503
-```
+El primer paso es convertir los límites de la lectura a números de bloque lógico:
 
-**Indirecto doble 2:**
-```
-Capacidad = N × N × B = 8 GiB = 8.589.934.592 bytes
-Rango de bytes: 17.076.846.504 a 25.666.781.095
-```
+$$\text{bloque inicial} = \left\lfloor \frac{6.553.600}{8.192} \right\rfloor = 800$$
 
-#### Paso 3: Determinar qué bloques cubren el rango solicitado
+$$\text{bloque final} = \left\lfloor \frac{8.631.975.936}{8.192} \right\rfloor = 1.053.710$$
 
-**Byte inicial:** 6.553.600  
-**Byte final:** 8.631.975.936
+En total hay que leer $1.053.710 - 800 + 1 = \mathbf{1.052.911}$ bloques de datos.
 
-**Calcular bloque inicial:**
-```
-Bloque inicial = ⌊6.553.600 / 8.192⌋ = 800
-```
+#### Paso 4 — Distribución de bloques por nivel
 
-**Calcular bloque final:**
-```
-Bloque final = ⌊8.631.975.936 / 8.192⌋ = 1.053.710
-```
+Para saber cuántos de esos bloques caen en cada nivel, se construyen primero los rangos en número de bloque lógico, análogos a la tabla de bytes del paso anterior:
 
-**Total de bloques a leer:**
-```
-Bloques = 1.053.710 - 800 + 1 = 1.052.911 bloques
-```
+- Directos: bloques 0–11
+- Indirecto simple: bloques 12–1.035 (es decir, $12 + 1.024 - 1$)
+- Indirecto doble \##1: bloques 1.036–1.049.611
+- Indirecto doble \##2: bloques 1.049.612–2.098.187
 
-#### Paso 4: Clasificar bloques por nivel de indirección
+Cruzando el rango solicitado $[800,\; 1.053.710]$ con esos intervalos:
 
-**¿Bloques directos? (rango: bloque 0-11)**
-```
-Bloque inicial = 800 → NO está en bloques directos
-```
+Directos (bloques 0–11). El bloque 800 queda fuera de este rango; la lectura no toca ningún bloque directo.
 
-**¿Indirecto simple? (rango: bloque 12 a 1.035)**
-```
-Primer bloque del ind. simple = 12
-Último bloque del ind. simple = 12 + 1.024 - 1 = 1.035
+Indirecto simple (bloques 12–1.035). El inicio (800) cae aquí; el final (1.053.710), no. Se leen los bloques 800 a 1.035:
 
-¿800 está en [12, 1.035]? SÍ
-¿1.053.710 está en [12, 1.035]? NO
+$$1.035 - 800 + 1 = \mathbf{236} \text{ bloques de datos}$$
 
-Bloques usados del ind. simple = 1.035 - 800 + 1 = 236 bloques
-```
+Indirecto doble \##1 (bloques 1.036–1.049.611). El rango solicitado abarca este nivel por completo, desde el primer bloque hasta el último:
 
-**¿Indirecto doble 1? (rango: bloque 1.036 a 1.049.611)**
-```
-Primer bloque = 1.036
-Último bloque = 1.036 + (1.024 × 1.024) - 1 = 1.049.611
+$$1.049.611 - 1.036 + 1 = \mathbf{1.048.576} \text{ bloques de datos}$$
 
-Rango solicitado [800, 1.053.710]:
-- Inicio (800) NO está aquí
-- Final (1.053.710) SÍ cruza este rango
+Indirecto doble \##2 (bloques 1.049.612–2.098.187). El final del rango (1.053.710) cae aquí, comenzando desde el primer bloque de este nivel:
 
-Bloques usados = 1.049.611 - 1.036 + 1 = 1.048.576 bloques (TODO el ind. doble #1)
-```
+$$1.053.710 - 1.049.612 + 1 = \mathbf{4.099} \text{ bloques de datos}$$
 
-**¿Indirecto doble 2? (rango: bloque 1.049.612 a 2.098.187)**
-```
-Primer bloque = 1.049.612
-Último bloque = 1.049.612 + (1.024 × 1.024) - 1 = 2.098.187
+Verificación:
 
-¿1.053.710 está en [1.049.612, 2.098.187]? SÍ
+$$236 + 1.048.576 + 4.099 = 1.052.911 \checkmark$$
 
-Bloques usados = 1.053.710 - 1.049.612 + 1 = 4.099 bloques
-```
+#### Paso 5 — Accesos a bloques de punteros
 
-**Verificación:**
-```
-236 (ind. simple) + 1.048.576 (ind. doble #1) + 4.099 (ind. doble #2) = 1.052.911 ✓
-```
+Para llegar a un bloque de datos que está bajo un nivel de indirección, el sistema operativo debe primero leer los bloques que almacenan los punteros. Cada uno de esos accesos cuenta como un acceso a bloque de punteros.
 
-#### Paso 5: Calcular accesos a bloques de punteros
+Indirecto simple. Un único bloque de indirección contiene los 1.024 punteros del nivel. No importa cuántos de esos punteros se usen: el bloque hay que leerlo entero.
 
-**Indirecto simple:**
-```
-Necesitamos 236 bloques de datos del ind. simple.
-Todos están en UN SOLO bloque de punteros.
+$$\text{accesos} = \mathbf{1}$$
 
-Accesos = 1 (el bloque indirecto simple contiene los 1.024 punteros)
-```
+Indirecto doble \##1. Un bloque raíz apunta a 1.024 bloques de segundo nivel, cada uno de los cuales contiene 1.024 punteros a bloques de datos. Como se usa el nivel completo, se accede a la raíz más a todos los bloques de segundo nivel:
 
-**Indirecto doble 1:**
-```
-Necesitamos TODO el indirecto doble #1 (1.048.576 bloques de datos).
+$$\text{accesos} = 1 \text{ (raíz)} + 1.024 \text{ (bloques de segundo nivel)} = \mathbf{1.025}$$
 
-Cantidad de bloques indirectos simples = 1.048.576 / 1.024 = 1.024 bloques
+Indirecto doble \##2. Se necesitan 4.099 bloques de datos. Cada bloque de segundo nivel cubre 1.024 bloques de datos, así que:
 
-Accesos = 1 (bloque ind. doble raíz) + 1.024 (bloques ind. simples) = 1.025 accesos
-```
+$$\left\lceil \frac{4.099}{1.024} \right\rceil = 5 \text{ bloques de segundo nivel}$$
 
-**Indirecto doble 2:**
-```
-Necesitamos 4.099 bloques de datos del segundo indirecto doble.
+$$\text{accesos} = 1 \text{ (raíz)} + 5 \text{ (bloques de segundo nivel)} = \mathbf{6}$$
 
-Bloques indirectos simples necesarios = ⌈4.099 / 1.024⌉ = 5 bloques
+\begin{warning}
+El techo ($\lceil\cdot\rceil$) es indispensable aquí. Los 4.099 bloques de datos no son múltiplo exacto de 1.024: los primeros cuatro bloques de segundo nivel cubren $4 \times 1.024 = 4.096$ bloques, y queda un remanente de 3 bloques que necesita un quinto bloque de segundo nivel. Usar piso en lugar de techo llevaría a un resultado incorrecto.
+\end{warning}
 
-Accesos = 1 (bloque ind. doble raíz) + 5 (bloques ind. simples) = 6 accesos
-```
+Total de accesos a bloques de punteros:
 
-**Total accesos a bloques de punteros:**
-```
-1 (ind. simple) + 1.025 (ind. doble #1) + 6 (ind. doble #2) = 1.032 accesos
-```
+$$1 + 1.025 + 6 = \mathbf{1.032}$$
 
-#### Paso 6: Calcular accesos a bloques de datos
+#### Paso 6 — Resultado final
 
-```
-Total bloques de datos a leer = 1.052.911 accesos
-```
+\begin{highlight}
+Accesos a bloques de datos: 1.052.911\\
+Accesos a bloques de punteros: 1.032\\
 
-#### Paso 7: Respuesta Final
+Total de accesos a disco: 1.053.943 (sin contar el acceso inicial al inodo).
+\end{highlight}
 
-\textcolor{blue!50!black}{\textbf{Respuesta:}\\
-- \textbf{Accesos a bloques de datos:} 1.052.911\\
-- \textbf{Accesos a bloques de punteros:} 1.032\\
-- \textbf{Total de accesos a disco:} 1.053.943 (sin contar el acceso inicial al inodo)\\
-}
+\begin{highlight}
+En la práctica el sistema operativo cachea los bloques de punteros en memoria, de modo que lecturas sucesivas al mismo archivo no repiten esos accesos. El análisis teórico los cuenta todos porque asume un caché frío, lo que representa el peor caso posible.
+\end{highlight}
 
-\textcolor{orange!70!black}{\textbf{Nota importante para parcial:}\\
-En la práctica, el SO cachea bloques de punteros en memoria, por lo que accesos subsecuentes al mismo archivo serían mucho más rápidos. Pero en el análisis teórico contamos TODOS los accesos.\\
-}
 
-## Otros Sistemas de Archivos (Mención Breve)
+## Otros sistemas de archivos
 
-En la cátedra se enfocan en FAT y EXT2, pero es importante conocer la existencia de otros file systems modernos:
+La cátedra se enfoca en FAT y EXT2, pero conviene conocer la existencia de otros sistemas de archivos ampliamente usados, porque cada uno toma decisiones de diseño distintas según el problema que resuelve.
 
-### EXT3 (Third Extended File System)
+### EXT3 y EXT4
 
-**Año:** 2001  
-**Mejora principal:** Agrega **journaling** a EXT2
+EXT3 (2001) extiende EXT2 con una sola adición fundamental: journaling. Mantiene el mismo formato de inodos y la misma estructura en disco, lo que permite montar una partición EXT2 directamente como EXT3 sin reformatear. El journaling puede operar en tres modos —journal, ordered y writeback— que intercambian velocidad por garantías de consistencia.
 
-\textcolor{teal!60!black}{\textbf{Características:}\\
-- Compatibilidad hacia atrás: se puede montar EXT2 como EXT3\\
-- Tres modos de journaling: journal (más lento, más seguro), ordered (default), writeback (más rápido)\\
-- Recuperación rápida después de crashes\\
-- Mismo formato de inodos y estructura que EXT2\\
-}
+EXT4 (2008) da un paso más grande. En lugar de listas de bloques individuales, introduce los extents: rangos contiguos de bloques descritos por un solo registro. Esto reduce drásticamente la cantidad de metadatos en archivos grandes y la fragmentación. Además agrega delayed allocation (los bloques se asignan justo antes de escribirse a disco, lo que mejora la decisión de ubicación) y multiblock allocation (asigna varios bloques de una sola vez). El soporte de archivos de hasta 16 TiB y volúmenes de hasta 1 EiB lo convierte en el sistema de archivos estándar de la mayoría de distribuciones Linux actuales.
 
-**Sistema operativo:** Linux (estándar en distribuciones 2001-2008)
+### NTFS
 
-### EXT4 (Fourth Extended File System)
+NTFS (1993, Microsoft) es el sistema de archivos principal de Windows desde NT 4.0. Ofrece journaling completo de datos y metadatos, listas de control de acceso más expresivas que el modelo Unix rwx, streams alternativos de datos (un mismo archivo puede tener múltiples contenidos asociados), y soporte de compresión y cifrado a nivel de sistema de archivos. Los límites teóricos son de 16 EiB por archivo y 256 TiB por volumen en la práctica.
 
-**Año:** 2008  
-**Mejoras significativas:**
+### exFAT
 
-- **Extents:** En vez de lista de bloques individuales, se usan rangos contiguos → reduce fragmentación
-- **Soporte de archivos hasta 16 TiB** (usa 64 bits para tamaño)
-- **Volúmenes hasta 1 EiB** (exabyte)
-- **Delayed allocation:** Asigna bloques justo antes de escribir a disco → mejor decisión de ubicación
-- **Multiblock allocation:** Asigna múltiples bloques de una vez → reduce fragmentación
+exFAT (2006, Microsoft) fue diseñado para tarjetas SD y pendrives de gran capacidad. Su objetivo era simple: eliminar el límite de 4 GiB por archivo que tiene FAT32, manteniendo un overhead menor que NTFS y un mejor comportamiento sobre memoria flash. Soporta archivos de hasta 16 EiB y volúmenes de hasta 128 PiB teóricos. Es compatible con Windows (Vista SP1+), macOS (10.6.5+) y Linux.
 
-**Sistema operativo:** Linux (estándar actual en la mayoría de distribuciones)
+### APFS, XFS, Btrfs y ZFS
 
-### NTFS (New Technology File System)
+APFS (2017, Apple) reemplaza a HFS+ en todos los dispositivos Apple. Usa copy-on-write —nunca sobrescribe datos en su lugar— lo que hace que los snapshots sean instantáneos y sin costo de espacio hasta que los datos divergen. Está optimizado para almacenamiento SSD.
 
-**Año:** 1993  
-**Creador:** Microsoft
+XFS (1994, SGI; 2001 en Linux) apunta al alto rendimiento con archivos muy grandes y operaciones de I/O paralelas. Es el sistema de archivos por defecto en RHEL/CentOS desde la versión 7.
 
-\textcolor{teal!60!black}{\textbf{Características:}\\
-- Sistema de archivos principal de Windows desde NT 4.0\\
-- Journaling completo (incluye datos y metadatos)\\
-- Soporte de ACL (Access Control Lists) más complejas que Unix\\
-- Streams alternativos: un archivo puede tener múltiples contenidos\\
-- Compresión y encriptación a nivel de file system\\
-}
+Btrfs (2009) lleva las ideas de copy-on-write más lejos: agrega checksums de datos y metadatos para detectar corrupción silenciosa, compresión transparente y RAID integrado a nivel de sistema de archivos.
 
-**Límites:**
-- Archivos hasta 16 EiB
-- Volúmenes hasta 256 TiB (en práctica)
+ZFS (2005, Sun Microsystems) es la opción enterprise de referencia. Combina copy-on-write, checksums end-to-end con autocorrección, RAID-Z, deduplicación y compresión, todo en un diseño donde el volumen lógico y el sistema de archivos son una sola capa. Sus límites teóricos son esencialmente ilimitados para uso práctico.
 
-**Sistema operativo:** Windows (NT, 2000, XP, Vista, 7, 8, 10, 11)
+### Cuadro comparativo
 
-### exFAT (Extended File Allocation Table)
-
-**Año:** 2006  
-**Creador:** Microsoft
-
-Creado para dispositivos de almacenamiento flash de gran capacidad (SD cards >32 GiB, pendrives grandes).
-
-\textcolor{teal!60!black}{\textbf{Mejoras sobre FAT32:}\\
-- Elimina límite de 4 GiB para archivos individuales (usa 64 bits)\\
-- Soporte de volúmenes hasta 128 PiB teóricos\\
-- Menos overhead que NTFS\\
-- Mejor para flash (menos escrituras que NTFS)\\
-}
-
-**Uso típico:** Tarjetas SD de >32 GiB, discos externos USB
-
-**Sistema operativo:** Windows (Vista SP1+), macOS (10.6.5+), Linux (con driver)
-
-### APFS (Apple File System)
-
-**Año:** 2017  
-**Creador:** Apple
-
-Sistema moderno que reemplaza HFS+ en dispositivos Apple.
-
-\textcolor{teal!60!black}{\textbf{Características:}\\
-- Copy-on-write: nunca sobrescribe datos in-place\\
-- Snapshots instantáneos (sin costo de espacio hasta que se modifica)\\
-- Encriptación nativa (por archivo o por volumen)\\
-- Optimizado para almacenamiento SSD/flash\\
-}
-
-**Sistema operativo:** macOS (High Sierra+), iOS, watchOS, tvOS
-
-### XFS
-
-**Año:** 1994 (SGI), 2001 (Linux)
-
-Sistema de alto rendimiento creado originalmente para servidores IRIX de Silicon Graphics.
-
-\textcolor{teal!60!black}{\textbf{Características:}\\
-- Excelente para archivos muy grandes (video, científicos)\\
-- Alto throughput en I/O paralelo\\
-- Journaling de metadatos\\
-- Allocation groups similares a block groups de EXT\\
-}
-
-**Uso típico:** Servidores, sistemas de almacenamiento masivo, edición de video
-
-**Sistema operativo:** Linux (default en RHEL/CentOS desde v7)
-
-### Btrfs (B-tree File System)
-
-**Año:** 2009
-
-Sistema moderno de Linux con características avanzadas.
-
-\textcolor{teal!60!black}{\textbf{Características:}\\
-- Copy-on-write\\
-- Snapshots y clones instantáneos\\
-- Checksums de datos y metadatos (detecta corrupción)\\
-- Compresión transparente\\
-- RAID integrado a nivel de file system\\
-}
-
-**Sistema operativo:** Linux (usado en SUSE, Fedora como opción)
-
-### ZFS (Zettabyte File System)
-
-**Año:** 2005  
-**Creador:** Sun Microsystems (ahora Oracle)
-
-Uno de los file systems más avanzados, diseñado para servidores enterprise.
-
-\textcolor{teal!60!black}{\textbf{Características:}\\
-- Copy-on-write y snapshots\\
-- Checksums end-to-end (detecta y corrige bit rot)\\
-- RAID integrado (RAID-Z)\\
-- Compresión y deduplicación\\
-- Límites masivos: 256 trillones de zettabytes\\
-}
-
-**Sistema operativo:** Solaris, FreeBSD, Linux (OpenZFS)
-
-### Resumen Comparativo
-
-| File System | Año | Journaling | Max File | Max Volume | Uso Principal |
-|-------------|-----|------------|----------|------------|---------------|
+| Sistema | Año | Journaling | Máx. archivo | Máx. volumen | Uso principal |
+|---|---|---|---|---|---|
 | FAT32 | 1996 | No | 4 GiB | 2 TiB | Dispositivos portátiles |
-| EXT2 | 1993 | No | 4 GiB | 32 TiB | Linux legacy |
-| EXT3 | 2001 | Sí | 4 GiB | 32 TiB | Linux (histórico) |
+| EXT2 | 1993 | No | 2 TiB | 32 TiB | Linux legacy |
+| EXT3 | 2001 | Sí | 2 TiB | 32 TiB | Linux (histórico) |
 | EXT4 | 2008 | Sí | 16 TiB | 1 EiB | Linux (actual) |
 | NTFS | 1993 | Sí | 16 EiB | 256 TiB | Windows |
-| exFAT | 2006 | Básico | 16 EiB | 128 PiB | Flash grande |
-| APFS | 2017 | Sí (CoW) | 8 EiB | 8 EiB | macOS/iOS |
+| exFAT | 2006 | Parcial | 16 EiB | 128 PiB | Flash de gran capacidad |
+| APFS | 2017 | CoW | 8 EiB | 8 EiB | macOS / iOS |
 | XFS | 1994 | Sí | 8 EiB | 8 EiB | Servidores Linux |
-| Btrfs | 2009 | Sí (CoW) | 16 EiB | 16 EiB | Linux avanzado |
-| ZFS | 2005 | Sí (CoW) | 16 EiB | 256 ZiB | Enterprise |
+| Btrfs | 2009 | CoW | 16 EiB | 16 EiB | Linux avanzado |
+| ZFS | 2005 | CoW | 16 EiB | 256 ZiB | Enterprise |
 
-## Síntesis y Puntos Clave
 
-### Conceptos Fundamentales
+## Síntesis y puntos clave
 
-1. **File System = Abstracción**
-   - Transforma sectores físicos en archivos y directorios organizados
-   - Proporciona naming, organización, protección, persistencia
+### Conceptos fundamentales
 
-2. **Archivo = Secuencia de bytes con nombre**
-   - El SO no interpreta el contenido
-   - Metadatos separados del contenido (excepto en FAT)
+Un sistema de archivos es, ante todo, una abstracción: transforma sectores físicos en una jerarquía de archivos y directorios con nombre, protección y persistencia. El sistema operativo no interpreta el contenido de un archivo; solo gestiona sus metadatos y garantiza el acceso ordenado a los datos.
 
-3. **Directorio = Archivo especial con tabla de nombres**
-   - Permite organización jerárquica
-   - En Unix: solo almacena (nombre, inodo)
+La distinción entre sector y bloque es importante: el sector es la unidad mínima que maneja el hardware (habitualmente 512 bytes o 4 KiB), mientras que el bloque es la unidad lógica del sistema de archivos y puede configurarse al formatear. Bloques más grandes reducen el overhead de metadatos pero aumentan la fragmentación interna; bloques más pequeños hacen lo contrario.
 
-4. **Sectores vs Bloques**
-   - Sector: unidad física del hardware (512B, 4KB)
-   - Bloque: unidad lógica del file system (configurable)
-   - Trade-off: bloques grandes → menos overhead, más fragmentación interna
+El FCB (File Control Block), llamado inodo en Unix, concentra todos los metadatos de un archivo —tamaño, permisos, marcas de tiempo, ubicación de los datos— excepto su nombre. El nombre vive en el directorio, que no es más que un archivo especial que mapea nombres a inodos.
 
-5. **FCB/Inodo**
-   - Estructura que almacena metadatos (TODO excepto el nombre)
-   - En Unix: separado del directorio
-   - En FAT: integrado en entrada de directorio
+### Operaciones y estructuras del sistema operativo
 
-### Operaciones y Estructuras del SO
+Cuando un proceso abre un archivo, el sistema operativo mantiene tres estructuras relacionadas: la tabla de descriptores de archivo (por proceso), la tabla de archivos abiertos (global, compartible entre procesos que hagan `fork`) y la tabla de inodos en memoria. Esta arquitectura de tres niveles permite que dos descriptores distintos compartan o no el mismo offset según cómo se abrió el archivo.
 
-6. **Arquitectura de 3 niveles para archivos abiertos**
-   - File Descriptor Table (por proceso)
-   - Open File Table (system-wide, offset compartible)
-   - Inode Table (metadatos del archivo)
+El file locking puede ser advisory —el proceso puede ignorarlo, es meramente informativo— o mandatory, que el sistema operativo impone. Dentro de eso, un lock compartido (shared) permite que varios lectores accedan simultáneamente, mientras que un lock exclusivo bloquea a todos los demás.
 
-7. **File Locking**
-   - Advisory: cooperativo, puede ignorarse
-   - Mandatory: forzado por el SO (fcntl)
-   - Shared (lectura) vs Exclusive (escritura)
+Los permisos Unix se codifican en nueve bits: tres para el propietario, tres para el grupo y tres para el resto. Sobre archivos, los bits r, w y x significan leer, escribir y ejecutar. Sobre directorios, r permite listar el contenido, w permite crear o eliminar entradas, y x permite atravesar el directorio para acceder a lo que contiene.
 
-8. **Permisos Unix: 9 bits**
-   - Owner (rwx) + Group (rwx) + Others (rwx)
-   - Para archivos: r=leer, w=escribir, x=ejecutar
-   - Para directorios: r=listar, w=crear/borrar, x=atravesar
+\begin{theory}[warning]
+Para eliminar un archivo se necesita permiso de escritura en el directorio que lo contiene, no en el archivo mismo. Un archivo con permisos `000` puede borrarse si el directorio padre tiene bit `w` activo.
+\end{theory}
 
-### Métodos de Asignación
+### Métodos de asignación de espacio
 
-9. **Contigua**
-   - Acceso secuencial rápido, simple
-   - Fragmentación externa, archivos estáticos
-   - Uso: CD-ROM, DVD
+La asignación contigua almacena el archivo en bloques consecutivos. El acceso secuencial es muy rápido, pero sufre de fragmentación externa y no permite hacer crecer un archivo sin reubicarlo. Se usa principalmente en medios de solo lectura como CD-ROM y DVD.
 
-10. **Enlazada (FAT)**
-    - Sin fragmentación externa, archivos dinámicos
-    - Acceso aleatorio lento
-    - Mejora: tabla FAT centralizada en memoria
+La asignación enlazada encadena los bloques mediante punteros: cada bloque apunta al siguiente. Elimina la fragmentación externa y permite archivos dinámicos, pero el acceso aleatorio requiere recorrer la cadena desde el inicio. La tabla FAT es la mejora clave: centraliza todos los punteros en una estructura que cabe en memoria, evitando los accesos a disco para atravesar la cadena.
 
-11. **Indexada (Unix)**
-    - Acceso aleatorio eficiente
-    - Overhead en archivos pequeños
-    - Multinivel: directos + indirectos (simple, doble, triple)
+La asignación indexada concentra los punteros a los bloques de datos en una estructura separada (el inodo en EXT2). El acceso aleatorio es eficiente porque basta leer el inodo y luego ir directamente al bloque. El esquema multinivel —punteros directos, indirecto simple, indirecto doble, indirecto triple— permite escalar desde archivos pequeños hasta archivos muy grandes sin desperdiciar espacio en metadatos cuando el archivo es chico.
 
-### Comparación FAT vs EXT2
+### FAT y EXT2 comparados
 
 | Aspecto | FAT | EXT2 |
-|---------|-----|------|
-| Metadatos | En entrada de directorio | Inodo separado |
-| Asignación | Lista enlazada | Indexada multinivel |
-| Hard links | No | Sí |
-| Permisos | Básicos | Completos (rwx) |
-| Acceso aleatorio | Lento | Rápido |
-| Complejidad | Muy simple | Moderada |
+|---|---|---|
+| Metadatos | En la entrada de directorio | En el inodo (separado) |
+| Asignación de espacio | Lista enlazada (tabla FAT) | Indexada multinivel |
+| Hard links | No soportados | Sí |
+| Permisos | Básicos | Completos (rwx, owner/group/others) |
+| Acceso aleatorio | Lento (recorre la FAT) | Rápido (inodo → bloque directo) |
+| Complejidad | Muy baja | Moderada |
 
-12. **FAT: Simplicidad universal**
-    - Tabla FAT: array donde FAT[i] = siguiente cluster
-    - FAT12/16/32: tamaño de entradas (4K, 64K, 268M clusters)
-    - Límite: 4 GiB por archivo (uint32_t file_size)
-    - Uso: Pendrives, SD cards
+FAT organiza el espacio en clusters. La tabla FAT es un arreglo donde `FAT[i]` indica el siguiente cluster del archivo o un marcador de fin. FAT12, FAT16 y FAT32 difieren en el ancho de esas entradas, lo que limita la cantidad de clusters direccionables y, en consecuencia, el tamaño máximo de archivo (4 GiB en FAT32, por el campo de tamaño en la entrada de directorio).
 
-13. **EXT2: Robustez y escalabilidad**
-    - Block groups: localidad de inodos y datos
-    - Inodo: 12 directos + 1 ind. simple + 2 ind. dobles
-    - Capacidad teórica: 4 TiB (pero límite real 4 GiB por i_size)
-    - Superbloque replicado para confiabilidad
+EXT2 organiza el disco en block groups que agrupan inodos y datos cercanos entre sí para mejorar la localidad. El inodo tiene 15 entradas en `i_block`: 12 directas, 1 indirecta simple, 1 indirecta doble y 1 indirecta triple (aunque la cátedra trabaja con variantes que pueden diferir en cantidad de indirectos dobles). La capacidad teórica supera los 4 TiB, pero el campo `i_size` de 32 bits limita el tamaño real de un archivo individual a 4 GiB en la versión original de EXT2.
 
 ### Links
 
-14. **Hard Link**
-    - Múltiples nombres → mismo inodo
-    - No cruza file systems
-    - Archivo persiste hasta links\_count = 0
+Un hard link es simplemente otra entrada de directorio que apunta al mismo inodo. El archivo existe mientras haya al menos una entrada apuntándolo (`links_count > 0`). No puede cruzar sistemas de archivos porque los inodos son locales a cada partición.
 
-15. **Soft Link**
-    - Archivo especial con path como contenido
-    - Propio inodo, puede quedar roto
-    - Cruza file systems, puede apuntar a directorios
+Un soft link (o symlink) es un archivo independiente cuyo contenido es una ruta. Tiene su propio inodo y puede apuntar a directorios o cruzar particiones. Si se elimina el archivo destino, el symlink queda roto.
 
-### Seguridad y Recuperación
+### Consistencia y recuperación
 
-16. **Journaling**
-    - Registra operaciones ANTES de ejecutarlas
-    - Recuperación rápida después de crash
-    - Metadata-only vs Full data journaling
+El journaling resuelve el problema de las escrituras parciales: antes de modificar el sistema de archivos, el sistema operativo registra la operación en un journal. Si hay un crash, la recuperación simplemente reproduce o descarta las operaciones pendientes del journal, sin necesidad de escanear el disco completo.
 
-17. **fsck/chkdsk**
-    - Escaneo completo del file system
-    - 5 fases: inodos, directorios, conectividad, contadores, bitmaps
-    - Lento en discos grandes (horas)
+Sin journaling (como en EXT2 y FAT), la única alternativa es `fsck` o `chkdsk`: un escaneo completo que verifica inodos, directorios, conectividad, contadores de referencias y bitmaps. En discos grandes puede tardar horas.
 
-### Fórmulas y Cálculos Clave
 
-18. **Punteros por bloque:**
-    ```
-    N = tamaño_bloque / tamaño_puntero
-    ```
+## Guía de resolución para ejercicios numéricos
 
-19. **Capacidad por nivel (EXT2):**
-    ```
-    Directos:         12 × B
-    Ind. simple:      N × B
-    Ind. doble:       N² × B
-    Ind. triple:      N³ × B
-    ```
+Esta sección sistematiza el proceso de resolución de los ejercicios típicos de parcial sobre accesos a disco en EXT2.
 
-20. **Fragmentación interna promedio:**
-    ```
-    aprox tamaño_bloque / 2 por archivo
-    ```
+### Procedimiento paso a paso
 
-## Preparación para Parcial
+**Paso 1.** Anotar los parámetros del sistema:
 
-### Temas de Alta Probabilidad
+$$B = \text{tamaño de bloque}, \quad P = \text{tamaño de puntero}, \quad N = \frac{B}{P}$$
 
-1. **Definiciones conceptuales:**
-   - Diferencia entre sector y bloque
-   - Qué es un FCB/inodo
-   - Hard link vs soft link
-   - Journaling
+**Paso 2.** Calcular la capacidad y el rango de bytes de cada nivel:
 
-2. **Comparaciones:**
-   - Métodos de asignación (tabla completa)
-   - FAT vs EXT2 (ventajas/desventajas)
-   - Hard link vs soft link (cuándo usar cada uno)
+$$\text{Directos: } D \times B \qquad \text{Ind. simple: } N \times B \qquad \text{Ind. doble: } N^2 \times B \qquad \text{Ind. triple: } N^3 \times B$$
 
-3. **Estructuras de datos:**
-   - Entrada de directorio en FAT (32 bytes)
-   - Estructura de inodo en EXT2 (15 punteros)
-   - Tabla de archivos abiertos (3 niveles)
+**Paso 3.** Convertir los límites de la operación a números de bloque lógico:
 
-4. **Ejercicios numéricos:**
-   - Cálculo de capacidades por nivel (directos, indirectos)
-   - Accesos a disco en lectura/escritura
-   - Diferenciar accesos a datos vs punteros
+$$\text{bloque} = \left\lfloor \frac{\text{byte}}{\,B\,} \right\rfloor$$
 
-5. **Permisos Unix:**
-   - Interpretación de rwxr-xr-- (notación octal)
-   - Verificación de permisos (owner, group, others)
-   - Umask y permisos por defecto
+**Paso 4.** Determinar en qué nivel cae cada extremo del rango y cuántos bloques de datos corresponden a cada nivel. Verificar que la suma coincida con el total.
 
-### Estrategia para Ejercicios Numéricos
+**Paso 5.** Contar los accesos a bloques de punteros por nivel:
 
-**Paso 1:** Escribir parámetros dados
-```
-B = tamaño de bloque
-P = tamaño de puntero
-N = B / P (punteros por bloque)
-```
+- Indirecto simple: 1 acceso (el bloque que contiene los punteros).
+- Indirecto doble: 1 (raíz) + $\lceil \text{bloques de datos} / N \rceil$ (bloques de segundo nivel).
+- Indirecto triple: aplicar la misma lógica recursivamente.
 
-**Paso 2:** Calcular capacidades de cada nivel
-```
-Directos (D):       D × B
-Ind. simple (IS):   N × B
-Ind. doble (ID):    N² × B
-Ind. triple (IT):   N³ × B
-```
+**Paso 6.** Sumar y verificar.
 
-**Paso 3:** Calcular rangos de bytes
-```
-Directos:    [0, D×B - 1]
-Ind. simple: [D×B, D×B + N×B - 1]
-Ind. doble:  [D×B + N×B, D×B + N×B + N²×B - 1]
-```
+### Errores frecuentes
 
-**Paso 4:** Determinar qué bloques se necesitan
-```
-Bloque inicial = byte_inicial / B
-Bloque final = byte_final / B
-Total bloques = bloque_final - bloque_inicial + 1
-```
+**Olvidar el bloque raíz del indirecto doble.** El acceso a un indirecto doble requiere primero leer el bloque raíz que apunta a los bloques de segundo nivel. El total no es solo la cantidad de bloques de segundo nivel.
 
-**Paso 5:** Clasificar por nivel y contar accesos
-- Bloques de datos: todos los bloques a leer
-- Bloques de punteros: 
-  - Ind. simple: 1 acceso
-  - Ind. doble: 1 (raíz) + ⌈bloques_datos / N⌉ (simples)
-  - Ind. triple: aplicar recursivamente
+**Usar piso en lugar de techo al contar bloques de segundo nivel.** Si se necesitan 4.099 bloques de datos y cada bloque de segundo nivel cubre 1.024, la cuenta es $\lceil 4.099 / 1.024 \rceil = 5$, no 4. El remanente siempre ocupa un bloque completo adicional.
 
-**Paso 6:** Verificar respuesta
-- ¿Suma de bloques por nivel = total bloques? ✓
-- ¿Tiene sentido el número de accesos? ✓
+**Confundir bloques de datos con bloques de punteros.** Un bloque indirecto simple no es un bloque de datos; es un bloque que almacena punteros a bloques de datos.
 
-### Errores Comunes a Evitar
+**Olvidar que los directos ocupan las primeras posiciones.** El bloque lógico 0 corresponde a `i_block[0]`; el indirecto simple empieza recién en el bloque 12 (o en el que indique el enunciado).
 
-**Error 1:** Olvidar contar el acceso al bloque indirecto raíz
-```
-Ind. doble NO es solo los simples, es: 1 + simples
-```
+**Usar la capacidad teórica ignorando límites reales.** EXT2 tiene capacidad teórica mayor a 4 TiB, pero el campo `i_size` de 32 bits limita los archivos individuales a 4 GiB.
 
-**Error 2:** Confundir bloques de datos con bloques de punteros
-```
-Un bloque ind. simple NO es un bloque de datos
-```
+**Confundir FAT con EXT2 en la estructura de metadatos.** En FAT los metadatos están en la entrada de directorio; en EXT2 están en el inodo, que es una estructura separada del directorio.
 
-**Error 3:** No considerar que los bloques directos ocupan las primeras posiciones
-```
-Bloque 0-11: directos
-Bloque 12+: comienza indirecto simple
-```
+\begin{excerpt}
+Para permisos Unix: 4 = r, 2 = w, 1 = x. La conversión entre notación octal y simbólica es un cálculo directo: 755 equivale a rwxr-xr-x, y 644 a rw-r--r--. El bit x en un directorio es crítico: sin él no es posible acceder a ningún archivo dentro, aunque se tenga permiso r.
+\end{excerpt}
 
-**Error 4:** Usar capacidad teórica cuando hay límite real
-```
-EXT2: capacidad teórica 4 TiB, pero límite REAL 4 GiB (i_size de 32 bits)
-```
 
-**Error 5:** No diferenciar entre FAT (no tiene inodo) y EXT2 (sí tiene inodo)
-```
-FAT: metadatos en directorio
-EXT2: metadatos en inodo separado
-```
+## Conexiones con otros capítulos
 
-**Error 6:** Calcular mal los bloques indirectos simples necesarios en un indirecto doble
-```
-Si necesito 5.000 bloques de datos:
-Bloques ind. simples = ⌈5.000 / 1.024⌉ = 5 (NO 4)
-Siempre usar techo (ceiling)
-```
-
-**Error 7:** Olvidar que para eliminar un archivo se necesita permiso de escritura en el DIRECTORIO, no en el archivo
-```
-chmod 000 archivo.txt  # Sin permisos en el archivo
-rm archivo.txt         # ¡Se puede borrar igual si tengo 'w' en el directorio!
-```
-
-### Checklist Pre-Examen
-
-- [ ] Sé definir: archivo, directorio, FCB/inodo, sector, bloque
-- [ ] Puedo comparar los 3 métodos de asignación (ventajas/desventajas)
-- [ ] Entiendo la estructura de FAT (tabla + entrada de directorio)
-- [ ] Entiendo la estructura de EXT2 (block groups, inodo, punteros)
-- [ ] Sé calcular capacidades por nivel dados B y P
-- [ ] Puedo resolver ejercicio de accesos a disco paso a paso
-- [ ] Entiendo diferencia entre hard link y soft link
-- [ ] Conozco permisos Unix (rwx, octal, verificación)
-- [ ] Sé explicar journaling y fsck brevemente
-- [ ] Entiendo las 3 tablas de archivos abiertos (FD, Open File, Inode)
-- [ ] Sé qué pasa con offsets después de fork() vs open() independiente
-
-### Tips Finales
-
-**Para ejercicios de accesos a disco:**
-- Dibuja un esquema visual del inodo con sus niveles
-- Marca claramente qué bloques caen en qué nivel
-- Cuenta los accesos por separado: primero punteros, después datos
-- Verifica que la suma de bloques por nivel sea correcta
-
-**Para permisos:**
-- Memoriza: 4=r, 2=w, 1=x
-- Practica conversión octal ↔ rwx mentalmente
-- Recuerda que para directorios 'x' es crítico para acceder
-
-**Para comparaciones:**
-- Arma tablas mentales: FAT vs EXT2, Contigua vs Enlazada vs Indexada
-- Identifica trade-offs: simplicidad vs funcionalidad, velocidad vs overhead
-
-## Conexiones con Otros Capítulos
-
-### Capítulo 2: Procesos
-- Cada proceso tiene tabla de file descriptors
-- `fork()` hereda descriptores (comparten offset en Open File Table)
-- Archivos ejecutables se cargan desde el file system
-
-### Capítulo 5: Sincronización
-- File locking previene race conditions en archivos compartidos
-- Operaciones read/write pueden requerir locks
-- Directorios compartidos necesitan sincronización
-
-### Capítulo 6: Interbloqueo
-- Procesos pueden entrar en deadlock por locks de archivos
-- Ejemplo: P1 lockea A y pide B, P2 lockea B y pide A
-
-### Capítulo 7-8: Gestión de Memoria
-- Buffer cache: bloques de disco cacheados en RAM
-- Memory-mapped files: archivo mapeado a espacio de direcciones
-- Page cache vs buffer cache (unificados en Linux moderno)
-
-### Capítulo 1: Interrupciones e I/O
-- Operaciones de file system generan operaciones de I/O al disco
-- Drivers de disco interactúan con file system para transferencias
-- DMA usado para transferir bloques sin CPU
-
----
-
-Este capítulo cubrió desde los conceptos fundamentales de archivos y directorios, pasando por los métodos de asignación de espacio, hasta el análisis detallado de FAT y EXT2, los dos sistemas de archivos que estudiamos en profundidad en la cátedra. Los ejercicios integradores te preparan para resolver problemas numéricos típicos de parcial.
+Estos temas no existen en aislamiento. Cada proceso mantiene su propia tabla de file descriptors, y `fork()` la hereda: padre e hijo comparten el offset en la Open File Table, lo que puede producir comportamientos inesperados si ambos escriben simultáneamente. Los archivos ejecutables se cargan desde el sistema de archivos al espacio de direcciones del proceso (capítulo de gestión de memoria), apoyándose en mecanismos como los archivos mapeados en memoria. El file locking es una instancia concreta del problema de sincronización (capítulo de sincronización) y puede dar lugar a deadlocks entre procesos que esperan locks sobre distintos archivos (capítulo de interbloqueo). Finalmente, toda operación sobre el sistema de archivos se traduce en operaciones de I/O al disco gestionadas por el driver correspondiente, generalmente con DMA, sin intervención de la CPU en la transferencia de datos (capítulo de interrupciones e I/O).
